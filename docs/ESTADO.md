@@ -8,7 +8,7 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Transcribir: reproductor (velocidad, bucle por arrastre, graves, volumen, zoom), partitura/tab sincronizadas por marcas de compás (M) y pulso (B), editor con figura persistente, mástil completo y piano, compases limitados a su métrica, acordes por compás, quintillos, síntesis de la transcripción, PDF por impresión en web.
 
 ## En curso
-- Encargo `transcribir-fix` (Sol 6.2): .git/coord/encargos/transcribir-fix.md — reproducción de la transcripción no funciona, asignar compases no es intuitivo, acordes deducidos de las notas escritas.
+- Encargo `transcribir-fix` (Sol 6.2): .git/coord/encargos/transcribir-fix.md — reproducción de la transcripción no funciona, asignar compases no es intuitivo, acordes deducidos de las notas escritas, notas simultáneas (una por cuerda).
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
