@@ -6,7 +6,7 @@ export type TrainMode = 'major' | 'minor';
 export type TrainDifficulty = 'triads' | 'sevenths' | 'extensions';
 type Suffix = keyof typeof chordArpeggios;
 type TrainBar = [degree: number, suffix: Suffix, role: ChordFunction];
-type TrainProgression = { value: string; label: string; mode: TrainMode; bars: TrainBar[] };
+export type TrainProgression = { value: string; label: string; mode: TrainMode; bars: TrainBar[] };
 
 const tonic = 'tonic';
 const subdominant = 'subdominant';
@@ -154,13 +154,31 @@ const variants: Record<TrainDifficulty, Partial<Record<Suffix, readonly Suffix[]
   },
 };
 
+export function trainChordAllowed(chord: Chord, difficulty: TrainDifficulty) {
+  return trainSuffixAllowed(chord.symbol.slice(chord.tonic.length) as Suffix, difficulty);
+}
+
+function trainSuffixAllowed(suffix: Suffix, difficulty: TrainDifficulty) {
+  if (difficulty === 'extensions') return true;
+  if (difficulty === 'triads') return chordArpeggios[suffix].tones.length === 3;
+  return !['6', 'm6', '9', 'maj9', 'm9', 'add9'].includes(suffix);
+}
+
+export function availableTrainProgressions(mode: TrainMode, difficulty: TrainDifficulty) {
+  return trainProgressions.filter(
+    (preset) =>
+      preset.mode === mode &&
+      preset.bars.every(([, suffix]) => trainSuffixAllowed(suffix, difficulty)),
+  );
+}
+
 export function randomTrainProgression(
   mode: TrainMode,
   difficulty: TrainDifficulty,
   random = Math.random,
 ): TrainProgression {
   const pick = <T>(options: readonly T[]) => options[Math.floor(random() * options.length)]!;
-  const selected = pick(trainProgressions.filter((progression) => progression.mode === mode));
+  const selected = pick(availableTrainProgressions(mode, difficulty));
   // Reuse the voicing if the same chord returns, including one-chord workouts.
   const voicings = new Map<string, Suffix>();
   return {

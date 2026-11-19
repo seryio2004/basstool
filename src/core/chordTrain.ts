@@ -86,20 +86,31 @@ export function trainTargets(
   chords?: Chord[] | null,
   level = 1,
 ): TrainTarget[] {
+  return pitchTrainTargets(expectedHits(pattern, bpm), chords, level);
+}
+
+export function pitchTrainTargets(attacks: TrainTarget[], chords?: Chord[] | null, level = 1) {
   let position = 0;
   let previous: Chord | undefined;
-  return expectedHits(pattern, bpm).map((note) => {
+  return attacks.map((note) => {
     const chord = chords?.[note.block];
     if (!chord) return note;
     if (chord.symbol !== previous?.symbol) position = 0;
     previous = chord;
+    if (note.dead) return note;
     const tones = trainTones(chord, level);
     const allowed = level === 4 ? tones : [tones[position++ % tones.length]!];
     return { ...note, pitches: allowed.map(({ semitones }) => pitchClass(chord.root + semitones)) };
   });
 }
 
-export type TrainTarget = { t: number; block: number; pitches?: number[] };
+export type TrainTarget = {
+  t: number;
+  block: number;
+  pitches?: number[];
+  duration?: number;
+  dead?: boolean;
+};
 
 export function scoreTrain(
   expected: TrainTarget[],

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Fretboard } from '../components/Fretboard';
@@ -17,23 +18,43 @@ import {
 import {
   manualTrainChords,
   parseTrainChord,
+  pitchTrainTargets,
   scoreTrain,
   trainTargets,
   trainTones,
   type RhythmHit,
   type RhythmInput,
 } from '../core/chordTrain';
+import {
+  chordLineAttacks,
+  chordLineBeats,
+  chordLineDifficulties,
+  chordLineLevels,
+  chordLineRhythmOptions,
+  chordLineTolerance,
+  chordLineWagons,
+  createChordLineSettingsStorage,
+  defaultChordLineRhythm,
+  resolveChordLineDifficulty,
+  type ChordLineDifficulty,
+  type ChordLineRhythmSelection,
+  type ChordLineSettings,
+  type ChordLineSnapshot,
+} from '../core/chordLine';
 import { figurePool, makePattern, pitchFromSamples } from '../core/music';
 import { fifthsCircle, pitchName } from '../core/notation';
 import { positionsFor } from '../core/theory';
 import {
+  availableTrainProgressions,
   progressionChords,
   randomTrainProgression,
-  trainProgressions,
-  type TrainDifficulty,
+  trainChordAllowed,
+  type TrainProgression,
   type TrainMode,
 } from '../core/trainProgressions';
+import type { Level } from '../core/profile';
 import type { ExerciseConfig } from '../core/types';
+import { useStore } from '../data/Store';
 import { audio } from '../platform/audio';
 import { onSpace } from '../platform/keyboard';
 import { openRhythmMic, rhythmMicAvailable } from '../platform/rhythmMic';
@@ -41,11 +62,13 @@ import type { RhythmMic } from '../platform/rhythmMicTypes';
 import { grooveColors as palette } from '../theme/groove';
 import { harmonicColors } from '../theme/harmonic';
 
+type RhythmExerciseConfig = ExerciseConfig & { chordLine?: ChordLineSnapshot };
+
 export type RhythmResult = {
   correct: number;
   total: number;
   duration: number;
-  config: ExerciseConfig;
+  config: RhythmExerciseConfig;
   detail: string;
 };
 
@@ -83,14 +106,10 @@ const chordLevels = [
   },
 ];
 
-const difficultyOptions: { value: TrainDifficulty; label: string }[] = [
-  { value: 'triads', label: 'Tríadas' },
-  { value: 'sevenths', label: 'Séptimas' },
-  { value: 'extensions', label: 'Sextas y novenas' },
-];
+const chordLineStorage = createChordLineSettingsStorage(AsyncStorage);
 const harmonicSources = [
   { value: 'tonal', label: 'Progresiones' },
-  { value: 'random', label: 'Aleatoria' },
+  { value: 'random', label: 'Sortear acordes' },
   { value: 'manual', label: 'Escribir acordes' },
 ] as const;
 const trainKeys = fifthsCircle.map(({ major, minor }) => ({
@@ -98,34 +117,54 @@ const trainKeys = fifthsCircle.map(({ major, minor }) => ({
   minor: parseTrainChord(minor)!.tonic,
 }));
 
-function newPattern(level: number, length: number, harmonic: boolean) {
-  if (!harmonic) return makePattern(level, length);
-  if (level <= 2) return Array<number>(length).fill(level === 1 ? 5 : 0);
-  // These levels focus on pitch; leave the fastest figures to manual editing.
-  return makePattern(level === 3 ? 1 : 3, length);
-}
-
 export function RhythmExercise({
   config,
   variant,
   leftHanded,
   onResult,
 }: {
-  config: ExerciseConfig;
+  config: RhythmExerciseConfig;
   variant: 'groove' | 'reading' | 'chord-train';
   leftHanded: boolean;
   onResult: (result: RhythmResult) => void;
 }) {
+  const { profile } = useStore();
   const reading = variant === 'reading';
   const harmonic = variant === 'chord-train';
   const defaultLength = reading ? 4 : harmonic && config.chords?.length === 48 ? 48 : 16;
+  const snapshot = harmonic ? config.chordLine : undefined;
+  const profileId = profile.id;
+  const profileLevel = profile.level;
   const initialLevel = Math.max(1, Math.min(harmonic ? 4 : 10, config.level));
   const [storedPattern, setPattern] = useState(() =>
     config.pattern?.length === defaultLength
       ? [...config.pattern]
-      : newPattern(initialLevel, defaultLength, harmonic),
+      : harmonic
+        ? Array<number>(defaultLength).fill(5)
+        : makePattern(initialLevel, defaultLength),
   );
-  const [bpm, setBpm] = useState(String(config.bpm));
+  const [bpm, setBpm] = useState(
+    String(harmonic && !config.chords ? chordLineLevels[profileLevel].bpm : config.bpm),
+  );
+  const [settingsReady, setSettingsReady] = useState(!harmonic || !!snapshot);
+  const [settingsError, setSettingsError] = useState('');
+  const [settings, setSettings] = useState<ChordLineSettings>(
+    () =>
+      snapshot ?? {
+        difficulty: profileLevel,
+        rhythm: defaultChordLineRhythm(profileLevel),
+      },
+  );
+  const [resolvedDifficulty, setResolvedDifficulty] = useState(
+    snapshot?.resolvedDifficulty ?? profileLevel,
+  );
+  const [wagons, setWagons] = useState(
+    () => snapshot?.wagons ?? chordLineWagons(48, profileLevel, settings.rhythm),
+  );
+  const [legacyPattern, setLegacyPattern] = useState(
+    harmonic && !snapshot && config.pattern?.length === defaultLength,
+  );
+  const [replayChords, setReplayChords] = useState(harmonic && !!config.chords);
   const [level, setLevel] = useState(String(initialLevel));
   const [random, setRandom] = useState(variant === 'groove' && config.rhythmMode === 'random');
   const [phase, setPhase] = useState('Listo para practicar');
@@ -141,9 +180,8 @@ export function RhythmExercise({
   const [meter, setMeter] = useState({ rms: 0, loud: false });
   const [mode, setMode] = useState<TrainMode>('major');
   const [keyIndex, setKeyIndex] = useState('0');
-  const [progression, setProgression] = useState(trainProgressions[0]!.value);
-  const [difficulty, setDifficulty] = useState<TrainDifficulty>('triads');
-  const [drawn, setDrawn] = useState<ReturnType<typeof randomTrainProgression>>();
+  const [progression, setProgression] = useState('pop');
+  const [drawn, setDrawn] = useState<TrainProgression>();
   const [source, setSource] = useState<(typeof harmonicSources)[number]['value']>(
     config.chords ? 'manual' : 'tonal',
   );
@@ -156,7 +194,12 @@ export function RhythmExercise({
   const launching = useRef(false);
   const { width } = useWindowDimensions();
   const nomenclature = config.nomenclature ?? 'latin';
-  const presets = trainProgressions.filter((preset) => preset.mode === mode);
+  const harmony = chordLineLevels[resolvedDifficulty].harmony;
+  const rhythmOptions = chordLineRhythmOptions(resolvedDifficulty);
+  const rhythm = rhythmOptions.some(({ value }) => value === settings.rhythm)
+    ? settings.rhythm
+    : 'varied';
+  const presets = useMemo(() => availableTrainProgressions(mode, harmony), [mode, harmony]);
   const selectedProgression = presets.find(({ value }) => value === progression) ?? presets[0]!;
   const recipe = source === 'random' && drawn ? drawn : selectedProgression;
   const tonic = trainKeys[Number(keyIndex)]![mode];
@@ -166,7 +209,19 @@ export function RhythmExercise({
       ? manualTrainChords(symbols, defaultLength)
       : progressionChords(tonic, recipe);
   }, [harmonic, source, symbols, tonic, recipe, defaultLength]);
+  const inappropriateChords =
+    !replayChords && chords?.some((chord) => !trainChordAllowed(chord, harmony));
   const length = chords?.length ?? defaultLength;
+  const scheduledWagons = useMemo(
+    () =>
+      harmonic && !legacyPattern
+        ? Array.from(
+            { length: length / chordLineBeats },
+            (_, index) => wagons[index % wagons.length]!,
+          )
+        : undefined,
+    [harmonic, legacyPattern, length, wagons],
+  );
   const pattern = useMemo(
     () =>
       storedPattern.length === length
@@ -198,6 +253,30 @@ export function RhythmExercise({
       description: `${name}, grado ${degreeLabel}`,
     }));
   }, [currentChord, instrument, level, nomenclature]);
+
+  useEffect(() => {
+    if (!harmonic || snapshot) return;
+    let mounted = true;
+    void chordLineStorage
+      .load(profileId, profileLevel)
+      .then((saved) => {
+        if (!mounted) return;
+        const resolved = resolveChordLineDifficulty(saved.difficulty);
+        setSettings(saved);
+        setResolvedDifficulty(resolved);
+        setWagons(chordLineWagons(48, resolved, saved.rhythm));
+        if (!config.chords) setBpm(String(chordLineLevels[resolved].bpm));
+      })
+      .catch(() => {
+        if (mounted) setSettingsError('No se pudieron leer los ajustes de ChordLine.');
+      })
+      .finally(() => {
+        if (mounted) setSettingsReady(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [harmonic, profileId, profileLevel, snapshot, config.chords]);
 
   function changeBeat(index: number) {
     setPattern((previous) => {
@@ -305,18 +384,70 @@ export function RhythmExercise({
       Number(offset) >= -120 &&
       Number(offset) <= 300);
 
-  const canStart = !playing && !opening && validBpm && validMic && chords !== null;
+  const canStart =
+    settingsReady &&
+    !playing &&
+    !opening &&
+    validBpm &&
+    validMic &&
+    chords !== null &&
+    !inappropriateChords;
 
   function regenerate(atLevel = Number(level)) {
     const nextLevel = random ? 1 + Math.floor(Math.random() * 10) : atLevel;
     setLevel(String(nextLevel));
-    setPattern(newPattern(nextLevel, length, harmonic));
+    setPattern(makePattern(nextLevel, length));
+  }
+
+  function drawHarmony(nextMode: TrainMode, difficulty: Level) {
+    const chordType = chordLineLevels[difficulty].harmony;
+    setDrawn(randomTrainProgression(nextMode, chordType));
   }
 
   function changeHarmonySource(value: typeof source) {
-    if (value === 'random' && source !== 'random')
-      setDrawn(randomTrainProgression(mode, difficulty));
+    if (value === source) return;
+    if (value === 'random') drawHarmony(mode, resolvedDifficulty);
+    setReplayChords(false);
     setSource(value);
+  }
+
+  function saveSettings(next: ChordLineSettings) {
+    setSettings(next);
+    setSettingsError('');
+    void chordLineStorage.save(profileId, next).catch(() => {
+      setSettingsError('No se pudieron guardar los ajustes de ChordLine.');
+    });
+  }
+
+  function changeDifficulty(difficulty: ChordLineDifficulty) {
+    if (difficulty === settings.difficulty && difficulty !== 'random') {
+      saveSettings(settings);
+      return;
+    }
+    const resolved = resolveChordLineDifficulty(difficulty);
+    const nextRhythm = defaultChordLineRhythm(resolved);
+    saveSettings({ difficulty, rhythm: nextRhythm });
+    setResolvedDifficulty(resolved);
+    setBpm(String(chordLineLevels[resolved].bpm));
+    setWagons(chordLineWagons(48, resolved, nextRhythm));
+    setLegacyPattern(false);
+    setReplayChords(false);
+    if (source === 'random') drawHarmony(mode, resolved);
+  }
+
+  function changeRhythm(next: ChordLineRhythmSelection) {
+    saveSettings({ ...settings, rhythm: next });
+    setLegacyPattern(false);
+    setWagons(chordLineWagons(48, resolvedDifficulty, next));
+  }
+
+  function regenerateChordLine() {
+    const resolved = resolveChordLineDifficulty(settings.difficulty);
+    if (resolved !== resolvedDifficulty) setBpm(String(chordLineLevels[resolved].bpm));
+    setResolvedDifficulty(resolved);
+    setLegacyPattern(false);
+    setWagons(chordLineWagons(48, resolved, settings.rhythm));
+    if (source === 'random') drawHarmony(mode, resolved);
   }
 
   async function start(challenge: boolean) {
@@ -335,13 +466,17 @@ export function RhythmExercise({
       const turn = reading ? listen.start : listen.end + 4 * beat;
       const end = challenge ? turn + length * beat : listen.end;
       const response = { start: turn, end };
-      const expected = trainTargets(pattern, tempo, chords, Number(level));
-      const tolerance = reading
-        ? Math.min(0.12, beat * 0.24)
-        : Math.min(
-            0.135,
-            (0.45 * beat) / Math.max(...pattern.map((id) => figurePool[id]!.notes.length)),
-          );
+      const expected = scheduledWagons
+        ? pitchTrainTargets(chordLineAttacks(scheduledWagons, tempo), chords, Number(level))
+        : trainTargets(pattern, tempo, chords, Number(level));
+      const tolerance = scheduledWagons
+        ? chordLineTolerance(expected, beat)
+        : reading
+          ? Math.min(0.12, beat * 0.24)
+          : Math.min(
+              0.135,
+              (0.45 * beat) / Math.max(...pattern.map((id) => figurePool[id]!.notes.length)),
+            );
       session.current = {
         turn,
         end,
@@ -357,10 +492,17 @@ export function RhythmExercise({
       for (let i = 0; i < beats; i++) audio.click(startAt + i * beat, i % 4 === 0);
       if (!reading || !challenge) {
         for (const [index, note] of expected.entries()) {
+          if (note.dead) {
+            audio.tone(36, listen.start + note.t, 0.035, 0.16);
+            continue;
+          }
           const chord = chords?.[note.block];
-          const pitch = expected[index]!.pitches?.[0] ?? chord?.root;
+          const pitch = note.pitches?.[0] ?? chord?.root;
           const next = expected[index + 1]?.t ?? length * beat;
-          const duration = Math.min(0.22, (next - note.t) * 0.8);
+          const duration =
+            note.duration === undefined
+              ? Math.min(0.22, (next - note.t) * 0.8)
+              : note.duration * 0.92;
           audio.tone(pitch === undefined ? 48 : 36 + pitch, listen.start + note.t, duration, 0.23);
         }
       }
@@ -417,7 +559,15 @@ export function RhythmExercise({
             ...config,
             bpm: tempo,
             level: Number(level),
-            pattern: [...pattern],
+            pattern: scheduledWagons ? undefined : [...pattern],
+            chordLine: scheduledWagons
+              ? {
+                  difficulty: settings.difficulty,
+                  resolvedDifficulty,
+                  rhythm,
+                  wagons: scheduledWagons,
+                }
+              : undefined,
             chords: chords?.map(({ symbol }) => symbol),
             reading: reading ? 'rhythm' : undefined,
             rhythmInput: input,
@@ -444,8 +594,39 @@ export function RhythmExercise({
     pattern.slice(row * columns, (row + 1) * columns),
   );
   const exerciseInk = harmonic ? harmonicColors.ink : palette.ink;
+  if (!settingsReady) return <Label muted>Cargando ajustes de ChordLine…</Label>;
+
+  const difficultyLabel = chordLineDifficulties.find(
+    ({ value }) => value === resolvedDifficulty,
+  )!.label;
   return (
     <View style={{ gap: 18 }}>
+      {harmonic && !playing ? (
+        <View style={styles.panel}>
+          <Label>Dificultad{settings.difficulty === 'random' ? ` · ${difficultyLabel}` : ''}</Label>
+          <Chips
+            minHeight={44}
+            value={settings.difficulty}
+            options={chordLineDifficulties}
+            onChange={changeDifficulty}
+          />
+          <Label>Ritmo</Label>
+          <Label muted>Elige un patrón fijo o varía por compás.</Label>
+          <Chips
+            minHeight={44}
+            value={legacyPattern ? 'legacy' : rhythm}
+            options={[
+              ...(legacyPattern ? [{ value: 'legacy' as const, label: 'Patrón guardado' }] : []),
+              { value: 'varied', label: 'Variado por compás' },
+              ...rhythmOptions,
+            ]}
+            onChange={(value) => {
+              if (value !== 'legacy') changeRhythm(value);
+            }}
+          />
+          {settingsError ? <Label style={{ color: colors.error }}>{settingsError}</Label> : null}
+        </View>
+      ) : null}
       <View
         style={[
           styles.panel,
@@ -485,6 +666,7 @@ export function RhythmExercise({
             nomenclature={nomenclature}
             onChangeBeat={changeBeat}
             pattern={pattern}
+            wagons={scheduledWagons}
             playing={playing}
             wide={width >= 860}
           />
@@ -652,7 +834,8 @@ export function RhythmExercise({
               <Chips
                 value={level}
                 onChange={(value) => {
-                  if (value !== level) regenerate(Number(value));
+                  if (harmonic) setLevel(value);
+                  else if (value !== level) regenerate(Number(value));
                 }}
                 options={
                   harmonic
@@ -680,8 +863,11 @@ export function RhythmExercise({
                     <Field
                       label="Acordes por pulso"
                       value={symbols}
-                      onChangeText={setSymbols}
-                      placeholder="Cmaj9 G7 Am6 Fadd9"
+                      onChangeText={(value) => {
+                        setReplayChords(false);
+                        setSymbols(value);
+                      }}
+                      placeholder="C G Am F"
                     />
                     <Label muted>
                       Separa los acordes con espacios. La secuencia se repite hasta llenar los{' '}
@@ -690,6 +876,12 @@ export function RhythmExercise({
                     {chords === null ? (
                       <Label style={{ color: colors.error }}>
                         Revisa el cifrado. Prueba con C, Dm7♭5, G9, Am(maj7) o Fadd9.
+                      </Label>
+                    ) : inappropriateChords ? (
+                      <Label style={{ color: colors.error }}>
+                        {difficultyLabel} admite{' '}
+                        {harmony === 'triads' ? 'tríadas' : 'tríadas y séptimas'}. Elige acordes de
+                        ese nivel o cambia la dificultad.
                       </Label>
                     ) : null}
                   </>
@@ -701,8 +893,7 @@ export function RhythmExercise({
                       value={mode}
                       onChange={(value: TrainMode) => {
                         setMode(value);
-                        if (source === 'random')
-                          setDrawn(randomTrainProgression(value, difficulty));
+                        if (source === 'random') drawHarmony(value, resolvedDifficulty);
                       }}
                       options={[
                         { value: 'major', label: 'Mayor' },
@@ -719,28 +910,15 @@ export function RhythmExercise({
                       }))}
                     />
                     {source === 'random' ? (
-                      <>
-                        <Label muted>Dificultad armónica</Label>
-                        <Chips
-                          minHeight={44}
-                          value={difficulty}
-                          options={difficultyOptions}
-                          onChange={(value) => {
-                            if (value === difficulty) return;
-                            setDifficulty(value);
-                            setDrawn(randomTrainProgression(mode, value));
-                          }}
-                        />
-                        <View style={[styles.row, { flexWrap: 'wrap' }]}>
-                          <Button
-                            variant="secondary"
-                            onPress={() => setDrawn(randomTrainProgression(mode, difficulty))}
-                          >
-                            Sortear progresión
-                          </Button>
-                          <Label>{recipe.label}</Label>
-                        </View>
-                      </>
+                      <View style={[styles.row, { flexWrap: 'wrap' }]}>
+                        <Button
+                          variant="secondary"
+                          onPress={() => drawHarmony(mode, resolvedDifficulty)}
+                        >
+                          Sortear progresión
+                        </Button>
+                        <Label>{recipe.label}</Label>
+                      </View>
                     ) : (
                       <>
                         <Label muted>Progresión</Label>
@@ -752,9 +930,6 @@ export function RhythmExercise({
                         />
                       </>
                     )}
-                    <Label muted>
-                      Cada vagón dura cuatro pulsos. Pulsa una figura para cambiar el ritmo.
-                    </Label>
                   </>
                 )}
               </>
@@ -764,9 +939,9 @@ export function RhythmExercise({
             <Button
               variant="secondary"
               style={{ alignSelf: 'flex-start' }}
-              onPress={() => regenerate()}
+              onPress={harmonic ? regenerateChordLine : () => regenerate()}
             >
-              Nuevo patrón
+              {harmonic ? 'Nuevo ejercicio' : 'Nuevo patrón'}
             </Button>
           </>
         ) : (

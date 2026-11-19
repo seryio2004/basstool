@@ -1,16 +1,32 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { URL } from 'node:url';
+import { PGlite } from '@electric-sql/pglite';
 import { inferChord } from '../src/core/chroma';
 import {
   manualTrainChords,
   parseTrainChord,
+  pitchTrainTargets,
   scoreTrain,
   trainTargets,
 } from '../src/core/chordTrain';
+import {
+  chordLineAttacks,
+  chordLineLevels,
+  chordLineMeasure,
+  chordLineRhythmOptions,
+  chordLineTolerance,
+  chordLineWagons,
+  createChordLineSettingsStorage,
+  resolveChordLineDifficulty,
+} from '../src/core/chordLine';
 import { fifthsCircle } from '../src/core/notation';
 import {
+  availableTrainProgressions,
   progressionChords,
   randomTrainProgression,
+  trainChordAllowed,
   trainProgressions,
   type TrainDifficulty,
 } from '../src/core/trainProgressions';
@@ -72,8 +88,8 @@ test('transposition follows diatonic spelling in every selectable key', () => {
 test('random progressions follow the selected mode and difficulty and keep recurring chords stable', () => {
   const difficulties: TrainDifficulty[] = ['triads', 'sevenths', 'extensions'];
   for (const mode of ['major', 'minor'] as const) {
-    const presets = trainProgressions.filter((p) => p.mode === mode);
     for (const difficulty of difficulties) {
+      const presets = availableTrainProgressions(mode, difficulty);
       presets.forEach((preset, index) => {
         const draw = (index + 0.5) / presets.length;
         const recipe = randomTrainProgression(mode, difficulty, () => draw);
@@ -166,4 +182,236 @@ test('blues evaluation reaches the final turnaround and resets at chord changes'
     ),
     chords.map(({ symbol }) => symbol),
   );
+});
+
+test('ChordLine difficulty controls allowed chords, progressions, tempo and generated rhythms', () => {
+  const levels = ['beginner', 'intermediate', 'advanced'] as const;
+  const chords = ['C', 'C7', 'C6', 'Cadd9', 'C9'].map((symbol) => parseTrainChord(symbol)!);
+  const limits = [1, 2, 5];
+  for (const [index, level] of levels.entries()) {
+    const { bpm, harmony } = chordLineLevels[level];
+    assert.equal(
+      resolveChordLineDifficulty('random', () => (index + 0.5) / 3),
+      level,
+    );
+    assert.equal(
+      resolveChordLineDifficulty(level, () => 0),
+      level,
+    );
+    assert.equal(bpm, [72, 92, 112][index]);
+    assert.deepEqual(
+      chords.filter((chord) => trainChordAllowed(chord, harmony)),
+      chords.slice(0, limits[index]),
+    );
+    const progressions = availableTrainProgressions('major', harmony);
+    assert.equal(
+      progressions.some(({ value }) => value === 'major-blues'),
+      index >= 1,
+    );
+    assert.equal(
+      progressions.some(({ value }) => value === 'major-funk'),
+      index === 2,
+    );
+    const choices = chordLineRhythmOptions(level);
+    const generated = chordLineWagons(48, level, 'varied', () => 0);
+    assert.equal(generated.length, 12);
+    assert.ok(
+      generated.every(
+        (id, i) => choices.some(({ value }) => value === id) && id !== generated[i - 1],
+      ),
+    );
+    assert.equal(chordLineMeasure(generated[0]!).level, level);
+  }
+  assert.deepEqual(chordLineWagons(16, 'advanced', 'shuffle'), Array(4).fill('shuffle'));
+  assert.deepEqual(
+    chordLineWagons(16, 'beginner', 'shuffle', () => 0),
+    ['quarters', 'halves', 'quarters', 'halves'],
+  );
+});
+
+test('every ChordLine rhythm fills four beats with positive, contiguous durations', () => {
+  const ids = chordLineRhythmOptions('advanced').map(({ value }) => value);
+  for (const id of ids) {
+    const { events } = chordLineMeasure(id);
+    let end = 0;
+    for (const { tick, duration } of events) {
+      assert.equal(tick, end, id);
+      assert.ok(Number.isInteger(duration) && duration > 0, id);
+      end += duration;
+    }
+    assert.equal(end, 48, id);
+    const attacks = chordLineAttacks([id, id], 60);
+    assert.equal(attacks.length, 2 * events.filter(({ kind }) => kind !== 'rest').length);
+    assert.ok(
+      attacks.every(
+        ({ t, duration, block }) => t >= 0 && t + duration! <= 8 && block === Math.floor(t),
+      ),
+    );
+  }
+  assert.equal(chordLineAttacks(['reggae'], 60)[0]!.t, 1);
+  assert.deepEqual(
+    chordLineAttacks(['shuffle'], 60)
+      .slice(0, 3)
+      .map(({ t }) => t),
+    [0, 2 / 3, 1],
+  );
+});
+
+test('sustained syncopations and triplets score their written onsets and chord tones', () => {
+  const chords = [...Array(4).fill(parseTrainChord('C')), ...Array(4).fill(parseTrainChord('G7'))];
+  const attacks = pitchTrainTargets(chordLineAttacks(['syncopation', 'triplets'], 60), chords, 3);
+  assert.deepEqual(
+    attacks.slice(0, 6).map(({ t, pitches }) => [t, pitches]),
+    [
+      [0, [0]],
+      [0.5, [4]],
+      [1.5, [7]],
+      [2, [0]],
+      [2.5, [4]],
+      [3.5, [7]],
+    ],
+  );
+  assert.deepEqual(
+    attacks.slice(6, 9).map(({ t, pitches }) => [Math.round(t * 12), pitches]),
+    [
+      [48, [7]],
+      [52, [11]],
+      [56, [2]],
+    ],
+  );
+  const tolerance = chordLineTolerance(attacks, 1);
+  const hits = attacks.map(({ t, pitches }) => ({ t: t + 0.025, midi: 36 + pitches![0]! }));
+  assert.equal(scoreTrain(attacks, hits, tolerance, 1, true).correct, 18);
+  hits[2]!.t = 1;
+  hits[7]!.midi = 36;
+  assert.deepEqual(scoreTrain(attacks, hits, tolerance, 1, true), {
+    correct: 16,
+    total: 18,
+    missed: 1,
+    extras: 1,
+    wrongPitch: 1,
+    bias: 25,
+  });
+  assert.equal(scoreTrain(attacks, hits, tolerance, 1, false).correct, 17);
+});
+
+test('dead notes require a timed attack and do not advance the arpeggio', () => {
+  const attacks = pitchTrainTargets(
+    chordLineAttacks(['funk'], 60),
+    Array(4).fill(parseTrainChord('Am')),
+    3,
+  );
+  assert.deepEqual(
+    attacks.slice(0, 3).map(({ t, dead, pitches }) => [t, dead, pitches]),
+    [
+      [0, false, [9]],
+      [0.25, true, undefined],
+      [0.5, false, [0]],
+    ],
+  );
+  const hits = attacks.map(({ t, pitches }) => ({ t, midi: pitches ? 36 + pitches[0]! : null }));
+  assert.equal(
+    scoreTrain(attacks, hits, chordLineTolerance(attacks, 1), 1, true).correct,
+    attacks.length,
+  );
+});
+
+test('ChordLine selector defaults to the profile and persists the latest choice across sessions', async () => {
+  const data = new Map<string, string>();
+  const storage = {
+    getItem: async (key: string) => data.get(key) ?? null,
+    setItem: async (key: string, value: string) => {
+      data.set(key, value);
+    },
+  };
+  const settings = createChordLineSettingsStorage(storage);
+  assert.deepEqual(await settings.load('one', 'intermediate'), {
+    difficulty: 'intermediate',
+    rhythm: 'varied',
+  });
+  const writes = [
+    settings.save('one', { difficulty: 'beginner', rhythm: 'halves' }),
+    settings.save('one', { difficulty: 'random', rhythm: 'shuffle' }),
+  ];
+  assert.deepEqual(await settings.load('one', 'advanced'), {
+    difficulty: 'random',
+    rhythm: 'shuffle',
+  });
+  await Promise.all(writes);
+  const reopened = createChordLineSettingsStorage(storage);
+  assert.deepEqual(await reopened.load('one', 'beginner'), {
+    difficulty: 'random',
+    rhythm: 'shuffle',
+  });
+  assert.deepEqual(await reopened.load('two', 'beginner'), {
+    difficulty: 'beginner',
+    rhythm: 'quarters',
+  });
+  await storage.setItem('clasro.chordline.v1.one', '{broken');
+  assert.deepEqual(await reopened.load('one', 'advanced'), {
+    difficulty: 'advanced',
+    rhythm: 'varied',
+  });
+});
+
+test('database accepts legacy attempts and validates ChordLine rhythm snapshots', async () => {
+  const db = new PGlite();
+  try {
+    await db.exec(`
+      create role anon;
+      create role authenticated;
+      create schema auth;
+      create table auth.users(id uuid primary key, email text not null, raw_user_meta_data jsonb not null default '{}');
+      create function auth.uid() returns uuid language sql stable as $$ select null::uuid $$;
+    `);
+    for (const name of [
+      '001_initial',
+      '002_bass_exercises',
+      '003_chord_train',
+      '004_chord_train_v2',
+      '005_chord_line_rhythm',
+    ]) {
+      await db.exec(
+        await readFile(
+          new URL(`../supabase/migrations/202611190${name}.sql`, import.meta.url),
+          'utf8',
+        ),
+      );
+    }
+    const base = { bpm: 112, level: 3, chords: Array(16).fill('C9'), rhythmInput: 'mic' };
+    const valid = async (config: object) =>
+      (
+        await db.query<{ ok: boolean }>('select public.valid_chord_train_config($1::jsonb) as ok', [
+          config,
+        ])
+      ).rows[0]?.ok;
+    assert.equal(await valid({ ...base, pattern: Array(16).fill(5) }), true);
+    assert.equal(await valid({ ...base, pattern: Array(16).fill(10) }), false);
+    const chordLine = {
+      difficulty: 'random',
+      resolvedDifficulty: 'advanced',
+      rhythm: 'varied',
+      wagons: ['funk', 'quarters', 'triplets', 'tumbao'],
+    };
+    assert.equal(await valid({ ...base, chordLine }), true);
+    assert.equal(
+      await valid({
+        ...base,
+        chords: Array(48).fill('C7'),
+        chordLine: {
+          ...chordLine,
+          wagons: Array(12).fill('triplets'),
+        },
+      }),
+      true,
+    );
+    assert.equal(await valid({ ...base, chordLine: { ...chordLine, wagons: ['funk'] } }), false);
+    assert.equal(
+      await valid({ ...base, chordLine: { ...chordLine, resolvedDifficulty: 'beginner' } }),
+      false,
+    );
+    assert.equal(await valid({ ...base, chordLine: { ...chordLine, rhythm: 'funk' } }), false);
+  } finally {
+    await db.close();
+  }
 });

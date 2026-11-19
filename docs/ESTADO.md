@@ -21,6 +21,13 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - La migración `202611190004_chord_train_v2.sql` admite nuevos cifrados y sesiones de 48 pulsos junto con los intentos de 16 pulsos. Aplicarla en Supabase al desplegar.
 - Typecheck, exportación web y pruebas nuevas pasan. `npm test` pasa en 20 de 21 archivos. Solo falla la prueba de coordinación por `spawnSync git EPERM`; pasan los 21 archivos al capturar los subprocesos de esa prueba en archivos temporales. Se comprobó el HTML de los tableros compacto y ancho. Quedan pendientes la revisión visual interactiva y el micrófono real. `main` avanzó con documentación y el sandbox impidió adelantar la rama local.
 
+### ChordLine · dificultad y ritmo por vagón
+
+- Entregado a Claude en `codex/chordline-ritmo`, con los cambios sin commit. Iniciación, Intermedio y Avanzado amplían los acordes, las progresiones y los ritmos permitidos. El tempo inicial es de 72, 92 y 112 BPM respectivamente. «Aleatoria» sortea uno de los tres niveles al abrir ChordLine o generar un ejercicio. Se parte del nivel del perfil y se recuerdan las elecciones en el dispositivo, por perfil.
+- El selector «Ritmo» aplica un patrón fijo o varía por compás. Los doce patrones incluyen blancas y negras, rock, síncopas, anticipaciones, reggae, bossa, tumbao, semicorcheas, tresillos, funk y shuffle. Los vagones muestran sus figuras y la evaluación usa sus ataques. Con micrófono se comprueba la altura de las notas con tono y el tiempo de las notas muertas.
+- La migración `202611190005_chord_line_rhythm.sql` valida el ritmo efectivamente tocado por vagón y admite los intentos anteriores. Aplicarla en Supabase antes de publicar la versión.
+- Pasan `npm run typecheck`, `npm run build`, las once pruebas de ChordLine y el render estático web de ambas disposiciones del tren. `npm test` pasa en 20 de 21 archivos. La prueba de coordinación recibe `spawnSync git EPERM` y pasa al capturar sus subprocesos en archivos temporales. Quedan pendientes la revisión interactiva y la detección con bajo y micrófono reales.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).
