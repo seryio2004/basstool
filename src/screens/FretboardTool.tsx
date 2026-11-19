@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Button, Chips, Label, colors, fonts, styles } from '../components/ui';
+import { Button, Chips, Label, colors, styles } from '../components/ui';
+import { DegreeLegend } from '../components/DegreeLegend';
 import { FretMark, Fretboard, plainName } from '../components/Fretboard';
 import { tunings } from '../core/instrument';
-import { parsePitch, pitchName } from '../core/notation';
-import { arpeggios, positionsFor, scales, TheoryPattern } from '../core/theory';
+import { pitchName } from '../core/notation';
+import { arpeggios, namedTones, positionsFor, scales, TheoryPattern } from '../core/theory';
 import { useStore } from '../data/Store';
 import type { ScalePreset } from '../core/dailyPractice';
 import { audio } from '../platform/audio';
@@ -60,7 +61,8 @@ export function FretboardTool({
   const [kind, setKind] = useState<Kind>('scale');
   const [scale, setScale] = useState<ScaleKey>(practice?.preset.scale ?? 'minorPentatonic');
   const [arpeggio, setArpeggio] = useState<ArpeggioKey>('minor7');
-  const [labelMode, setLabelMode] = useState<LabelMode>('note');
+  const [colored, setColored] = useState(true);
+  const [labelMode, setLabelMode] = useState<LabelMode>('degree');
   const [active, setActive] = useState<{ string: number; fret: number; midi: number } | null>(null);
   const [audioError, setAudioError] = useState('');
   const [pulse, setPulse] = useState(false);
@@ -122,18 +124,18 @@ export function FretboardTool({
     string: p.string,
     fret: p.fret,
     root: p.isRoot,
-    degree: p.degree,
-    label: labelMode === 'note' ? p.name : labelMode === 'degree' ? p.degreeLabel : '',
+    degree: colored ? p.degree : undefined,
+    degreeLabel: p.degreeLabel,
+    label: colored
+      ? p.degreeLabel
+      : labelMode === 'note'
+        ? p.name
+        : labelMode === 'degree'
+          ? p.degreeLabel
+          : '',
     description: `${p.name}, grado ${p.degreeLabel}`,
   }));
-  // Notas de la escala en orden, una vez cada una, para leerlas de un vistazo.
-  const tonicClass = parsePitch(`${tonic}4`).midi % 12;
-  const sequence = pattern.tones.flatMap((tone) => {
-    const p = result.positions?.find(
-      (x) => (((x.midi - tonicClass) % 12) + 12) % 12 === tone.semitones,
-    );
-    return p ? [{ name: p.name, degree: p.degreeLabel, step: p.degree }] : [];
-  });
+  const sequence = result.positions ? namedTones(tonic, pattern, nomenclature) : [];
 
   async function play(string: number, fret: number, midi: number) {
     const token = ++playingTone.current;
@@ -204,47 +206,36 @@ export function FretboardTool({
           <Text style={styles.h3}>
             {tonicLabel(tonic)} {kind === 'scale' ? patternName : `· arpegio ${patternName}`}
           </Text>
-          <Chips<LabelMode>
-            value={labelMode}
-            onChange={setLabelMode}
-            options={[
-              { value: 'note', label: 'Notas' },
-              { value: 'degree', label: 'Grados' },
-              { value: 'none', label: 'Sin texto' },
-            ]}
-          />
+          {!colored && (
+            <Chips<LabelMode>
+              value={labelMode}
+              onChange={setLabelMode}
+              options={[
+                { value: 'note', label: 'Notas' },
+                { value: 'degree', label: 'Grados' },
+                { value: 'none', label: 'Sin texto' },
+              ]}
+            />
+          )}
         </View>
         {result.positions ? (
           <>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingHorizontal: 8 }}>
-              {sequence.map((n) => (
-                <View
-                  key={n.degree}
-                  style={{
-                    paddingVertical: 5,
-                    paddingHorizontal: 10,
-                    borderRadius: 6,
-                    backgroundColor: colors.degrees[(n.step - 1) % 7],
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontFamily: fonts.body,
-                      fontSize: 14,
-                      fontWeight: '600',
-                      color: colors.onDegree,
-                    }}
-                  >
-                    {n.name}
-                    <Text style={{ fontWeight: '400' }}> · {n.degree}</Text>
-                  </Text>
-                </View>
-              ))}
-            </View>
+            <Chips
+              label="Color del mástil"
+              value={colored ? 'degree' : 'plain'}
+              minHeight={44}
+              onChange={(mode) => setColored(mode === 'degree')}
+              options={[
+                { value: 'degree', label: 'Color por grado' },
+                { value: 'plain', label: 'Sin color' },
+              ]}
+            />
+            <DegreeLegend tones={sequence} colored={colored} />
             <Fretboard
               instrument={instrument}
               marks={marks}
               nomenclature={nomenclature}
+              monochrome={!colored}
               leftHanded={profile.leftHanded}
               active={active}
               onPress={(s, f, midi) => void play(s, f, midi)}

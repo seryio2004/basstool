@@ -58,7 +58,10 @@ export function useGuidedPractice() {
 
   function clock(r: Run) {
     const block = r.blocks[r.results.length]!;
-    const count = !saving.current && visible.current && (block.kind === 'scale' || r.playing);
+    const count =
+      !saving.current &&
+      visible.current &&
+      (block.kind === 'scale' || block.kind === 'technique' || r.playing);
     if (count && r.since === null) r.since = now();
     if (!count && r.since !== null) {
       r.elapsed += now() - r.since;

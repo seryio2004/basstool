@@ -20,18 +20,28 @@ export function Tab({
   instrument,
   active = -1,
   nomenclature = 'latin',
+  annotations,
+  width: fixedWidth,
 }: {
   notes: readonly ScoreNote[];
   instrument: Instrument;
   active?: number;
   nomenclature?: Nomenclature;
+  annotations?: readonly (string | undefined)[];
+  width?: number;
 }) {
-  const width = Math.max(280, notes.length * 70 + 80);
-  const height = instrument.strings.length * 24 + 24;
+  const width = fixedWidth ?? Math.max(280, notes.length * 70 + 80);
+  const height = instrument.strings.length * 24 + (annotations ? 44 : 24);
   const positions = tabPositions(notes, instrument);
   const y = (string: number) => 24 + (instrument.strings.length - 1 - string) * 24;
   return (
-    <View accessibilityLabel="Tablatura. Identifica las notas de izquierda a derecha.">
+    <View
+      accessibilityLabel={
+        annotations
+          ? `Tablatura. ${positions.map((position, i) => `Cuerda ${position.row + 1}, ${annotations[i] === '×' ? 'nota muerta' : `traste ${position.fret}`}`).join('. ')}.`
+          : 'Tablatura. Identifica las notas de izquierda a derecha.'
+      }
+    >
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         {instrument.strings.map((midi, string) => (
           <React.Fragment key={string}>
@@ -42,7 +52,9 @@ export function Tab({
           </React.Fragment>
         ))}
         {positions.map((position, i) => {
-          const x = 70 + (i * (width - 110)) / Math.max(1, notes.length - 1);
+          const x =
+            (fixedWidth ? 56 : 70) +
+            (i * (width - (fixedWidth ? 76 : 110))) / Math.max(1, notes.length - 1);
           return (
             <React.Fragment key={i}>
               <Rect
@@ -61,8 +73,20 @@ export function Tab({
                 fontWeight={active === i ? '700' : '400'}
                 fill={active === i ? colors.accent : colors.ink}
               >
-                {position.fret}
+                {annotations?.[i] === '×' ? '×' : position.fret}
               </Text>
+              {annotations?.[i] && annotations[i] !== '×' ? (
+                <Text
+                  x={x}
+                  y={height - 5}
+                  textAnchor="middle"
+                  fontFamily={FONT}
+                  fontSize={13}
+                  fill={colors.muted}
+                >
+                  {annotations[i]}
+                </Text>
+              ) : null}
             </React.Fragment>
           );
         })}

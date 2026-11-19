@@ -1,3 +1,5 @@
+import { techniquePracticeSession } from '../core/techniquePractice';
+import type { TechniqueId } from '../content/technique';
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Text, TextInput, View } from 'react-native';
 import {
@@ -74,8 +76,10 @@ export function DrumMachineTool() {
   return Platform.OS === 'web' ? <DrumMachine /> : <WebOnly />;
 }
 
-export function SpeedTrainerTool() {
-  return Platform.OS === 'web' ? <SpeedTrainer /> : <WebOnly />;
+type TechniqueSpeed = { id: TechniqueId; bpm: number };
+
+export function SpeedTrainerTool({ technique }: { technique?: TechniqueSpeed } = {}) {
+  return Platform.OS === 'web' ? <SpeedTrainer technique={technique} /> : <WebOnly />;
 }
 
 function RhythmError({ message }: { message: string }) {
@@ -514,6 +518,7 @@ function PatternGrid({
 
 type SpeedRun = {
   id: string;
+  technique?: TechniqueId;
   startedAt?: Date;
   startClock: number;
   maxBpm: number;
@@ -526,14 +531,25 @@ function finishSpeed(run: SpeedRun): PracticeSession | undefined {
   run.player?.stop();
   if (!run.startedAt) return;
   const seconds = Math.max(0, Math.round((performance.now() - run.startClock) / 1000));
+  if (run.technique) {
+    return techniquePracticeSession(
+      run.id,
+      run.technique,
+      run.level,
+      run.startedAt,
+      seconds,
+      run.maxBpm,
+      true,
+    );
+  }
   return speedPracticeSession(run.id, run.level, run.startedAt, seconds, run.maxBpm);
 }
 
-function SpeedTrainer() {
+function SpeedTrainer({ technique }: { technique?: TechniqueSpeed }) {
   const { colors } = useTheme();
   const { profile, savePractice } = useStore();
-  const [start, setStart] = useState('60');
-  const [target, setTarget] = useState('120');
+  const [start, setStart] = useState(String(technique?.bpm ?? 60));
+  const [target, setTarget] = useState(String(technique ? Math.min(240, technique.bpm + 30) : 120));
   const [step, setStep] = useState('5');
   const [repetitions, setRepetitions] = useState('4');
   const [lowerOnFailure, setLowerOnFailure] = useState(false);
@@ -608,6 +624,7 @@ function SpeedTrainer() {
     progress.current = startSpeed(settings);
     const run: SpeedRun = {
       id: uid(),
+      technique: technique?.id,
       startClock: 0,
       maxBpm: 0,
       save: savePractice,

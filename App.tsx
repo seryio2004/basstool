@@ -32,6 +32,7 @@ import { Learn } from './src/screens/Learn';
 import { Practice } from './src/screens/Practice';
 import { Progress } from './src/screens/Progress';
 import { Today } from './src/screens/Today';
+import { TechniqueTool } from './src/screens/TechniqueTool';
 import { FretboardTool } from './src/screens/FretboardTool';
 import { useGuidedPractice } from './src/screens/useGuidedPractice';
 import { Exercise } from './src/screens/Exercise';
@@ -155,6 +156,11 @@ function Shell() {
         key={guide.key}
         pagePadding={pad}
         onSongProgress={({ playing, ...metrics }) => guide.report(metrics, playing)}
+      />
+    ) : block.kind === 'technique' ? (
+      <TechniqueTool
+        key={guide.key}
+        practice={{ id: block.id, bpm: block.bpm, onBpm: (bpm) => guide.report({ bpm }) }}
       />
     ) : block.kind === 'scale' ? (
       <FretboardTool

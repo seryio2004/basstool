@@ -3,6 +3,7 @@ import { Platform, Pressable, ScrollView, View } from 'react-native';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { Instrument } from '../core/instrument';
 import type { Nomenclature } from '../core/notation';
+import { degreeFill } from './DegreeLegend';
 import { colors, fonts } from './theme';
 
 /**
@@ -19,6 +20,8 @@ export type FretMark = {
   root?: boolean;
   /** Grado de 1 a 7: colorea la casilla con la paleta de grados del tema. */
   degree?: number;
+  degreeLabel?: string;
+  selected?: boolean;
   /** Texto para lectores de pantalla, p. ej. «Do, grado 1». */
   description?: string;
 };
@@ -52,6 +55,8 @@ export function Fretboard({
   compact = false,
   onlyString,
   firstVisibleFret,
+  fretWindow,
+  monochrome = false,
   onPress,
 }: {
   instrument: Instrument;
@@ -63,6 +68,8 @@ export function Fretboard({
   compact?: boolean;
   onlyString?: number;
   firstVisibleFret?: number;
+  fretWindow?: { min: number; max: number };
+  monochrome?: boolean;
   onPress?: (string: number, fret: number, midi: number) => void;
 }) {
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
@@ -73,7 +80,11 @@ export function Fretboard({
   const visibleStrings = instrument.strings
     .map((open, index) => ({ open, index }))
     .filter(({ index }) => onlyString === undefined || index === onlyString);
-  const width = openWidth + instrument.frets * fretWidth + 12;
+  const first = Math.max(1, fretWindow?.min ?? 1);
+  const last = fretWindow?.max ?? instrument.frets;
+  const frets = Array.from({ length: last - first + 1 }, (_, i) => first + i);
+  const playable = fretWindow && fretWindow.min > 0 ? frets : [0, ...frets];
+  const width = openWidth + frets.length * fretWidth + 12;
   const height = compact
     ? visibleStrings.length * STRING_GAP + 20
     : PAD_TOP + (visibleStrings.length - 1) * STRING_GAP + PAD_BOTTOM + 16;
@@ -84,8 +95,8 @@ export function Fretboard({
     onlyString === undefined ? boardTop + (strings - 1 - string) * STRING_GAP : boardTop;
   /** Centro horizontal de la casilla: al aire a la izquierda del clavijero. */
   const xOf = (fret: number) =>
-    mirror(fret === 0 ? openWidth / 2 : openWidth + (fret - 0.5) * fretWidth);
-  const fretX = (fret: number) => mirror(openWidth + fret * fretWidth);
+    mirror(fret === 0 ? openWidth / 2 : openWidth + (fret - first + 0.5) * fretWidth);
+  const fretX = (fret: number) => mirror(openWidth + (fret - first + 1) * fretWidth);
   const visibleMarks = marks.filter((m) => onlyString === undefined || m.string === onlyString);
   const markAt = new Map(visibleMarks.map((m) => [`${m.string}:${m.fret}`, m]));
   // Las marcas van entre cuerdas, nunca encima: hueco central y, las dobles, en los huecos exteriores.
@@ -137,12 +148,12 @@ export function Fretboard({
               fill={colors.accentSoft}
             />
           ) : null}
-          {SINGLE_INLAYS.filter((f) => onlyString === undefined && f <= instrument.frets).map(
+          {SINGLE_INLAYS.filter((f) => onlyString === undefined && f >= first && f <= last).map(
             (f) => (
               <Circle key={f} cx={xOf(f)} cy={singleY} r={5} fill={colors.inlay} />
             ),
           )}
-          {DOUBLE_INLAYS.filter((f) => onlyString === undefined && f <= instrument.frets).map(
+          {DOUBLE_INLAYS.filter((f) => onlyString === undefined && f >= first && f <= last).map(
             (f) => (
               <G key={f}>
                 <Circle cx={xOf(f)} cy={doubleY[0]} r={5} fill={colors.inlay} />
@@ -150,7 +161,7 @@ export function Fretboard({
               </G>
             ),
           )}
-          {Array.from({ length: instrument.frets + 1 }, (_, f) => (
+          {[first - 1, ...frets].map((f) => (
             <Line
               key={f}
               x1={fretX(f)}
@@ -173,9 +184,12 @@ export function Fretboard({
               strokeWidth={1.2 + ((strings - 1 - s) / Math.max(1, strings - 1)) * 1.8}
             />
           ))}
-          {Array.from({ length: instrument.frets }, (_, i) => i + 1)
+          {frets
             .filter(
-              (f) => [1, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24].includes(f) || (compact && f === 13),
+              (f) =>
+                Boolean(fretWindow) ||
+                [1, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24].includes(f) ||
+                (compact && f === 13),
             )
             .map((f) => (
               <SvgText
@@ -207,14 +221,17 @@ export function Fretboard({
             ),
           )}
           {visibleMarks.map((m) => {
-            const isActive = active?.string === m.string && active.fret === m.fret;
-            const degreeColor = m.degree ? colors.degrees[(m.degree - 1) % 7] : undefined;
-            const fill = degreeColor ?? (m.root ? colors.accent : colors.raised);
-            const text = degreeColor
-              ? colors.onDegree
-              : m.root
-                ? colors.onAccent
-                : colors.accentText;
+            const isActive = m.selected || (active?.string === m.string && active.fret === m.fret);
+            const degreeColor =
+              !monochrome && m.degree ? degreeFill(m.degree, m.degreeLabel) : undefined;
+            const fill = degreeColor ?? (m.root && !monochrome ? colors.accent : colors.raised);
+            const text = monochrome
+              ? colors.ink
+              : degreeColor
+                ? colors.onDegree
+                : m.root
+                  ? colors.onAccent
+                  : colors.accentText;
             return (
               <G key={`${m.string}:${m.fret}`}>
                 {isActive ? (
@@ -232,7 +249,15 @@ export function Fretboard({
                   cy={yOf(m.string)}
                   r={DOT_R}
                   fill={fill}
-                  stroke={m.root ? colors.ink : m.degree ? colors.wood : colors.accent}
+                  stroke={
+                    m.root
+                      ? colors.ink
+                      : monochrome
+                        ? colors.muted
+                        : degreeColor
+                          ? colors.wood
+                          : colors.accent
+                  }
                   strokeWidth={m.root ? 2 : 1.5}
                 />
                 {m.label ? (
@@ -266,7 +291,7 @@ export function Fretboard({
         </Svg>
         {/* Zonas táctiles reales encima del dibujo: accesibles y del mismo tamaño en todas las plataformas. */}
         {visibleStrings.map(({ open, index: s }) =>
-          Array.from({ length: instrument.frets + 1 }, (_, f) => {
+          playable.map((f) => {
             const mark = markAt.get(`${s}:${f}`);
             const name = plainName(open + f, nomenclature);
             const where = `cuerda ${plainName(open, nomenclature)}, ${f === 0 ? 'al aire' : `traste ${f}`}`;
@@ -276,8 +301,8 @@ export function Fretboard({
                 key={`${s}:${f}`}
                 onPress={onPress ? () => onPress(s, f, open + f) : undefined}
                 disabled={!onPress}
-                accessible={!!mark || compact}
-                focusable={!!mark || (compact && s === activeString)}
+                accessible={!!onPress && (!!mark || compact)}
+                focusable={!!onPress && (!!mark || (compact && s === activeString))}
                 accessibilityRole="button"
                 accessibilityLabel={
                   mark ? `${mark.description ?? mark.label}, ${where}` : `${name}, ${where}`

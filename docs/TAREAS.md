@@ -390,6 +390,14 @@ Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
    - Tokens en DESIGN.md.
 6. **Tono de referencia:** suena cada cuerda de la afinación del perfil, para afinar de oído sin micrófono.
 
+**Entrega 13b en `codex/herr-referencia` (pendiente de revisión e integración).**
+
+- Diccionario con las 36 calidades de `dictionaryArpeggios`, incluidas extensiones y dominantes alteradas. Muestra de dos a tres digitaciones según afinación y escala, y refleja el mástil para zurdos. Cuando un arpegio de dos octavas requiere un desplazamiento, muestra cada posición en un diagrama. «Arpegio» sube y baja. «Bloque» ataca las notas juntas cuando se pueden tocar en cuerdas distintas, y hace un arpegio rápido cuando hay que repetir cuerda.
+- El Mástil, el diccionario y el teclado de Transcribir alternan «Color por grado» y «Sin color». En el editor los grados siguen la escala mayor de la armadura del documento. El modo «Trastes» conserva la entrada habitual.
+- El tono de referencia tiene acceso propio en Herramientas y evita pedir permisos de micrófono. En web reproduce las cuerdas al aire durante cuatro segundos, con repetición opcional. La4 parte de 440 Hz y admite 430–450 Hz en el perfil local. El afinador abre con la referencia guardada.
+- Nueve ejercicios originales en `src/content/technique.ts` con tablatura por afinación, metrónomo y registro de BPM en el diario. El entrenador de velocidad guarda con qué ejercicio se practicó en web. Las rutinas de Hoy rotan el calentamiento cada semana por nivel.
+- El diccionario y el tono usan la voz de bajo web. En iOS y Android se muestran las posiciones y las cuerdas del perfil y se indica la disponibilidad del audio en web. El metrónomo de técnica reutiliza las muestras nativas de la app.
+
 ---
 
 ## Tarea 14: Imagen del bajo en la configuración (opción B: renders, sin 3D en tiempo real)

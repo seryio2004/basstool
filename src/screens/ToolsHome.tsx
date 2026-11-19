@@ -8,6 +8,12 @@ import { Tool } from './Tools';
 
 const items: { id: Tool; title: string; detail: string; icon: string }[] = [
   { id: 'tuner', title: 'Afinador', detail: 'Nota, cuerda y desviación en cents.', icon: 'tuner' },
+  {
+    id: 'reference',
+    title: 'Tono de referencia',
+    detail: 'Afina de oído cuerda a cuerda.',
+    icon: 'ear',
+  },
   { id: 'metronome', title: 'Metrónomo', detail: 'Tempo, compás y acento.', icon: 'metronome' },
   {
     id: 'drums',
@@ -15,12 +21,24 @@ const items: { id: Tool; title: string; detail: string; icon: string }[] = [
     detail: 'Patrones por género con swing y rellenos.',
     icon: 'drums',
   },
+  {
+    id: 'technique',
+    title: 'Ejercicios de técnica',
+    detail: 'Tablatura, metrónomo y registro de tempo.',
+    icon: 'practice',
+  },
   { id: 'speed', title: 'Velocidad', detail: 'Practica con subidas de tempo.', icon: 'speed' },
   {
     id: 'fretboard',
     title: 'Mástil',
     detail: 'Escalas y arpegios en tu afinación, con notas o grados.',
     icon: 'fretboard',
+  },
+  {
+    id: 'dictionary',
+    title: 'Diccionario de acordes y arpegios',
+    detail: 'Fórmulas, notas y digitaciones para tu bajo.',
+    icon: 'library',
   },
   {
     id: 'chords',

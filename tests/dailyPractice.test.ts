@@ -122,7 +122,7 @@ test('routine honors the time budget and goals and always sets time aside for so
         assert.ok(blocks.every((b) => b.seconds >= 30));
         assert.equal(blocks.at(-1)?.kind, 'song');
         assert.ok(blocks.at(-1)!.seconds >= 60);
-        assert.equal(blocks[0]?.kind, 'scale');
+        assert.equal(blocks[0]?.kind, 'technique');
         if (goals.length) assert.equal(blocks.length, 5);
       }
     }

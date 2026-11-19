@@ -20,12 +20,14 @@ import { exportScore } from '../platform/exportScore';
 import { printTab } from '../platform/printTab';
 import { PianoEntry, pianoKeys } from './PianoEntry';
 import { ChordEditor } from './ChordEditor';
+import { DegreeLegend } from './DegreeLegend';
+import { namedTones, positionsFor, scales } from '../core/theory';
+import { fifthsCircle, pitchName, type Nomenclature } from '../core/notation';
 import { Fretboard, plainName } from './Fretboard';
 import { ScoreView, type ScoreFrame } from './ScoreView';
 import type { NoteGesture } from './ScoreNoteTarget';
 import { scoreDurationName } from '../core/scoreLayout';
 import type { Instrument } from '../core/instrument';
-import type { Nomenclature } from '../core/notation';
 import type {
   BaseValue,
   Duration,
@@ -123,6 +125,8 @@ const meters: Meter[] = [
   { beats: 6, unit: 8 },
   { beats: 12, unit: 8 },
 ];
+type DegreeMode = 'frets' | 'colored' | 'plain';
+
 const meterKey = (m: Meter) => `${m.beats}/${m.unit}`;
 /**
  * Editor de la línea de bajo dentro de Transcribir. Dos modos, como en los
@@ -195,6 +199,7 @@ export function ScoreEditor({
   const [input, setInput] = useState<'neck' | 'piano'>('neck');
   const [pianoBase, setPianoBase] = useState(Math.floor(instrument.strings[0]! / 12) * 12);
   const [preference, setPreference] = useState<'low' | 'high'>('low');
+  const [degreeMode, setDegreeMode] = useState<DegreeMode>('frets');
   const [chordMode, setChordMode] = useState(false);
   const [lastNote, setLastNote] = useState<{ string: number; fret: number } | null>(null);
   const scoreRegion = useRef<React.ComponentRef<typeof View>>(null);
@@ -885,21 +890,77 @@ export function ScoreEditor({
       minControlHeight={wide ? undefined : 44}
     />
   );
+  const keyTonic =
+    fifthsCircle.find(({ accidentals }) => accidentals === score.keyFifths)?.major ??
+    ({ [-7]: 'Cb', [-6]: 'Gb', [7]: 'C#' } as Record<number, string>)[score.keyFifths] ??
+    'C';
+  const keyDegrees = useMemo(
+    () =>
+      degreeMode === 'frets'
+        ? []
+        : positionsFor(keyTonic, scales.major, instrument, undefined, nomenclature),
+    [degreeMode, keyTonic, instrument, nomenclature],
+  );
+  const writtenNotes = eventNotes(event);
+  const degreeMarks = keyDegrees.map((position) => ({
+    ...position,
+    root: position.isRoot,
+    degree: degreeMode === 'colored' ? position.degree : undefined,
+    label: position.degreeLabel,
+    description: `${position.name}, grado ${position.degreeLabel}`,
+    selected: writtenNotes.some(
+      (note) => note.string === position.string && note.fret === position.fret,
+    ),
+  }));
+  const otherMarks = writtenNotes
+    .filter(
+      (note) =>
+        !degreeMarks.some(
+          (position) => note.string === position.string && note.fret === position.fret,
+        ),
+    )
+    .map((note) => ({ ...note, label: String(note.fret) }));
+  const degreeLegend =
+    degreeMode === 'frets' ? [] : namedTones(keyTonic, scales.major, nomenclature);
   const fretboard = (
-    <Fretboard
-      compact
-      onlyString={entryFolded ? cursor.string : undefined}
-      instrument={instrument}
-      nomenclature={nomenclature}
-      leftHanded={leftHanded}
-      marks={eventNotes(event).map((n) => ({ ...n, label: String(n.fret) }))}
-      activeString={cursor.string}
-      active={event || chordMode ? null : lastNote}
-      onPress={(string, fret) => {
-        takeFret();
-        writeNote(fret, string);
-      }}
-    />
+    <View style={{ gap: space.xs }}>
+      {!entryFolded && (
+        <Chips<DegreeMode>
+          label="Vista del mástil"
+          minHeight={44}
+          value={degreeMode}
+          onChange={setDegreeMode}
+          options={[
+            { value: 'frets', label: 'Trastes' },
+            { value: 'colored', label: 'Color por grado' },
+            { value: 'plain', label: 'Sin color' },
+          ]}
+        />
+      )}
+      {degreeMode !== 'frets' && !entryFolded && (
+        <>
+          <Label muted>
+            Grados de {pitchName(keyTonic + '4', false, nomenclature)} mayor según la armadura
+          </Label>
+          <DegreeLegend tones={degreeLegend} colored={degreeMode === 'colored'} />
+        </>
+      )}
+      <Fretboard
+        compact
+        onlyString={entryFolded ? cursor.string : undefined}
+        instrument={instrument}
+        nomenclature={nomenclature}
+        leftHanded={leftHanded}
+        monochrome={degreeMode === 'plain'}
+        marks={[...degreeMarks, ...otherMarks]}
+        activeString={cursor.string}
+        active={event || chordMode ? null : lastNote}
+        onPress={(string, fret) => {
+          takeFret();
+          writeNote(fret, string);
+        }}
+      />
+    </View>
   );
   const entryActions = (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>

@@ -98,7 +98,7 @@ Sustituye al sistema anterior (verde sobre blanco). Decisión del usuario del 20
 | `success` / `warning` / `error` / `info` (+ `Soft`) | Estados: afinado y acierto en jade, aviso cobre, error, información azul cromo. |
 | `modules.*` | Pares tinta/fondo: GrooveTrain ámbar, ChordLine (tren de acordes) jade, Notas cobre, Intervalos ciruela, Lectura azul petróleo. `moduleTone(id)` los devuelve. |
 | `functions.*` | Funciones armónicas T, S, D y dominante secundaria en los diagramas. |
-| `degrees[0..6]` + `onDegree` | Grados 1–7 del mástil. Rellenos medios con tinta oscura y el número del grado siempre escrito: el color refuerza, no informa solo. La tónica lleva además un aro. |
+| `degrees[0..6]`, `degreeFlat`, `degreeSharp` y `onDegree` | Grados 1–7 del mástil. Rellenos medios con tinta oscura y el número del grado siempre escrito: el color refuerza, no informa solo. La tónica lleva además un aro. Bemoles en rosa y sostenidos en cian, con la alteración escrita también en modo sin color. |
 | `wood` / `fret` / `string` / `inlay` | Mástil: palisandro (oscuro) o arce (claro), trastes de níquel, cuerdas de cromo, incrustaciones. |
 | `staff`, `keyWhite`, `keyBlack`, `keyContext*` | Pentagramas y pianos de los diagramas y del editor. |
 | `wave` / `waveDim` | Pantalla y trazo de la forma de onda. `wavePlayed` distingue lo reproducido. El ámbar marca el bucle y la ventana de la vista general. |

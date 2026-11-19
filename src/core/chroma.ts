@@ -1,4 +1,4 @@
-import { chordArpeggios } from './theory';
+import { dictionaryArpeggios } from './theory';
 
 // Box-filter before decimation. Keep one locally decoded channel at ~4 kHz.
 export function analysisAudio(samples: Float32Array, rate: number) {
@@ -11,9 +11,16 @@ export function analysisAudio(samples: Float32Array, rate: number) {
   }
   return { pcm, rate: rate / step };
 }
-const quality = (key: keyof typeof chordArpeggios, label: string = key): [string, number[]] => [
+const quality = (
+  key: keyof typeof dictionaryArpeggios,
+  label: string = key,
+): [string, number[]] => [
   label,
-  chordArpeggios[key].tones.map(({ semitones }) => semitones % 12),
+  dictionaryArpeggios[key].tones.map(({ semitones }) => semitones % 12),
+];
+const withoutEleventh = (key: '13' | 'm13'): [string, number[]] => [
+  key,
+  quality(key)[1].filter((n) => n !== 5),
 ];
 const qualities: [string, number[]][] = [
   quality(''),
@@ -31,26 +38,26 @@ const qualities: [string, number[]][] = [
   quality('6'),
   quality('m6'),
   quality('add9'),
-  ['6/9', [0, 4, 7, 9, 2]],
+  quality('6/9'),
   quality('maj9'),
   quality('9'),
   quality('m9'),
-  ['m(maj9)', [0, 3, 7, 11, 2]],
-  ['7(♭9)', [0, 4, 7, 10, 1]],
-  ['7(♯9)', [0, 4, 7, 10, 3]],
-  ['7(♯11)', [0, 4, 7, 10, 6]],
-  ['maj7(♯11)', [0, 4, 7, 11, 6]],
-  ['11', [0, 4, 7, 10, 2, 5]],
-  ['m11', [0, 3, 7, 10, 2, 5]],
-  ['13', [0, 4, 7, 10, 2, 9]],
-  ['m13', [0, 3, 7, 10, 2, 9]],
-  ['13', [0, 4, 7, 10, 2, 5, 9]],
-  ['m13', [0, 3, 7, 10, 2, 5, 9]],
-  ['m(add9)', [0, 3, 7, 2]],
-  ['add11', [0, 4, 7, 5]],
-  ['7sus4', [0, 5, 7, 10]],
-  ['m6/9', [0, 3, 7, 9, 2]],
-  ['9(♯11)', [0, 4, 7, 10, 2, 6]],
+  quality('m(maj9)'),
+  quality('7(♭9)'),
+  quality('7(♯9)'),
+  quality('7(♯11)'),
+  quality('maj7(♯11)'),
+  quality('11'),
+  quality('m11'),
+  withoutEleventh('13'),
+  withoutEleventh('m13'),
+  quality('13'),
+  quality('m13'),
+  quality('m(add9)'),
+  quality('add11'),
+  quality('7sus4'),
+  quality('m6/9'),
+  quality('9(♯11)'),
 ];
 // Full spellings first, then voicings with common omissions.
 const templates: [string, number[]][] = [...qualities];

@@ -7,6 +7,7 @@ type Note = {
   until: number;
   dead?: boolean;
   attack: BassAttack;
+  referenceHz?: number;
 };
 
 type Voice = { stop: () => void };
@@ -77,7 +78,7 @@ export function createBassInstrument(
       const attackEnd = when + Math.min(attack === 'pick' || dead ? 0.003 : 0.009, duration * 0.22);
       const decayEnd = Math.min(attackEnd + 0.11, when + duration * 0.65);
       const releaseStart = Math.max(decayEnd, until - 0.045);
-      const frequency = 440 * 2 ** ((midi - 69) / 12);
+      const frequency = (note.referenceHz ?? 440) * 2 ** ((midi - 69) / 12);
       const filter = context.createBiquadFilter();
       filter.type = 'lowpass';
       filter.Q.value = 0.65;

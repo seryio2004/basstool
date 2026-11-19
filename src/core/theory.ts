@@ -91,6 +91,28 @@ export const chordArpeggios = {
   add9: arpeggios.add9,
 } as const;
 
+/** Cifrado extendido del diccionario y del reconocimiento por croma. */
+export const dictionaryArpeggios = {
+  ...chordArpeggios,
+  '6/9': pattern('Sexta y novena', [0, 4, 7, 9, 14], [1, 3, 5, 6, 9]),
+  'm(maj9)': pattern('Menor con séptima mayor y novena', [0, 3, 7, 11, 14], [1, 3, 5, 7, 9]),
+  '7(♭9)': pattern('Séptima con novena menor', [0, 4, 7, 10, 13], [1, 3, 5, 7, 9]),
+  '7(♯9)': pattern('Séptima con novena aumentada', [0, 4, 7, 10, 15], [1, 3, 5, 7, 9]),
+  '7(♭5)': pattern('Séptima con quinta disminuida', [0, 4, 6, 10], [1, 3, 5, 7]),
+  '7(♯5)': pattern('Séptima con quinta aumentada', [0, 4, 8, 10], [1, 3, 5, 7]),
+  '7(♯11)': pattern('Séptima con oncena aumentada', [0, 4, 7, 10, 18], [1, 3, 5, 7, 11]),
+  'maj7(♯11)': pattern('Séptima mayor con oncena aumentada', [0, 4, 7, 11, 18], [1, 3, 5, 7, 11]),
+  '11': pattern('Oncena de dominante', [0, 4, 7, 10, 14, 17], [1, 3, 5, 7, 9, 11]),
+  m11: pattern('Menor con oncena', [0, 3, 7, 10, 14, 17], [1, 3, 5, 7, 9, 11]),
+  '13': pattern('Trecena de dominante', [0, 4, 7, 10, 14, 17, 21], [1, 3, 5, 7, 9, 11, 13]),
+  m13: pattern('Menor con trecena', [0, 3, 7, 10, 14, 17, 21], [1, 3, 5, 7, 9, 11, 13]),
+  'm(add9)': pattern('Menor con novena añadida', [0, 3, 7, 14], [1, 3, 5, 9]),
+  add11: pattern('Mayor con oncena añadida', [0, 4, 7, 17], [1, 3, 5, 11]),
+  '7sus4': pattern('Séptima suspendida', [0, 5, 7, 10], [1, 4, 5, 7]),
+  'm6/9': pattern('Menor con sexta y novena', [0, 3, 7, 9, 14], [1, 3, 5, 6, 9]),
+  '9(♯11)': pattern('Novena con oncena aumentada', [0, 4, 7, 10, 14, 18], [1, 3, 5, 7, 9, 11]),
+} as const;
+
 export const majorProgressions = [
   { value: '0,4,5,3', label: 'I · V · vi · IV' },
   { value: '1,4,0,0', label: 'ii · V · I · I' },
@@ -105,6 +127,58 @@ export function majorTriads(tonic: number, progression: string) {
     const quality = index === 6 ? 'diminished' : [1, 2, 5].includes(index) ? 'minor' : 'major';
     return { root: tonic + majorSteps[index]!, quality, degree: majorDegrees[index]! } as const;
   });
+}
+
+function spellPattern(tonic: string, collection: TheoryPattern) {
+  if (!/^[A-G](##|#|bb|b)?$/.test(tonic)) {
+    throw new Error('La tónica debe ser una nota escrita sin octava (C, F#, Bb…).');
+  }
+  const root = parsePitch(`${tonic}4`);
+  if (!collection.tones.length) throw new RangeError('La escala o arpegio debe contener notas.');
+  const tones = collection.tones.map(({ semitones, degree }) => {
+    const simpleDegree = (degree - 1) % 7;
+    const octave = 12 * Math.floor((degree - 1) / 7);
+    if (
+      !Number.isInteger(semitones) ||
+      semitones < octave ||
+      semitones > octave + 11 ||
+      !Number.isInteger(degree) ||
+      degree < 1 ||
+      degree > 13
+    ) {
+      throw new RangeError('El intervalo debe corresponder a la octava de un grado del 1 al 13.');
+    }
+    const diatonic = root.letter + degree - 1;
+    const letter = diatonic % 7;
+    const naturalMidi = parsePitch(`${letters[letter]}${4 + Math.floor(diatonic / 7)}`).midi;
+    const alter = root.midi + semitones - naturalMidi;
+    if (Math.abs(alter) > 2)
+      throw new RangeError('La tonalidad requiere alteraciones mayores que dobles.');
+    return {
+      midi: root.midi + semitones,
+      semitones: semitones % 12,
+      degree,
+      letter,
+      alter,
+      degreeLabel: `${accidentalSign(semitones - octave - majorSteps[simpleDegree]!)}${degree}`,
+    };
+  });
+  return { root, tones };
+}
+
+function spellAt(midi: number, { letter, alter }: { letter: number; alter: number }) {
+  const natural = parsePitch(`${letters[letter]}4`).midi % 12;
+  const octave = (midi - natural - alter) / 12 - 1;
+  const accidental = alter >= 0 ? '#'.repeat(alter) : 'b'.repeat(-alter);
+  return `${letters[letter]}${accidental}${octave}`;
+}
+
+export function namedTones(tonic: string, collection: TheoryPattern, nomenclature: Nomenclature) {
+  return spellPattern(tonic, collection).tones.map((tone) => ({
+    degree: tone.degreeLabel,
+    step: tone.degree,
+    name: pitchName(spellAt(tone.midi, tone), false, nomenclature),
+  }));
 }
 
 /**
@@ -131,48 +205,14 @@ export function positionsFor(
       'El rango de trastes debe estar dentro del instrumento, con mínimo ≤ máximo.',
     );
   }
-  if (!/^[A-G](##|#|bb|b)?$/.test(tonic)) {
-    throw new Error('La tónica debe ser una nota escrita sin octava (C, F#, Bb…).');
-  }
-  const root = parsePitch(`${tonic}4`);
-  if (!collection.tones.length) throw new RangeError('La escala o arpegio debe contener notas.');
-  const tones = collection.tones.map(({ semitones, degree }) => {
-    const simpleDegree = (degree - 1) % 7;
-    const octave = 12 * Math.floor((degree - 1) / 7);
-    if (
-      !Number.isInteger(semitones) ||
-      semitones < octave ||
-      semitones > octave + 11 ||
-      !Number.isInteger(degree) ||
-      degree < 1 ||
-      degree > 9
-    ) {
-      throw new RangeError('El intervalo debe corresponder a la octava de un grado del 1 al 9.');
-    }
-    const diatonic = root.letter + degree - 1;
-    const letter = diatonic % 7;
-    const naturalMidi = parsePitch(`${letters[letter]}${4 + Math.floor(diatonic / 7)}`).midi;
-    const alter = root.midi + semitones - naturalMidi;
-    if (Math.abs(alter) > 2)
-      throw new RangeError('La tonalidad requiere alteraciones mayores que dobles.');
-    return {
-      semitones: semitones % 12,
-      degree,
-      letter,
-      alter,
-      degreeLabel: `${accidentalSign(semitones - octave - majorSteps[simpleDegree]!)}${degree}`,
-    };
-  });
+  const { root, tones } = spellPattern(tonic, collection);
   const result: TheoryPosition[] = [];
   instrument.strings.forEach((open, string) => {
     for (let fret = frets.min; fret <= frets.max; fret++) {
       const midi = open + fret;
       for (const tone of tones) {
         if ((((midi - root.midi) % 12) + 12) % 12 !== tone.semitones) continue;
-        const natural = parsePitch(`${letters[tone.letter]}4`).midi % 12;
-        const octave = (midi - natural - tone.alter) / 12 - 1;
-        const accidental = tone.alter >= 0 ? '#'.repeat(tone.alter) : 'b'.repeat(-tone.alter);
-        const spelling = `${letters[tone.letter]}${accidental}${octave}`;
+        const spelling = spellAt(midi, tone);
         result.push({
           string,
           fret,

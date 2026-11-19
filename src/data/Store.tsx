@@ -112,7 +112,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (err) throw err;
       if (data.session) {
         const remote = await loadRemote(data.session.user.id);
-        const { theme, scale } = (await readLocal()).profile;
+        const { theme, scale, referenceHz } = (await readLocal()).profile;
         const raw = await AsyncStorage.getItem(remotePracticeKey(remote.profile.id));
         let daily = emptyPractice();
         try {
@@ -120,7 +120,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         } catch {
           // La práctica local de la cuenta puede faltar o venir de una versión anterior.
         }
-        apply({ ...remote, profile: { ...remote.profile, theme, scale }, daily, mode: 'remote' });
+        apply({
+          ...remote,
+          profile: { ...remote.profile, theme, scale, referenceHz },
+          daily,
+          mode: 'remote',
+        });
         return;
       }
     }
@@ -231,8 +236,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const profile = { ...s.profile, ...patch };
         if (s.mode === 'remote') {
           // Se guardan con el perfil local y no requieren columnas nuevas en Supabase.
-          const { theme, scale, ...remotePatch } = patch;
-          if (theme !== undefined || scale !== undefined) {
+          const { theme, scale, referenceHz, ...remotePatch } = patch;
+          if (theme !== undefined || scale !== undefined || referenceHz !== undefined) {
             const local = await readLocal();
             await writeLocal({
               ...local,
@@ -240,6 +245,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 ...local.profile,
                 theme: theme ?? local.profile.theme,
                 scale: scale ?? local.profile.scale,
+                referenceHz: referenceHz ?? local.profile.referenceHz,
               },
             });
           }

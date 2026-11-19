@@ -35,6 +35,7 @@ test('stored profiles are normalised instead of breaking the app', () => {
     email: 'bajista@example.com',
     tuning: 'standard5',
     scale: 34,
+    referenceHz: 440,
     level: 'advanced',
     nomenclature: 'english',
     leftHanded: true,
@@ -73,5 +74,15 @@ test('each supported bass scale survives a storage round trip', () => {
   for (const scale of bassScales) {
     const profile = { ...defaultProfile('x'), configured: true, scale };
     assert.deepEqual(parseProfile(JSON.parse(JSON.stringify(profile)), 'x'), profile);
+  }
+});
+
+test('local profile reference accepts 430–450 Hz and defaults older or invalid data to 440', () => {
+  assert.equal(defaultProfile('test').referenceHz, 440);
+  for (const referenceHz of [430, 443, 450]) {
+    assert.equal(parseProfile({ referenceHz }, 'test').referenceHz, referenceHz);
+  }
+  for (const referenceHz of [undefined, 429, 450.1, 451, '433', NaN]) {
+    assert.equal(parseProfile({ referenceHz }, 'test').referenceHz, 440);
   }
 });

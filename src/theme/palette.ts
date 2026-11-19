@@ -58,6 +58,8 @@ export type Palette = {
    * número del grado va siempre escrito dentro, el color solo refuerza.
    */
   degrees: readonly [string, string, string, string, string, string, string];
+  degreeFlat: string;
+  degreeSharp: string;
   onDegree: string;
   /** Materiales del mástil y de los diagramas. */
   wood: string;
@@ -133,6 +135,8 @@ const dark: Palette = {
     Dsec: { ink: '#B497C6', bg: '#2D2233' },
   },
   degrees: ['#BF9B6E', '#8FB3C9', '#6CC3A0', '#E9D66B', '#E07B5F', '#C19AD6', '#A9C46A'],
+  degreeFlat: '#D6A6B6',
+  degreeSharp: '#78C9CB',
   onDegree: '#1A120A',
   wood: '#2A1D14',
   fret: '#8C8273',
@@ -203,6 +207,8 @@ const light: Palette = {
     Dsec: { ink: '#7A5690', bg: '#EEE5F3' },
   },
   degrees: ['#BF9B6E', '#8FB3C9', '#6CC3A0', '#E9D66B', '#E07B5F', '#C19AD6', '#A9C46A'],
+  degreeFlat: '#D6A6B6',
+  degreeSharp: '#78C9CB',
   onDegree: '#1A120A',
   wood: '#E9DCC6',
   fret: '#A89A85',
@@ -307,6 +313,8 @@ export const contrastChecks: Check[] = [
     bg: (p: Palette) => p.degrees[d]!,
     min: text,
   })),
+  { use: 'Grado bemol', fg: (p) => p.onDegree, bg: (p) => p.degreeFlat, min: text },
+  { use: 'Grado sostenido', fg: (p) => p.onDegree, bg: (p) => p.degreeSharp, min: text },
   { use: 'Foco sobre placa (no texto)', fg: (p) => p.focus, bg: (p) => p.surface, min: large },
   {
     use: 'Borde de campo sobre placa (no texto)',

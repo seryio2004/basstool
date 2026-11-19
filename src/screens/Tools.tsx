@@ -14,7 +14,20 @@ import { TunerError } from '../platform/tunerErrors';
 import { FretboardTool } from './FretboardTool';
 import { startMetronome } from '../platform/drumMachine';
 import { DrumMachineTool, SpeedTrainerTool } from './RhythmTools';
-export type Tool = 'metronome' | 'tuner' | 'chords' | 'fretboard' | 'drums' | 'speed';
+import { ChordDictionary } from './ChordDictionary';
+import { ReferenceTone } from './ReferenceTone';
+import { TechniqueTool } from './TechniqueTool';
+
+export type Tool =
+  | 'metronome'
+  | 'tuner'
+  | 'chords'
+  | 'fretboard'
+  | 'drums'
+  | 'speed'
+  | 'dictionary'
+  | 'reference'
+  | 'technique';
 export const toolNames: Record<Tool, string> = {
   metronome: 'Metrónomo',
   tuner: 'Afinador',
@@ -22,6 +35,9 @@ export const toolNames: Record<Tool, string> = {
   fretboard: 'Mástil',
   drums: 'Batería',
   speed: 'Velocidad',
+  dictionary: 'Diccionario de acordes y arpegios',
+  reference: 'Tono de referencia',
+  technique: 'Ejercicios de técnica',
 };
 
 export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
@@ -43,6 +59,12 @@ export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
         <DrumMachineTool />
       ) : tool === 'speed' ? (
         <SpeedTrainerTool />
+      ) : tool === 'dictionary' ? (
+        <ChordDictionary />
+      ) : tool === 'reference' ? (
+        <ReferenceTone />
+      ) : tool === 'technique' ? (
+        <TechniqueTool />
       ) : (
         <Chords />
       )}
@@ -59,66 +81,26 @@ function Metronome() {
   useEffect(() => {
     if (!running) return;
     const token = ++generation.current;
-    if (Platform.OS === 'web') {
-      let stop: (() => void) | undefined;
-      function fail(e: Error) {
-        if (token !== generation.current) return;
-        setError(e.message);
-        setRunning(false);
-      }
-      void startMetronome(Number(bpm), Number(meter), {
-        onStep: ({ step }) => {
-          if (token === generation.current) setBeat(step);
-        },
-        onError: fail,
-      })
-        .then((player) => {
-          if (token !== generation.current) player.stop();
-          else stop = player.stop;
-        })
-        .catch(fail);
-      return () => {
-        generation.current++;
-        stop?.();
-        setBeat(-1);
-      };
+    let stop: (() => void) | undefined;
+    function fail(e: Error) {
+      if (token !== generation.current) return;
+      setError(e.message);
+      setRunning(false);
     }
-    let timer: ReturnType<typeof setInterval> | undefined;
-    const flashes = new Set<ReturnType<typeof setTimeout>>();
-    (async () => {
-      try {
-        await audio.ready();
-        if (token !== generation.current) return;
-        let next = audio.now() + 0.1,
-          i = 0;
-        const schedule = () => {
-          while (next < audio.now() + 0.12) {
-            audio.click(next, i % Number(meter) === 0);
-            const current = i++ % Number(meter);
-            const flash = setTimeout(
-              () => {
-                flashes.delete(flash);
-                setBeat(current);
-              },
-              Math.max(0, (next - audio.now()) * 1000),
-            );
-            flashes.add(flash);
-            next += 60 / Number(bpm);
-          }
-        };
-        schedule();
-        timer = setInterval(schedule, 25);
-      } catch (e) {
-        if (token !== generation.current) return;
-        setError((e as Error).message);
-        setRunning(false);
-      }
-    })();
+    void startMetronome(Number(bpm), Number(meter), {
+      onStep: ({ step }) => {
+        if (token === generation.current) setBeat(step);
+      },
+      onError: fail,
+    })
+      .then((player) => {
+        if (token !== generation.current) player.stop();
+        else stop = player.stop;
+      })
+      .catch(fail);
     return () => {
       generation.current++;
-      clearInterval(timer);
-      flashes.forEach(clearTimeout);
-      audio.stop();
+      stop?.();
       setBeat(-1);
     };
   }, [running, bpm, meter]);
@@ -220,7 +202,7 @@ function Tuner() {
     [pitch, setPitch] = useState<TuningValue | null>(null),
     [error, setError] = useState<TunerError | null>(null),
     [preset, setPreset] = useState(profile.tuning),
-    [referenceText, setReferenceText] = useState('440');
+    [referenceText, setReferenceText] = useState(String(profile.referenceHz));
   const cleanup = useRef<(() => void) | null>(null),
     generation = useRef(0);
   useEffect(

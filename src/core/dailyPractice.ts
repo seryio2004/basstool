@@ -2,6 +2,7 @@ import { chordLineLevels, chordLineWagons } from './chordLine';
 import { listenGenres } from './listenRepeat';
 import { makePattern } from './music';
 import { availableTrainProgressions, progressionChords } from './trainProgressions';
+import { techniques, techniqueWarmups, type TechniqueId } from '../content/technique';
 import { studyPlans, warmups, type StudyExercise, type StudyFocus } from '../content/dailyPractice';
 import type { Level } from './profile';
 import type { Attempt, ExerciseConfig, Module } from './types';
@@ -87,6 +88,7 @@ type BlockBase = { seconds: number; title: string; instruction?: string };
 export type PracticeBlock = BlockBase &
   (
     | { kind: 'exercise'; module: Module; preset: ExerciseConfig }
+    | { kind: 'technique'; id: TechniqueId; bpm: number }
     | { kind: 'scale'; preset: ScalePreset; bpm: number }
     | { kind: 'song' }
   );
@@ -333,6 +335,19 @@ export function guidedRoutine(
         : 30 + Math.floor((available * weights[i]!) / weight);
     allocated += seconds;
     const type = routineType(goal, level, random);
+    if (type === 'warmup') {
+      const rotation = techniqueWarmups[level];
+      const id = rotation[((week % rotation.length) + rotation.length) % rotation.length]!;
+      const { title, description, bpm } = techniques[id];
+      return {
+        kind: 'technique',
+        id,
+        title: `Calentamiento · ${title}`,
+        instruction: description,
+        bpm,
+        seconds,
+      } satisfies PracticeBlock;
+    }
     const previous = history.find((r) => r.module === type);
     return makeBlock(
       type,

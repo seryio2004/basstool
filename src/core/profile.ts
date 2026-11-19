@@ -15,6 +15,7 @@ export type Profile = {
   email: string | null;
   tuning: TuningId;
   scale: BassScale;
+  referenceHz: number;
   level: Level;
   nomenclature: Nomenclature;
   leftHanded: boolean;
@@ -44,6 +45,7 @@ export function defaultProfile(id: string): Profile {
     email: null,
     tuning: 'standard4',
     scale: 34,
+    referenceHz: 440,
     level: 'beginner',
     nomenclature: 'latin',
     leftHanded: false,
@@ -56,6 +58,10 @@ export function defaultProfile(id: string): Profile {
  * Normaliza un perfil leído del almacenamiento o del servidor. Los valores
  * desconocidos vuelven al valor por defecto en lugar de romper la app.
  */
+export function validReferenceHz(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 430 && value <= 450;
+}
+
 export function parseProfile(value: unknown, fallbackId: string): Profile {
   const base = defaultProfile(fallbackId);
   if (!value || typeof value !== 'object') return base;
@@ -65,6 +71,7 @@ export function parseProfile(value: unknown, fallbackId: string): Profile {
     email: typeof v.email === 'string' ? v.email : null,
     tuning: tuningIds.includes(v.tuning as TuningId) ? (v.tuning as TuningId) : base.tuning,
     scale: bassScales.find((scale) => scale === v.scale) ?? base.scale,
+    referenceHz: validReferenceHz(v.referenceHz) ? v.referenceHz : base.referenceHz,
     level: levels.some((l) => l.value === v.level) ? (v.level as Level) : base.level,
     nomenclature: v.nomenclature === 'english' ? 'english' : 'latin',
     leftHanded: v.leftHanded === true,
