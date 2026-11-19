@@ -30,7 +30,7 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - **Siguiente para Sol:** tarea 12 «Escucha y repite» (docs/TAREAS.md), tras GrooveTrain.
 
-- **Siguiente (tras ChordLine): rediseño visual vintage/analógico, oscuro por defecto** — encargo `.git/coord/encargos/rediseno-vintage.md`.
+- ChordLine v2 integrado. **En curso (subagente de Claude, rama claude/rediseno): rediseño visual vintage/analógico, oscuro por defecto** — encargo `.git/coord/encargos/rediseno-vintage.md`.
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
