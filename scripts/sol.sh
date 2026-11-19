@@ -19,7 +19,7 @@ fi
 gitdir="$(git rev-parse --path-format=absolute --git-common-dir)"
 repo="$(dirname "$gitdir")"
 wt="${SOL_WORKTREE:-$repo-codex}"
-model="${SOL_MODEL:-gpt-6.1-sol}"
+model="${SOL_MODEL:-gpt-6.2-sol}"
 
 # Binario de Codex: SOL_CODEX, o el que trae la extensión de VS Code (usa la
 # sesión de ~/.codex), o el del PATH. El paquete snap no ve esa sesión.
