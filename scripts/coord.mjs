@@ -7,24 +7,50 @@
  * mismo directorio .git, así que ven los mismos mensajes y reservas, y nada de
  * esto entra en los commits. Sin dependencias.
  */
-import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const NAME = /^[a-z0-9][a-z0-9-]{0,30}$/;
 
+/**
+ * Localiza el directorio git de este worktree y el común leyendo archivos, sin
+ * lanzar `git`: algunos sandboxes de agentes (Codex) no permiten subprocesos.
+ * En un worktree, `.git` es un archivo «gitdir: …» y ese directorio contiene
+ * `commondir`, que apunta al .git compartido.
+ */
+function gitDirs() {
+  for (let dir = process.cwd(); ; dir = path.dirname(dir)) {
+    const dotGit = path.join(dir, '.git');
+    if (fs.existsSync(dotGit)) {
+      let gitDir = dotGit;
+      if (fs.statSync(dotGit).isFile()) {
+        const target = fs
+          .readFileSync(dotGit, 'utf8')
+          .match(/^gitdir:\s*(.+)$/m)?.[1]
+          ?.trim();
+        if (!target) fail(`No se entiende ${dotGit}.`);
+        gitDir = path.resolve(dir, target);
+      }
+      const commonFile = path.join(gitDir, 'commondir');
+      const common = fs.existsSync(commonFile)
+        ? path.resolve(gitDir, fs.readFileSync(commonFile, 'utf8').trim())
+        : gitDir;
+      return { gitDir, common };
+    }
+    if (path.dirname(dir) === dir) fail('No estás dentro de un repositorio git.');
+  }
+}
+
 function coordDir() {
-  const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
-    encoding: 'utf8',
-  }).trim();
-  const dir = path.join(common, 'coord');
+  const dir = path.join(gitDirs().common, 'coord');
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
 
 function currentBranch() {
   try {
-    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
+    const head = fs.readFileSync(path.join(gitDirs().gitDir, 'HEAD'), 'utf8').trim();
+    return head.startsWith('ref: refs/heads/') ? head.slice(16) : head.slice(0, 7);
   } catch {
     return '?';
   }

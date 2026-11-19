@@ -29,7 +29,9 @@ Claude escribe el encargo en un archivo (objetivo, contexto, alcance, fuera de a
 scripts/sol.sh tarea-5 /ruta/al/encargo.md
 ```
 
-El script prepara la rama `codex/tarea-5` en `clasRo-codex` y ejecuta `codex exec` sin interacción, con sandbox de escritura limitado al worktree y a `.git`. El resumen final queda en `.git/coord/sol/tarea-5.md`. Claude revisa el diff (`git diff main...codex/tarea-5`), pide cambios por buzón o con un nuevo encargo, e integra.
+El script prepara la rama `codex/tarea-5` en `clasRo-codex` y ejecuta `codex exec` sin interacción, con el binario de la extensión de VS Code (la que tiene tu sesión iniciada) y un sandbox que solo deja escribir en el worktree. El resumen final queda en `.git/coord/sol/tarea-5.md`.
+
+El sandbox de Codex no deja escribir en `.git`, así que **Sol entrega los cambios sin commit**. Claude revisa `git -C ../clasRo-codex diff`, pasa las comprobaciones, hace el commit en `codex/tarea-5` e integra. Para pedir cambios, se lanza otro encargo sobre la misma tarea después de ese commit.
 
 También puedes abrir Codex tú directamente en `clasRo-codex`; las reglas son las mismas.
 

@@ -20,6 +20,19 @@ gitdir="$(git rev-parse --path-format=absolute --git-common-dir)"
 repo="$(dirname "$gitdir")"
 wt="${SOL_WORKTREE:-$repo-codex}"
 model="${SOL_MODEL:-gpt-6.1-sol}"
+
+# Binario de Codex: SOL_CODEX, o el que trae la extensión de VS Code (usa la
+# sesión de ~/.codex), o el del PATH. El paquete snap no ve esa sesión.
+codex_bin="${SOL_CODEX:-}"
+if [[ -z "$codex_bin" ]]; then
+  ext="$(ls -d "$HOME"/.vscode/extensions/openai.chatgpt-*-linux-x64 2>/dev/null | sort -V | tail -1 || true)"
+  if [[ -n "$ext" && -x "$ext/bin/linux-x86_64/codex" ]]; then
+    codex_bin="$ext/bin/linux-x86_64/codex"
+  else
+    codex_bin="$(command -v codex || true)"
+  fi
+fi
+[[ -x "$codex_bin" ]] || { echo "No encuentro Codex. Define SOL_CODEX con la ruta del binario." >&2; exit 1; }
 out="$gitdir/coord/sol"
 branch="codex/$task"
 mkdir -p "$out"
@@ -41,12 +54,12 @@ Encargo:
 $(cat "$brief")
 
 Al terminar:
-1. Commits pequeños en tu rama con las comprobaciones pasando (npm run typecheck, npm test, npm run build).
-2. NO integres en main: Claude revisa e integra.
+1. Deja tus cambios en el worktree SIN hacer commit (tu sandbox no puede escribir en .git): Claude revisa el diff, hace el commit en $branch e integra. No uses git add, git commit ni git stash.
+2. Pasa las comprobaciones (npm run typecheck, npm test, npm run build) e incluye su resultado en el resumen.
 3. Libera tus reservas (npm run coord -- release codex $task) y avisa: npm run coord -- send codex claude \"$task lista en $branch: …\".
 4. Tu último mensaje debe ser un resumen breve: qué has hecho, archivos tocados, comprobaciones y su resultado, y qué queda pendiente o necesita decisión."
 
 echo "Sol 6.1 trabajando en $branch… (registro: $out/$task.log)"
-codex exec -C "$wt" --full-auto --add-dir "$gitdir" -m "$model" \
-  -o "$out/$task.md" "$prompt" >"$out/$task.log" 2>&1
+"$codex_bin" exec -C "$wt" -s workspace-write --add-dir "$gitdir" -m "$model" \
+  -o "$out/$task.md" "$prompt" </dev/null >"$out/$task.log" 2>&1
 echo "Terminado. Resumen: $out/$task.md"
