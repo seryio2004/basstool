@@ -1,11 +1,12 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Chips, Label, colors, fonts, styles } from '../components/ui';
+import { Button, Chips, Label, colors, fonts, styles } from '../components/ui';
 import { FretMark, Fretboard, plainName } from '../components/Fretboard';
 import { tunings } from '../core/instrument';
 import { parsePitch, pitchName } from '../core/notation';
 import { arpeggios, positionsFor, scales, TheoryPattern } from '../core/theory';
 import { useStore } from '../data/Store';
+import type { ScalePreset } from '../core/dailyPractice';
 import { audio } from '../platform/audio';
 
 const tonics = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
@@ -46,18 +47,67 @@ const arpeggioKeys: ArpeggioKey[] = [
   'augmentedMajor7',
 ];
 
-export function FretboardTool() {
+export function FretboardTool({
+  practice,
+}: {
+  practice?: { preset: ScalePreset; bpm: number; onBpm: (bpm: number) => void };
+} = {}) {
   const { profile } = useStore();
   const compact = useWindowDimensions().width < 700;
   const instrument = tunings[profile.tuning];
   const nomenclature = profile.nomenclature;
-  const [tonic, setTonic] = useState<Tonic>('A');
+  const [tonic, setTonic] = useState<Tonic>(practice?.preset.tonic ?? 'A');
   const [kind, setKind] = useState<Kind>('scale');
-  const [scale, setScale] = useState<ScaleKey>('minorPentatonic');
+  const [scale, setScale] = useState<ScaleKey>(practice?.preset.scale ?? 'minorPentatonic');
   const [arpeggio, setArpeggio] = useState<ArpeggioKey>('minor7');
   const [labelMode, setLabelMode] = useState<LabelMode>('note');
   const [active, setActive] = useState<{ string: number; fret: number; midi: number } | null>(null);
   const [audioError, setAudioError] = useState('');
+  const [pulse, setPulse] = useState(false);
+  const playingTone = useRef(0);
+  const practiceBpm = practice?.bpm;
+  const reached = useRef(practice?.onBpm);
+  reached.current = practice?.onBpm;
+
+  useEffect(() => {
+    if (!practiceBpm || !pulse) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    let next = 0;
+    const schedule = () => {
+      const time = audio.now();
+      if (next < time) next = time + 0.02;
+      while (next < time + 0.1) {
+        audio.click(next, false);
+        next += 60 / practiceBpm;
+      }
+    };
+    void audio
+      .ready()
+      .then(() => {
+        if (cancelled) return;
+        schedule();
+        timer = setInterval(schedule, 25);
+        reached.current?.(practiceBpm);
+      })
+      .catch((cause) => {
+        if (cancelled) return;
+        setAudioError((cause as Error).message);
+        setPulse(false);
+      });
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      audio.stop();
+    };
+  }, [practiceBpm, pulse]);
+
+  useEffect(
+    () => () => {
+      playingTone.current++;
+    },
+    [],
+  );
 
   const pattern: TheoryPattern = kind === 'scale' ? scales[scale] : arpeggios[arpeggio];
   const result = useMemo(() => {
@@ -86,9 +136,11 @@ export function FretboardTool() {
   });
 
   async function play(string: number, fret: number, midi: number) {
+    const token = ++playingTone.current;
     setActive({ string, fret, midi });
     try {
       await audio.ready();
+      if (token !== playingTone.current) return;
       audio.tone(midi, audio.now() + 0.01, 0.9, 0.22);
       setAudioError('');
     } catch (e) {
@@ -101,38 +153,51 @@ export function FretboardTool() {
 
   return (
     <View style={{ gap: 22 }}>
-      <View style={{ gap: 14 }}>
-        <OptionRow compact={compact}>
-          <Chips<Tonic>
-            value={tonic}
-            onChange={setTonic}
-            options={tonics.map((t) => ({ value: t, label: tonicLabel(t) }))}
+      {practice ? (
+        <Button
+          variant="secondary"
+          style={{ alignSelf: 'flex-start' }}
+          onPress={() => {
+            setAudioError('');
+            setPulse(!pulse);
+          }}
+        >
+          {pulse ? 'Detener pulso' : `Marcar pulso · ${practice.bpm} BPM`}
+        </Button>
+      ) : (
+        <View style={{ gap: 14 }}>
+          <OptionRow compact={compact}>
+            <Chips<Tonic>
+              value={tonic}
+              onChange={setTonic}
+              options={tonics.map((t) => ({ value: t, label: tonicLabel(t) }))}
+            />
+          </OptionRow>
+          <Chips<Kind>
+            value={kind}
+            onChange={setKind}
+            options={[
+              { value: 'scale', label: 'Escalas' },
+              { value: 'arpeggio', label: 'Arpegios' },
+            ]}
           />
-        </OptionRow>
-        <Chips<Kind>
-          value={kind}
-          onChange={setKind}
-          options={[
-            { value: 'scale', label: 'Escalas' },
-            { value: 'arpeggio', label: 'Arpegios' },
-          ]}
-        />
-        <OptionRow compact={compact}>
-          {kind === 'scale' ? (
-            <Chips<ScaleKey>
-              value={scale}
-              onChange={setScale}
-              options={scaleKeys.map((k) => ({ value: k, label: scales[k].name }))}
-            />
-          ) : (
-            <Chips<ArpeggioKey>
-              value={arpeggio}
-              onChange={setArpeggio}
-              options={arpeggioKeys.map((k) => ({ value: k, label: arpeggios[k].name }))}
-            />
-          )}
-        </OptionRow>
-      </View>
+          <OptionRow compact={compact}>
+            {kind === 'scale' ? (
+              <Chips<ScaleKey>
+                value={scale}
+                onChange={setScale}
+                options={scaleKeys.map((k) => ({ value: k, label: scales[k].name }))}
+              />
+            ) : (
+              <Chips<ArpeggioKey>
+                value={arpeggio}
+                onChange={setArpeggio}
+                options={arpeggioKeys.map((k) => ({ value: k, label: arpeggios[k].name }))}
+              />
+            )}
+          </OptionRow>
+        </View>
+      )}
 
       <View style={[styles.panel, { gap: 16, paddingHorizontal: 16 }]}>
         <View style={[styles.between, { paddingHorizontal: 8 }]}>

@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { StoreProvider, useStore } from './src/data/Store';
 import { Module, Page } from './src/core/types';
+import { attemptBpm } from './src/core/dailyPractice';
+import { formatTime } from './src/core/transcription';
 import {
   Badge,
   Button,
@@ -29,6 +31,9 @@ import { Transcribe } from './src/screens/Transcribe';
 import { Learn } from './src/screens/Learn';
 import { Practice } from './src/screens/Practice';
 import { Progress } from './src/screens/Progress';
+import { Today } from './src/screens/Today';
+import { FretboardTool } from './src/screens/FretboardTool';
+import { useGuidedPractice } from './src/screens/useGuidedPractice';
 import { Exercise } from './src/screens/Exercise';
 import { Onboarding, Settings } from './src/screens/Settings';
 import { Tool, Tools } from './src/screens/Tools';
@@ -37,6 +42,7 @@ import { audio } from './src/platform/audio';
 import { supabase } from './src/data/supabase';
 
 const navigation: { id: Page; label: string; icon: string }[] = [
+  { id: 'today', label: 'Hoy', icon: 'calendar' },
   { id: 'tools', label: 'Herramientas', icon: 'tuner' },
   { id: 'transcribe', label: 'Transcribir', icon: 'wave' },
   { id: 'learn', label: 'Aprender', icon: 'library' },
@@ -68,10 +74,12 @@ function Shell() {
     { profile, mode, loading } = store;
   const { width } = useWindowDimensions(),
     desktop = width >= 1000;
-  const [page, setPage] = useState<Page>('tools'),
+  const [page, setPage] = useState<Page>('today'),
     [exercise, setExercise] = useState<Module | null>(null),
     [tool, setTool] = useState<Tool | null>(null);
   const [recovery, setRecovery] = useState(false);
+  const guide = useGuidedPractice();
+  const block = guide.block;
 
   useEffect(() => {
     bootstrap();
@@ -90,7 +98,8 @@ function Shell() {
     audio.stop();
     store.clearMessage();
   };
-  const navigate = (id: Page) => {
+  const navigate = async (id: Page) => {
+    if (block && !(await guide.advance('exit'))) return;
     reset();
     setExercise(null);
     setTool(null);
@@ -129,10 +138,45 @@ function Shell() {
   const pad = desktop ? 40 : 20;
   const content = !profile.configured ? (
     <Onboarding />
+  ) : block ? (
+    block.kind === 'song' ? (
+      <Transcribe
+        key={guide.key}
+        pagePadding={pad}
+        onSongProgress={({ playing, ...metrics }) => guide.report(metrics, playing)}
+      />
+    ) : block.kind === 'scale' ? (
+      <FretboardTool
+        key={guide.key}
+        practice={{ preset: block.preset, bpm: block.bpm, onBpm: (bpm) => guide.report({ bpm }) }}
+      />
+    ) : (
+      <Exercise
+        key={guide.key}
+        module={block.module}
+        preset={block.preset}
+        onBack={() => void guide.advance('exit')}
+        onPracticeResult={(result) =>
+          guide.report({
+            correct: result.correct,
+            total: result.total,
+            bpm: attemptBpm(result),
+          })
+        }
+        onActivity={guide.activity}
+      />
+    )
   ) : tool ? (
     <Tools tool={tool} onBack={() => setTool(null)} />
   ) : exercise ? (
     <Exercise module={exercise} onBack={() => setExercise(null)} />
+  ) : page === 'today' ? (
+    <Today
+      onStart={(kind, blocks, planDay) => guide.start(kind, profile.level, blocks, planDay)}
+      onSettings={() => void navigate('settings')}
+      finished={guide.finished}
+      onDismiss={guide.clearFinished}
+    />
   ) : page === 'tools' ? (
     <ToolsHome openTool={openTool} />
   ) : page === 'transcribe' ? (
@@ -255,13 +299,72 @@ function Shell() {
             </Button>
           </View>
         ) : null}
+        {block ? (
+          <View
+            style={{
+              paddingHorizontal: pad,
+              paddingVertical: 10,
+              gap: 8,
+              backgroundColor: colors.surface,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.line,
+            }}
+          >
+            <View style={styles.between}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.legend}>
+                  {guide.title} · {guide.index + 1}/{guide.count}
+                </Text>
+                <Text style={styles.h3}>{block.title}</Text>
+              </View>
+              <Text
+                style={[styles.data, { fontSize: 22, color: colors.accentText }]}
+                accessibilityLabel={`Tiempo restante ${formatTime(block.seconds - guide.seconds)}`}
+              >
+                {formatTime(block.seconds - guide.seconds)}
+              </Text>
+            </View>
+            {block.instruction ? <Label muted>{block.instruction}</Label> : null}
+            {guide.seconds >= block.seconds && guide.needsResult ? (
+              <Label muted>Completa un intento para continuar.</Label>
+            ) : null}
+            <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
+              <Button
+                small
+                onPress={() => void guide.advance('next')}
+                disabled={!guide.canAdvance}
+                busy={guide.busy}
+              >
+                {guide.index + 1 === guide.count ? 'Terminar sesión' : 'Siguiente bloque'}
+              </Button>
+              <Button
+                small
+                variant="secondary"
+                disabled={guide.busy}
+                onPress={() => void guide.advance('skip')}
+              >
+                Saltar bloque
+              </Button>
+              <Button
+                small
+                variant="ghost"
+                disabled={guide.busy}
+                onPress={() => void guide.advance('exit')}
+              >
+                Salir
+              </Button>
+            </View>
+            {guide.error ? <Label style={{ color: colors.error }}>{guide.error}</Label> : null}
+          </View>
+        ) : null}
         <View style={{ flex: 1 }}>
-          {profile.configured && page === 'transcribe' && !tool && !exercise ? (
+          {profile.configured &&
+          (block?.kind === 'song' || (page === 'transcribe' && !tool && !exercise)) ? (
             content
           ) : (
             <ScrollView
               ref={contentScroll}
-              key={`${page}-${tool || ''}-${exercise || ''}`}
+              key={guide.key || `${page}-${tool || ''}-${exercise || ''}`}
               contentContainerStyle={{
                 padding: pad,
                 paddingTop: desktop ? 44 : 24,
@@ -403,6 +506,7 @@ function Nav({
   onPress: () => void;
   compact?: boolean;
 }) {
+  const { width } = useWindowDimensions();
   const tint = active ? colors.accentText : colors.muted;
   return (
     <Pressable
@@ -447,7 +551,7 @@ function Nav({
         style={{
           color: active ? colors.accentText : compact ? colors.muted : colors.ink,
           fontFamily: fonts.body,
-          fontSize: compact ? 11 : 15,
+          fontSize: compact ? (label === 'Herramientas' && width < 400 ? 9 : 11) : 15,
           fontWeight: active ? '600' : '400',
         }}
       >

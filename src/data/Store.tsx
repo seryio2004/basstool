@@ -7,6 +7,15 @@ import { SHOW_HARMONY_COURSE } from '../content/flags.json';
 import { harmonyLessons } from '../content/harmony';
 import { supabase } from './supabase';
 import { loadRemote, profileToRow } from './remote';
+import {
+  emptyPractice,
+  parsePractice,
+  parsePracticeSettings,
+  practiceNote,
+  type PracticeData,
+  type PracticeSession,
+  type PracticeSettings,
+} from '../core/dailyPractice';
 
 /**
  * La app funciona sin cuenta: perfil y datos se guardan en el dispositivo.
@@ -14,12 +23,16 @@ import { loadRemote, profileToRow } from './remote';
  * cuenta. Fusionar los datos locales con la cuenta está pendiente (REQUISITOS §10).
  */
 const KEY = 'clasro.local.v2';
+const remotePracticeKey = (id: string) => `clasro.practice.v1.${id}`;
 const LEGACY_KEYS = ['clasro.demo.v1'];
 
 type Mode = 'local' | 'remote';
-type State = { profile: Profile; db: Database; mode: Mode };
+type State = { profile: Profile; db: Database; daily: PracticeData; mode: Mode };
 type ProfilePatch = Partial<Omit<Profile, 'id' | 'email'>>;
 type Store = State & {
+  updatePracticeSettings: (settings: PracticeSettings) => Promise<void>;
+  savePractice: (session: PracticeSession) => Promise<void>;
+  savePracticeNote: (id: string, note: string, attempt?: boolean) => Promise<void>;
   loading: boolean;
   error: string;
   message: string;
@@ -39,7 +52,12 @@ type Store = State & {
 
 const Context = createContext<Store | null>(null);
 const emptyDb = (): Database => ({ attempts: [], lessonProgress: [] });
-const freshLocal = (): State => ({ profile: defaultProfile(uid()), db: emptyDb(), mode: 'local' });
+const freshLocal = (): State => ({
+  profile: defaultProfile(uid()),
+  db: emptyDb(),
+  daily: emptyPractice(),
+  mode: 'local',
+});
 
 function parseLocal(raw: string | null): State | null {
   if (!raw) return null;
@@ -50,6 +68,7 @@ function parseLocal(raw: string | null): State | null {
     return {
       profile,
       mode: 'local',
+      daily: parsePractice(x.daily),
       db: {
         attempts: Array.isArray(x.db?.attempts) ? x.db.attempts : [],
         lessonProgress: Array.isArray(x.db?.lessonProgress) ? x.db.lessonProgress : [],
@@ -68,7 +87,10 @@ async function readLocal(): Promise<State> {
   return next;
 }
 async function writeLocal(s: State) {
-  await AsyncStorage.setItem(KEY, JSON.stringify({ version: 2, profile: s.profile, db: s.db }));
+  await AsyncStorage.setItem(
+    KEY,
+    JSON.stringify({ version: 2, profile: s.profile, db: s.db, daily: s.daily }),
+  );
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -91,7 +113,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (data.session) {
         const remote = await loadRemote(data.session.user.id);
         const { theme, scale } = (await readLocal()).profile;
-        apply({ ...remote, profile: { ...remote.profile, theme, scale }, mode: 'remote' });
+        const raw = await AsyncStorage.getItem(remotePracticeKey(remote.profile.id));
+        let daily = emptyPractice();
+        try {
+          daily = parsePractice(JSON.parse(raw ?? 'null'));
+        } catch {
+          // La práctica local de la cuenta puede faltar o venir de una versión anterior.
+        }
+        apply({ ...remote, profile: { ...remote.profile, theme, scale }, daily, mode: 'remote' });
         return;
       }
     }
@@ -152,6 +181,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return supabase;
   };
 
+  function updateDaily(change: (data: PracticeData) => PracticeData, success = '') {
+    const owner = current.current.profile.id;
+    return mutate(async (s) => {
+      if (s.profile.id !== owner) throw new Error('El perfil activo ha cambiado.');
+      const daily = change(s.daily);
+      if (s.mode === 'remote')
+        await AsyncStorage.setItem(remotePracticeKey(owner), JSON.stringify(daily));
+      return { ...s, daily };
+    }, success);
+  }
+
   const store: Store = {
     ...state,
     loading,
@@ -163,6 +203,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setError('');
     },
     refresh,
+    updatePracticeSettings: (settings) =>
+      updateDaily(
+        (data) => ({ ...data, settings: parsePracticeSettings(settings) }),
+        'Práctica actualizada.',
+      ),
+    savePractice: (session) =>
+      updateDaily((data) => {
+        const previous = data.sessions.find((item) => item.id === session.id);
+        return {
+          ...data,
+          sessions: [
+            { ...session, note: previous?.note ?? session.note },
+            ...data.sessions.filter((item) => item.id !== session.id),
+          ],
+        };
+      }),
+    savePracticeNote: (id, value, attempt) =>
+      updateDaily((data) => {
+        const note = practiceNote(value);
+        return attempt
+          ? { ...data, attemptNotes: { ...data.attemptNotes, [id]: note } }
+          : { ...data, sessions: data.sessions.map((s) => (s.id === id ? { ...s, note } : s)) };
+      }),
     updateProfile: (patch) =>
       mutate(async (s) => {
         const profile = { ...s.profile, ...patch };

@@ -29,6 +29,7 @@ import { pitchFromSamples } from '../core/music';
 import { levels } from '../core/profile';
 import { eventNotes } from '../core/score';
 import { uid, type AttemptInput } from '../core/types';
+import { NoteEditor } from './PracticeNote';
 import { useStore } from '../data/Store';
 import { openListenRepeatAudio, type ListenRepeatAudio } from '../platform/listenRepeatAudio';
 import { openRhythmMic, rhythmMicAvailable } from '../platform/rhythmMic';
@@ -56,13 +57,17 @@ type RevealView = (typeof revealViews)[number]['value'];
 export function ListenRepeat({
   onBack,
   preset,
+  onPracticeResult,
+  onActivity,
 }: {
   onBack: () => void;
   preset?: ListenRepeatPreset;
+  onPracticeResult?: (result: AttemptInput) => void;
+  onActivity?: (active: boolean) => void;
 }) {
   const { colors } = useTheme();
   const tone = moduleTone('listen-repeat');
-  const { profile, saveAttempt } = useStore();
+  const { profile, saveAttempt, daily } = useStore();
   const instrument = tunings[profile!.tuning];
   const [settings, setSettings] = useState<ListenRepeatPreset>(
     () =>
@@ -81,6 +86,7 @@ export function ListenRepeat({
   const [error, setError] = useState('');
   const [failed, setFailed] = useState<AttemptInput[]>([]);
   const [retrying, setRetrying] = useState(false);
+  const [lastSaved, setLastSaved] = useState<string>();
   const [view, setView] = useState<RevealView | null>(null);
   const [step, setStep] = useState(0);
   const [scoreWidth, setScoreWidth] = useState(0);
@@ -149,9 +155,17 @@ export function ListenRepeat({
       },
       detail,
     };
-    void saveAttempt(attempt).catch(() => {
-      if (active.current) setFailed((items) => [...items, attempt]);
-    });
+    if (onPracticeResult) {
+      onPracticeResult(attempt);
+      return;
+    }
+    void saveAttempt(attempt)
+      .then(() => {
+        if (active.current) setLastSaved(attempt.id);
+      })
+      .catch(() => {
+        if (active.current) setFailed((items) => [...items, attempt]);
+      });
   }
 
   async function retrySave() {
@@ -159,7 +173,10 @@ export function ListenRepeat({
     try {
       for (const attempt of failed) {
         await saveAttempt(attempt);
-        if (active.current) setFailed((items) => items.filter((item) => item.id !== attempt.id));
+        if (active.current) {
+          setFailed((items) => items.filter((item) => item.id !== attempt.id));
+          setLastSaved(attempt.id);
+        }
       }
     } catch {
       // Keep the failed attempt and the remaining queue available for retry.
@@ -295,6 +312,10 @@ export function ListenRepeat({
   }
 
   const playing = phase === 'listen' || phase === 'repeat';
+  useEffect(() => {
+    onActivity?.(playing);
+    return () => onActivity?.(false);
+  }, [onActivity, playing]);
   const configurable = !playing && !opening;
   const steps =
     view === 'fretboard'
@@ -311,9 +332,11 @@ export function ListenRepeat({
 
   return (
     <View style={{ gap: 24 }}>
-      <Button onPress={onBack} variant="ghost" icon="back" style={{ alignSelf: 'flex-start' }}>
-        Volver a practicar
-      </Button>
+      {!onPracticeResult ? (
+        <Button onPress={onBack} variant="ghost" icon="back" style={{ alignSelf: 'flex-start' }}>
+          Volver a practicar
+        </Button>
+      ) : null}
       <View style={{ gap: 8, alignItems: 'flex-start' }}>
         <Heading level={1} style={styles.title}>
           Escucha y repite
@@ -350,8 +373,12 @@ export function ListenRepeat({
         </Label>
         <View style={[styles.row, { flexWrap: 'wrap' }]}>
           {phase === 'passed' ? (
-            <Button onPress={() => changePhrase({ ...settings, seed: undefined }, phrase)}>
-              Nueva frase
+            <Button
+              onPress={() =>
+                onPracticeResult ? stop() : changePhrase({ ...settings, seed: undefined }, phrase)
+              }
+            >
+              {onPracticeResult ? 'Repetir frase' : 'Nueva frase'}
             </Button>
           ) : playing ? (
             <Button onPress={() => stop()} variant="secondary">
@@ -386,6 +413,9 @@ export function ListenRepeat({
           <Text accessibilityLiveRegion="polite" style={styles.text}>
             {feedback}
           </Text>
+        ) : null}
+        {!playing && lastSaved ? (
+          <NoteEditor key={lastSaved} id={lastSaved} note={daily.attemptNotes[lastSaved]} attempt />
         ) : null}
         {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
         {failed.length > 0 ? (
@@ -453,36 +483,41 @@ export function ListenRepeat({
 
       {configurable ? (
         <View style={{ gap: 16 }}>
-          <View style={{ gap: 8 }}>
-            <Label>Género</Label>
-            <Chips
-              label="Género"
-              minHeight={44}
-              options={[...listenGenres]}
-              value={settings.genre}
-              onChange={(genre) => {
-                if (genre !== settings.genre) changePhrase({ ...settings, genre, seed: undefined });
-              }}
-            />
-          </View>
-          <View style={{ gap: 8 }}>
-            <Label>Dificultad</Label>
-            <Chips
-              label="Dificultad"
-              minHeight={44}
-              options={levels}
-              value={settings.difficulty}
-              onChange={(difficulty) => {
-                if (difficulty !== settings.difficulty)
-                  changePhrase({ ...settings, difficulty, seed: undefined });
-              }}
-            />
-          </View>
-          <Toggle
-            label="Acordes de acompañamiento"
-            value={settings.chords}
-            onChange={(chords) => setSettings({ ...settings, chords })}
-          />
+          {!onPracticeResult ? (
+            <>
+              <View style={{ gap: 8 }}>
+                <Label>Género</Label>
+                <Chips
+                  label="Género"
+                  minHeight={44}
+                  options={[...listenGenres]}
+                  value={settings.genre}
+                  onChange={(genre) => {
+                    if (genre !== settings.genre)
+                      changePhrase({ ...settings, genre, seed: undefined });
+                  }}
+                />
+              </View>
+              <View style={{ gap: 8 }}>
+                <Label>Dificultad</Label>
+                <Chips
+                  label="Dificultad"
+                  minHeight={44}
+                  options={levels}
+                  value={settings.difficulty}
+                  onChange={(difficulty) => {
+                    if (difficulty !== settings.difficulty)
+                      changePhrase({ ...settings, difficulty, seed: undefined });
+                  }}
+                />
+              </View>
+              <Toggle
+                label="Acordes de acompañamiento"
+                value={settings.chords}
+                onChange={(chords) => setSettings({ ...settings, chords })}
+              />
+            </>
+          ) : null}
           {rhythmMicAvailable ? (
             <Toggle
               label="Comprobar con micrófono"

@@ -25,6 +25,7 @@ import {
   tuningIds,
 } from '../core/profile';
 import { useStore } from '../data/Store';
+import { PracticeSettings } from './PracticeSettings';
 
 type InstrumentDraft = Pick<Profile, 'tuning' | 'scale' | 'level' | 'nomenclature' | 'leftHanded'>;
 
@@ -172,6 +173,7 @@ export function Settings() {
           Guardar ajustes
         </Button>
       </View>
+      <PracticeSettings key={store.profile.id} />
       <Appearance />
       {Platform.OS !== 'web' ? <Account /> : null}
       {store.mode === 'local' ? (

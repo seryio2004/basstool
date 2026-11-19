@@ -39,7 +39,6 @@ import {
   type ChordLineDifficulty,
   type ChordLineRhythmSelection,
   type ChordLineSettings,
-  type ChordLineSnapshot,
 } from '../core/chordLine';
 import { figurePool, makePattern, pitchFromSamples } from '../core/music';
 import { fifthsCircle, pitchName } from '../core/notation';
@@ -62,13 +61,11 @@ import type { RhythmMic } from '../platform/rhythmMicTypes';
 import { grooveColors as palette } from '../theme/groove';
 import { harmonicColors } from '../theme/harmonic';
 
-type RhythmExerciseConfig = ExerciseConfig & { chordLine?: ChordLineSnapshot };
-
 export type RhythmResult = {
   correct: number;
   total: number;
   duration: number;
-  config: RhythmExerciseConfig;
+  config: ExerciseConfig;
   detail: string;
 };
 
@@ -122,10 +119,14 @@ export function RhythmExercise({
   variant,
   leftHanded,
   onResult,
+  fixed = false,
+  onActivity,
 }: {
-  config: RhythmExerciseConfig;
+  config: ExerciseConfig;
   variant: 'groove' | 'reading' | 'chord-train';
   leftHanded: boolean;
+  fixed?: boolean;
+  onActivity?: (active: boolean) => void;
   onResult: (result: RhythmResult) => void;
 }) {
   const { profile } = useStore();
@@ -173,6 +174,10 @@ export function RhythmExercise({
   const [hitCount, setHitCount] = useState(0);
   const [error, setError] = useState('');
   const [playing, setPlaying] = useState(false);
+  useEffect(() => {
+    onActivity?.(playing);
+    return () => onActivity?.(false);
+  }, [onActivity, playing]);
   const [opening, setOpening] = useState(false);
   const [input, setInput] = useState<RhythmInput>('manual');
   const [sensitivity, setSensitivity] = useState(String(config.micSensitivity ?? 35));
@@ -279,6 +284,7 @@ export function RhythmExercise({
   }, [harmonic, profileId, profileLevel, snapshot, config.chords]);
 
   function changeBeat(index: number) {
+    if (fixed) return;
     setPattern((previous) => {
       const next = Array.from({ length }, (_, i) => previous[i % previous.length]!);
       next[index] = (next[index]! + 1) % figurePool.length;
@@ -601,7 +607,7 @@ export function RhythmExercise({
   )!.label;
   return (
     <View style={{ gap: 18 }}>
-      {harmonic && !playing ? (
+      {harmonic && !playing && !fixed ? (
         <View style={styles.panel}>
           <Label>Dificultad{settings.difficulty === 'random' ? ` · ${difficultyLabel}` : ''}</Label>
           <Chips
@@ -669,7 +675,7 @@ export function RhythmExercise({
             onChangeBeat={changeBeat}
             pattern={pattern}
             wagons={scheduledWagons}
-            playing={playing}
+            playing={playing || fixed}
             wide={width >= 860}
           />
         ) : (
@@ -683,9 +689,9 @@ export function RhythmExercise({
                     <Pressable
                       key={i}
                       accessibilityRole="button"
-                      accessibilityLabel={`Pulso ${i + 1}, ${figurePool[id]!.name}. Cambiar figura`}
-                      accessibilityState={{ selected, disabled: playing }}
-                      disabled={playing}
+                      accessibilityLabel={`Pulso ${i + 1}, ${figurePool[id]!.name}${fixed ? '' : '. Cambiar figura'}`}
+                      accessibilityState={{ selected, disabled: playing || fixed }}
+                      disabled={playing || fixed}
                       onPress={() => changeBeat(i)}
                       style={({ pressed }) => ({
                         flex: 1,
@@ -806,7 +812,7 @@ export function RhythmExercise({
         <Heading level={2} style={styles.h2}>
           Configuración
         </Heading>
-        {!playing ? (
+        {!playing && !fixed ? (
           <>
             <View style={{ maxWidth: 155 }}>
               <Field

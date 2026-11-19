@@ -2,7 +2,10 @@ import { Heading } from '../components/ui';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { AttemptInput, ExerciseConfig, Module, initialConfig, modules, uid } from '../core/types';
+import { seededPractice } from '../core/dailyPractice';
+import { type Level } from '../core/profile';
 import { buildQuestion, groovePassScore } from '../core/music';
+import { NoteEditor } from './PracticeNote';
 import { ListenRepeat } from './ListenRepeat';
 import { RhythmExercise, type RhythmResult } from './RhythmExercise';
 import { tunings } from '../core/instrument';
@@ -24,12 +27,24 @@ import {
 import { useStore } from '../data/Store';
 
 type Result = RhythmResult;
-export function Exercise(props: { module: Module; onBack: () => void; preset?: ExerciseConfig }) {
-  const { module, onBack, preset } = props;
+type ExerciseProps = {
+  module: Module;
+  onBack: () => void;
+  preset?: ExerciseConfig;
+  onPracticeResult?: (result: AttemptInput) => void;
+  onActivity?: (active: boolean) => void;
+};
+export function Exercise(props: ExerciseProps) {
+  const { module, onBack, preset, onPracticeResult, onActivity } = props;
   return module === 'listen-repeat' ? (
-    <ListenRepeat onBack={onBack} preset={preset?.listenRepeat} />
+    <ListenRepeat
+      onBack={onBack}
+      preset={preset?.listenRepeat}
+      onPracticeResult={onPracticeResult}
+      onActivity={onActivity}
+    />
   ) : (
-    <OtherExercise module={module} onBack={onBack} preset={preset} />
+    <OtherExercise {...props} module={module} />
   );
 }
 
@@ -37,16 +52,14 @@ function OtherExercise({
   module,
   onBack,
   preset,
-}: {
-  module: Exclude<Module, 'listen-repeat'>;
-  onBack: () => void;
-  preset?: ExerciseConfig;
-}) {
+  onPracticeResult,
+  onActivity,
+}: ExerciseProps & { module: Exclude<Module, 'listen-repeat'> }) {
   const [result, setResult] = useState<Result | null>(null),
     [saved, setSaved] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  const { saveAttempt, profile } = useStore();
+  const { saveAttempt, profile, daily } = useStore();
   const instrument = tunings[profile!.tuning];
   const config: ExerciseConfig = {
     ...initialConfig,
@@ -61,7 +74,9 @@ function OtherExercise({
   const [reading, setReading] = useState<'notes' | 'rhythm'>(preset?.reading ?? 'notes');
   const [session, setSession] = useState(0);
   const [retry, setRetry] = useState<ExerciseConfig>();
+  const guided = !!onPracticeResult;
   const passedGroove =
+    !guided &&
     module === 'groove' &&
     result &&
     result.config.rhythmMode !== 'random' &&
@@ -75,18 +90,15 @@ function OtherExercise({
     setSession((value) => value + 1);
   }
   const attemptId = useRef(uid());
-  async function save() {
-    if (!result || busy || saved) return;
+  function inputFor(outcome: Result): AttemptInput {
+    return { ...outcome, id: attemptId.current, module };
+  }
+
+  async function save(outcome: Result) {
     setBusy(true);
     setError('');
     try {
-      const input: AttemptInput = {
-        ...result,
-        id: attemptId.current,
-        config: result.config,
-        module,
-      };
-      await saveAttempt(input);
+      await saveAttempt(inputFor(outcome));
       setSaved(true);
     } catch (e) {
       setError((e as Error).message);
@@ -94,11 +106,19 @@ function OtherExercise({
       setBusy(false);
     }
   }
+
+  function receive(outcome: Result) {
+    setResult(outcome);
+    if (onPracticeResult) onPracticeResult(inputFor(outcome));
+    else void save(outcome);
+  }
   return (
     <View style={{ gap: 24 }}>
-      <Button onPress={onBack} variant="ghost" icon="back" style={{ alignSelf: 'flex-start' }}>
-        Volver a practicar
-      </Button>
+      {!guided ? (
+        <Button onPress={onBack} variant="ghost" icon="back" style={{ alignSelf: 'flex-start' }}>
+          Volver a practicar
+        </Button>
+      ) : null}
       <View style={styles.between}>
         <View style={{ gap: 8 }}>
           <Heading level={1} style={styles.title}>
@@ -127,9 +147,15 @@ function OtherExercise({
             {result.detail}
           </Label>
           <View style={[styles.row, { flexWrap: 'wrap', justifyContent: 'center' }]}>
-            <Button onPress={() => void save()} disabled={saved} busy={busy} icon="check">
-              {saved ? 'Resultado guardado' : 'Guardar resultado'}
-            </Button>
+            {!guided ? (
+              <Button onPress={() => void save(result)} disabled={saved} busy={busy} icon="check">
+                {saved
+                  ? 'Resultado guardado'
+                  : busy
+                    ? 'Guardando resultado'
+                    : 'Reintentar guardado'}
+              </Button>
+            ) : null}
             <Button variant="secondary" disabled={busy} onPress={() => restart(result.config)}>
               Practicar otra vez
             </Button>
@@ -149,6 +175,14 @@ function OtherExercise({
               </Button>
             ) : null}
           </View>
+          {!guided && saved ? (
+            <NoteEditor
+              key={attemptId.current}
+              id={attemptId.current}
+              note={daily.attemptNotes[attemptId.current]}
+              attempt
+            />
+          ) : null}
           {error ? (
             <Label style={{ color: colors.error }}>
               {error} El resultado se conserva aquí; puedes reintentar el guardado.
@@ -157,7 +191,7 @@ function OtherExercise({
         </View>
       ) : (
         <>
-          {module === 'reading' ? (
+          {module === 'reading' && !guided ? (
             <Chips
               options={[
                 { value: 'notes', label: 'Lectura de notas' },
@@ -176,17 +210,20 @@ function OtherExercise({
           (module === 'reading' && reading === 'rhythm') ? (
             <RhythmExercise
               key={`${session}-${reading}`}
-              config={retry ?? config}
+              config={guided ? config : (retry ?? config)}
+              fixed={guided}
+              onActivity={onActivity}
               variant={module}
               leftHanded={profile!.leftHanded}
-              onResult={setResult}
+              onResult={receive}
             />
           ) : (
             <Quiz
               key={session}
               module={module as 'notes' | 'intervals' | 'reading'}
               config={config}
-              onResult={setResult}
+              onActivity={onActivity}
+              onResult={receive}
             />
           )}
         </>
@@ -198,22 +235,32 @@ function Quiz({
   module,
   config,
   onResult,
+  onActivity,
 }: {
   module: 'notes' | 'intervals' | 'reading';
   config: ExerciseConfig;
   onResult: (r: Result) => void;
+  onActivity?: (active: boolean) => void;
 }) {
   const { profile } = useStore();
   const leftHanded = profile.leftHanded;
-  const maxFret = maxFretFor(profile.level, config.instrument!);
+  const levelByRank: Level[] = ['beginner', 'intermediate', 'advanced'];
+  const maxFret = maxFretFor(
+    config.practiceSeed ? (levelByRank[config.level - 1] ?? profile.level) : profile.level,
+    config.instrument!,
+  );
   const [modality, setModality] = useState<ExerciseModality>(config.modality || 'visual');
-  const generate = (mode = modality) =>
-    buildQuestion(module, {
-      instrument: config.instrument,
-      nomenclature: config.nomenclature,
-      modality: mode,
-      maxFret,
-    });
+  const generate = (mode = modality, questionIndex = 0) =>
+    buildQuestion(
+      module,
+      {
+        instrument: config.instrument,
+        nomenclature: config.nomenclature,
+        modality: mode,
+        maxFret,
+      },
+      config.practiceSeed ? seededPractice(`${config.practiceSeed}/${questionIndex}`) : undefined,
+    );
   const [question, setQuestion] = useState(() => generate());
   const [index, setIndex] = useState(0),
     [position, setPosition] = useState(0),
@@ -230,6 +277,10 @@ function Quiz({
     audio.stop();
   };
   useEffect(() => stopAudio, []);
+  useEffect(() => {
+    onActivity?.(true);
+    return () => onActivity?.(false);
+  }, [onActivity]);
 
   async function listen(notes = question.notes) {
     const token = ++audioGeneration.current;
@@ -264,7 +315,7 @@ function Quiz({
     else {
       setPosition(0);
       setIndex((i) => i + 1);
-      setQuestion(generate());
+      setQuestion(generate(modality, index + 1));
     }
     setAnswer(null);
     stopAudio();
@@ -289,26 +340,28 @@ function Quiz({
           }}
         />
       </View>
-      <Chips<ExerciseModality>
-        options={[
-          { value: 'visual', label: 'Clave de fa' },
-          ...(module === 'reading'
-            ? [{ value: 'tab' as const, label: 'Tablatura' }]
-            : [{ value: 'ear' as const, label: 'De oído' }]),
-          ...(module === 'notes' ? [{ value: 'fretboard' as const, label: 'Mástil' }] : []),
-        ]}
-        value={modality}
-        onChange={(v) => {
-          setModality(v);
-          setCorrect(0);
-          setIndex(0);
-          setPosition(0);
-          setAnswer(null);
-          setQuestion(generate(v));
-          started.current = Date.now();
-          stopAudio();
-        }}
-      />
+      {!config.practiceSeed ? (
+        <Chips<ExerciseModality>
+          options={[
+            { value: 'visual', label: 'Clave de fa' },
+            ...(module === 'reading'
+              ? [{ value: 'tab' as const, label: 'Tablatura' }]
+              : [{ value: 'ear' as const, label: 'De oído' }]),
+            ...(module === 'notes' ? [{ value: 'fretboard' as const, label: 'Mástil' }] : []),
+          ]}
+          value={modality}
+          onChange={(v) => {
+            setModality(v);
+            setCorrect(0);
+            setIndex(0);
+            setPosition(0);
+            setAnswer(null);
+            setQuestion(generate(v));
+            started.current = Date.now();
+            stopAudio();
+          }}
+        />
+      ) : null}
       <View style={{ paddingVertical: 20, gap: 14 }}>
         <Text style={[styles.h2, { textAlign: 'center' }]}>
           {module === 'intervals'

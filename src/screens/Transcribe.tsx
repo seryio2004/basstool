@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AppState,
   PanResponder,
   Platform,
   Pressable,
@@ -12,6 +13,8 @@ import {
 import { Button, Chips, Heading, Icon, Label, colors, fonts, styles } from '../components/ui';
 import { Waveform } from '../components/Waveform';
 import { ScoreEditor } from '../components/ScoreEditor';
+import { songLoop, songRate } from '../core/dailyPractice';
+import { loadScoreDoc } from '../data/scores';
 import { tunings } from '../core/instrument';
 import { loopFromTimes } from '../core/waveform';
 import { useStore } from '../data/Store';
@@ -39,7 +42,25 @@ import type { BassAttack, MixMode } from '../platform/playerTypes';
 import { createPlayer } from '../platform/player';
 import type { BassMode, Loop, PickedAudio, Player } from '../platform/playerTypes';
 
-export function Transcribe({ pagePadding }: { pagePadding: number }) {
+type SongProgress = { title?: string; rate?: number; bpm?: number; playing: boolean };
+type SongRun = {
+  title: string;
+  loop: Loop;
+  baseRate: number;
+  loops: number;
+  rate: number;
+  time: number | null;
+  playing: boolean;
+  bpm?: number;
+};
+
+export function Transcribe({
+  pagePadding,
+  onSongProgress,
+}: {
+  pagePadding: number;
+  onSongProgress?: (metrics: SongProgress) => void;
+}) {
   const { width, height } = useWindowDimensions();
   const wide = width >= 1100;
   const player = useRef<Player | null>(null);
@@ -68,6 +89,12 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [recent, setRecent] = useState<Session[]>([]);
+  const [trainingRate, setTrainingRate] = useState(0);
+  const song = useRef<SongRun | null>(null);
+  const mounted = useRef(true);
+  const guidedSong = !!onSongProgress;
+  const songProgress = useRef(onSongProgress);
+  songProgress.current = onSongProgress;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef<Session | null>(null);
   const { profile } = useStore();
@@ -179,6 +206,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   );
 
   useEffect(() => {
+    mounted.current = true;
     void listSessions()
       .then(setRecent)
       .catch(() => {});
@@ -186,8 +214,32 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
     const off = p.onTime((t, isPlaying) => {
       setTime(t);
       setPlaying(isPlaying);
+      const run = song.current;
+      if (!run) return;
+      const wrapped =
+        isPlaying &&
+        run.time !== null &&
+        t < run.time &&
+        t <= run.loop.a + (run.loop.b - run.loop.a) / 2;
+      const stateChanged = run.playing !== isPlaying;
+      run.time = t;
+      run.playing = isPlaying;
+      const rate = wrapped ? songRate(run.baseRate, ++run.loops) : run.rate;
+      if (rate !== run.rate) {
+        run.rate = rate;
+        setTrainingRate(rate);
+        p.setRate(rate);
+      }
+      if (stateChanged || wrapped)
+        songProgress.current?.({
+          playing: isPlaying,
+          title: isPlaying ? run.title : undefined,
+          rate: isPlaying ? rate : undefined,
+          bpm: isPlaying && run.bpm ? Math.round(run.bpm * rate) : undefined,
+        });
     });
     return () => {
+      mounted.current = false;
       off();
       p.unload();
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -195,12 +247,27 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!guidedSong) return;
+    const onVisibility = () => {
+      if (document.hidden) player.current!.pause();
+    };
+    const appState = AppState.addEventListener('change', (state) => {
+      if (state === 'background' || state === 'inactive') player.current!.pause();
+    });
+    if (Platform.OS === 'web') document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      appState.remove();
+      if (Platform.OS === 'web') document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [guidedSong]);
+
   async function pick() {
     setError('');
     setBusy(true);
     try {
       const picked = await player.current!.pick();
-      if (!picked) return;
+      if (!picked || !mounted.current) return;
       const previous = latest.current;
       if (previous && previous.id !== picked.id && saveTimer.current !== null) {
         clearTimeout(saveTimer.current);
@@ -211,18 +278,36 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         previous?.id === picked.id
           ? previous
           : ((await loadSession(picked.id)) ?? newSession(picked));
+      const bpm = onSongProgress ? (await loadScoreDoc(s.id))?.bpm : undefined;
+      if (!mounted.current) return;
+      song.current = null;
+      const loop = onSongProgress ? songLoop(s) : null;
+      const initialRate = songRate(s.rate, 0);
       resumeVolume.current = s.volume || 1;
       const p = player.current!;
-      p.setRate(s.rate);
+      p.setRate(loop ? initialRate : s.rate);
       p.setVolume(s.volume);
-      p.setLoop(s.loop);
+      p.setLoop(loop ?? s.loop);
       p.setBass(s.bass);
       p.setTranspose(s.transpose);
-      p.seek(s.position);
+      p.seek(loop?.a ?? s.position);
+      if (loop) {
+        song.current = {
+          title: s.name,
+          loop,
+          baseRate: s.rate,
+          loops: 0,
+          rate: initialRate,
+          time: null,
+          playing: false,
+          bpm,
+        };
+        setTrainingRate(initialRate);
+      }
       if (latest.current?.id !== s.id) setEditing(false);
       setAudio(picked);
       setSession(s);
-      setTime(s.position);
+      setTime(loop?.a ?? s.position);
       persist(s);
     } catch (e) {
       setError((e as Error).message || 'No se pudo abrir el archivo.');
@@ -263,7 +348,14 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   // flechas (Mayús = 5 s), S sección, M compás, B pulso, [ y ] bucle.
   // En modo «Escribir» el teclado es del editor de partitura.
   useEffect(() => {
-    if (Platform.OS !== 'web' || !session || editing || typeof document === 'undefined') return;
+    if (
+      guidedSong ||
+      Platform.OS !== 'web' ||
+      !session ||
+      editing ||
+      typeof document === 'undefined'
+    )
+      return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (
@@ -288,7 +380,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [session, editing, toggle, seek, loopAt, mark, time]);
+  }, [session, editing, toggle, seek, loopAt, mark, time, guidedSong]);
 
   if (!audio || !session)
     return frame(
@@ -296,11 +388,14 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         <Intro />
         <View style={[styles.panel, { alignItems: 'flex-start' }]}>
           <Heading level={2} style={styles.h2}>
-            Elige una canción
+            {onSongProgress && recent.length
+              ? 'Vuelve a elegir el archivo de tu canción'
+              : 'Elige una canción'}
           </Heading>
           <Label muted>
-            MP3, M4A o WAV de tu dispositivo. Podrás ralentizarla sin cambiar el tono, repetir un
-            fragmento y realzar los graves.
+            {onSongProgress
+              ? 'Elige un MP3, M4A o WAV. Usaremos su bucle guardado o un fragmento de hasta 12 segundos.'
+              : 'MP3, M4A o WAV de tu dispositivo. Podrás ralentizarla sin cambiar el tono, repetir un fragmento y realzar los graves.'}
           </Label>
           <Button icon="plus" busy={busy} onPress={() => void pick()}>
             Elegir canción
@@ -342,6 +437,55 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         ) : null}
       </>,
     );
+
+  if (onSongProgress) {
+    const loop = song.current?.loop;
+    return frame(
+      <>
+        <Intro />
+        <View style={[styles.panel, { alignItems: 'flex-start' }]}>
+          <Heading level={2} style={styles.h2}>
+            {session.name}
+          </Heading>
+          {loop ? (
+            <>
+              <Label muted>
+                El tempo sube cinco puntos cada tres vueltas, hasta la velocidad original.
+              </Label>
+              <Text style={styles.data}>
+                {formatTime(loop.a)}–{formatTime(loop.b)} · {Math.round(trainingRate * 100)} %
+              </Text>
+              <Text style={styles.data}>{formatTime(time)}</Text>
+              <Button
+                icon={playing ? 'pause' : 'play'}
+                busy={busy}
+                onPress={() => {
+                  const p = player.current!;
+                  if (playing) p.pause();
+                  else void p.play().catch((e) => setError((e as Error).message));
+                }}
+              >
+                {playing ? 'Pausar bucle' : 'Reproducir bucle'}
+              </Button>
+            </>
+          ) : (
+            <Label muted>El archivo es demasiado corto para formar un bucle.</Label>
+          )}
+          <Button
+            variant="secondary"
+            busy={busy}
+            onPress={() => {
+              player.current!.pause();
+              void pick();
+            }}
+          >
+            Elegir otra canción
+          </Button>
+          {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
+        </View>
+      </>,
+    );
+  }
 
   const percent = Math.round(session.rate * 100);
   const p = player.current!;
