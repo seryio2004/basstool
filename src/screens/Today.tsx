@@ -19,7 +19,8 @@ import {
   type PracticeResult,
 } from '../core/dailyPractice';
 import { levels } from '../core/profile';
-import { formatTime } from '../core/transcription';
+/** Minutos:segundos sin décimas (la de Transcribir muestra décimas). */
+const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 import { useStore } from '../data/Store';
 import { listSessions } from '../data/transcriptions';
 import { NoteEditor } from './PracticeNote';
