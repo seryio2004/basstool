@@ -14,7 +14,7 @@ import {
   styles,
 } from '../components/ui';
 import { harmonyCourse, harmonyLessons } from '../content/harmony';
-import { lessonDiagrams } from '../content/harmony/diagrams';
+import { lessonDiagrams } from '../content/harmony';
 import { diagramTimeline } from '../core/diagrams';
 import { DiagramCard, initialStep } from '../components/harmony/DiagramCard';
 import {
