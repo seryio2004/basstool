@@ -121,7 +121,7 @@ Es el área que más distingue al producto de otras apps de bajo. Las grabacione
 - **Dos vistas del mismo contenido:** tablatura y partitura en clave de fa, juntas o por separado. Cada nota guarda cuerda y traste, y la partitura se deriva de ellos (escrita una octava por encima de lo que suena).
 - **Edición:** compás con métrica, figuras de redonda a semicorchea, puntillo, tresillo, silencio y ligadura. Las notas se introducen por cuerda y traste con el teclado o tocando el mástil interactivo de la tarea 4.
 - Técnicas básicas de bajo: ligado ascendente y descendente, slide, nota muerta y staccato. Propuesta: se amplía después.
-- Validación de que cada compás suma su duración, mostrada sin bloquear la edición.
+- **Los compases se limitan a su métrica** (decisión del usuario, 2026-11-19): en 4/4 caben 4 negras, 2 blancas, 8 corcheas, etc. Al llenarse, la escritura pasa al compás siguiente; una figura que no cabe se divide con ligadura a través de la barra, y alargar una figura nunca hace que el compás se pase.
 - Deshacer y rehacer.
 
 ### P1: asistencia y salida
