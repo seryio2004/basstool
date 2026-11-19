@@ -11,7 +11,8 @@
     "build": "expo export --platform web",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write App.tsx index.ts src tests",
-    "test": "node --import tsx --test tests/*.test.ts"
+    "test": "node --import tsx --test tests/*.test.ts",
+    "coord": "node scripts/coord.mjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "~58.0.17",
