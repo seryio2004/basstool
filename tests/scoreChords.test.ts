@@ -165,6 +165,18 @@ const extended: [string, number[]][] = [
   ['C6', [0, 4, 7, 9]],
   ['C/E', [4, 7, 12]],
   ['Cmaj9/E', [4, 7, 11, 12, 14]],
+  // Ninths and elevenths with the fifth omitted and other common voicings.
+  ['C9', [0, 4, 10, 14]],
+  ['Cm9', [0, 3, 10, 14]],
+  ['Cm(add9)', [0, 3, 7, 14]],
+  ['Cadd11', [0, 4, 7, 17]],
+  ['C7sus4', [0, 5, 7, 10]],
+  ['C11', [0, 7, 10, 14, 17]],
+  ['Cm11', [0, 3, 7, 10, 17]],
+  ['Cm11', [0, 3, 10, 17]],
+  ['C7(♯11)', [0, 4, 10, 18]],
+  ['C9(♯11)', [0, 4, 7, 10, 14, 18]],
+  ['Cm6/9', [0, 3, 7, 9, 14]],
 ];
 test('extended spellings, conventional omissions and bass-dependent ambiguities', () => {
   for (const [symbol, tones] of extended)
@@ -181,5 +193,90 @@ test('synthetic five-note voicings retain extensions and inversions in chroma', 
     );
     const guess = detectChord(analysisAudio(pcm, rate), 0, 0.5);
     assert.equal(guess?.symbol, symbol, symbol);
+  }
+});
+
+test('ninths and elevenths are inferred from notes spread over the bar and from stacked notes', () => {
+  const eighth = { base: 8, dots: 0 } as const;
+  // Sounding MIDI → string/fret on a standard 4-string bass (E1 = 28).
+  const at = (midi: number) => {
+    const string = midi >= 43 ? 3 : midi >= 38 ? 2 : midi >= 33 ? 1 : 0;
+    return { string, fret: midi - [28, 33, 38, 43][string]! };
+  };
+  const bar = (lines: number[][]) => {
+    const score = emptyScore({ beats: 4, unit: 4 }, 1);
+    score.measures[0]!.events = lines.map((midi, i) => ({
+      id: 'n' + i,
+      duration: eighth,
+      notes: midi.map(at),
+    }));
+    return score.measures[0]!;
+  };
+  const guess = (lines: number[][], beat = 0, chords?: { beat: number; symbol: string }[]) => {
+    const m = bar(lines);
+    if (chords) m.chords = chords;
+    return inferChord(chordSegment(m, { beats: 4, unit: 4 }, beat, bass).notes);
+  };
+  // Arpeggiated bass lines over the whole bar, with repeated notes.
+  assert.equal(guess([[36], [40], [43], [47], [50], [47], [43], [40]]), 'Cmaj9');
+  assert.equal(guess([[36], [40], [46], [50], [36], [46], [50], [40]]), 'C9'); // no fifth
+  assert.equal(guess([[33], [36], [40], [43], [47], [43], [40], [36]]), 'Am9');
+  assert.equal(guess([[38], [41], [45], [48], [52], [55], [48], [45]]), 'Dm11');
+  assert.equal(guess([[38], [41], [48], [43], [38], [41], [48], [43]]), 'Dm11'); // no 9, no 5
+  assert.equal(guess([[36], [43], [46], [50], [41], [46], [43], [36]]), 'C11');
+  assert.equal(guess([[36], [40], [43], [50], [36], [40], [43], [50]]), 'Cadd9');
+  assert.equal(guess([[36], [40], [46], [42], [36], [40], [46], [42]]), 'C7(♯11)');
+  // Double stops: root and tenth below, seventh and ninth stacked.
+  assert.equal(
+    guess([
+      [36, 52],
+      [46, 50],
+      [36, 52],
+      [46, 50],
+    ]),
+    'C9',
+  );
+  assert.equal(
+    guess([
+      [33, 48],
+      [43, 47],
+      [33, 48],
+      [43, 50],
+    ]),
+    'Am11',
+  );
+  // A chord change on beat 3 splits the bar into two segments.
+  const split = [[36], [40], [47], [50], [38], [41], [48], [43]];
+  const chords = [
+    { beat: 0, symbol: '' },
+    { beat: 2, symbol: '' },
+  ];
+  assert.equal(guess(split, 0, chords), 'Cmaj9');
+  assert.equal(guess(split, 2, chords), 'Dm11');
+});
+test('arpeggiated ninths and elevenths are recognised in synthetic audio', () => {
+  const rate = 12000;
+  const arpeggios: [string, number[]][] = [
+    ['Cmaj9', [36, 40, 43, 47, 50, 47, 43, 40]],
+    ['C9', [36, 40, 46, 50, 36, 40, 46, 50]],
+    ['Dm9', [38, 41, 45, 48, 52, 48, 45, 41]],
+    ['Dm11', [38, 41, 45, 48, 52, 55, 48, 45]],
+    ['Cadd9', [36, 40, 43, 50, 36, 40, 43, 50]],
+    ['C7(♯11)', [36, 40, 46, 54, 36, 40, 46, 54]],
+  ];
+  for (const [symbol, line] of arpeggios) {
+    // Plucked notes of 0.25 s with a decaying envelope and two harmonics.
+    const pcm = new Float32Array(rate * 2);
+    line.forEach((midi, k) => {
+      const f = 440 * 2 ** ((midi - 69) / 12);
+      for (let i = 0; i < rate * 0.5 && k * rate * 0.25 + i < pcm.length; i++) {
+        const t = i / rate;
+        pcm[k * rate * 0.25 + i]! +=
+          0.3 *
+          Math.exp(-t * 4) *
+          (Math.sin(2 * Math.PI * f * t) + 0.3 * Math.sin(4 * Math.PI * f * t));
+      }
+    });
+    assert.equal(detectChord(analysisAudio(pcm, rate), 0, 2)?.symbol, symbol, symbol);
   }
 });

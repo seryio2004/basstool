@@ -46,6 +46,11 @@ const qualities: [string, number[]][] = [
   ['m13', [0, 3, 7, 10, 2, 9]],
   ['13', [0, 4, 7, 10, 2, 5, 9]],
   ['m13', [0, 3, 7, 10, 2, 5, 9]],
+  ['m(add9)', [0, 3, 7, 2]],
+  ['add11', [0, 4, 7, 5]],
+  ['7sus4', [0, 5, 7, 10]],
+  ['m6/9', [0, 3, 7, 9, 2]],
+  ['9(♯11)', [0, 4, 7, 10, 2, 6]],
 ];
 // Full spellings first, then voicings with common omissions.
 const templates: [string, number[]][] = [...qualities];
@@ -53,6 +58,13 @@ for (const [suffix, tones] of qualities) {
   if (tones.length < 5) continue;
   templates.push([suffix, tones.filter((n) => n !== 7)]);
   if (suffix === '13' || suffix === 'm13') {
+    templates.push(
+      [suffix, tones.filter((n) => n !== 2)],
+      [suffix, tones.filter((n) => n !== 2 && n !== 7)],
+    );
+  }
+  if (suffix === 'm11') {
+    // Minor eleventh voicings often drop the ninth (and the fifth): C E♭ G B♭ F.
     templates.push(
       [suffix, tones.filter((n) => n !== 2)],
       [suffix, tones.filter((n) => n !== 2 && n !== 7)],
