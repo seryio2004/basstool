@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Fretboard } from '../components/Fretboard';
 import { GrooveTrain } from '../components/GrooveTrain';
+import { HarmonicWagons, chordLabel } from '../components/HarmonicWagons';
 import {
   Badge,
   Button,
@@ -15,23 +16,30 @@ import {
 } from '../components/ui';
 import {
   manualTrainChords,
+  parseTrainChord,
   scoreTrain,
-  tonalTrainChords,
   trainTargets,
   trainTones,
-  type Chord,
   type RhythmHit,
   type RhythmInput,
 } from '../core/chordTrain';
 import { figurePool, makePattern, pitchFromSamples } from '../core/music';
 import { fifthsCircle, pitchName } from '../core/notation';
-import { majorProgressions, positionsFor } from '../core/theory';
+import { positionsFor } from '../core/theory';
+import {
+  progressionChords,
+  randomTrainProgression,
+  trainProgressions,
+  type TrainDifficulty,
+  type TrainMode,
+} from '../core/trainProgressions';
 import type { ExerciseConfig } from '../core/types';
 import { audio } from '../platform/audio';
 import { onSpace } from '../platform/keyboard';
 import { openRhythmMic, rhythmMicAvailable } from '../platform/rhythmMic';
 import type { RhythmMic } from '../platform/rhythmMicTypes';
 import { grooveColors as palette } from '../theme/groove';
+import { harmonicColors } from '../theme/harmonic';
 
 export type RhythmResult = {
   correct: number;
@@ -75,9 +83,20 @@ const chordLevels = [
   },
 ];
 
-function chordLabel(chord: Chord, nomenclature: NonNullable<ExerciseConfig['nomenclature']>) {
-  return pitchName(chord.tonic + '4', false, nomenclature) + chord.symbol.slice(chord.tonic.length);
-}
+const difficultyOptions: { value: TrainDifficulty; label: string }[] = [
+  { value: 'triads', label: 'Tríadas' },
+  { value: 'sevenths', label: 'Séptimas' },
+  { value: 'extensions', label: 'Sextas y novenas' },
+];
+const harmonicSources = [
+  { value: 'tonal', label: 'Progresiones' },
+  { value: 'random', label: 'Aleatoria' },
+  { value: 'manual', label: 'Escribir acordes' },
+] as const;
+const trainKeys = fifthsCircle.map(({ major, minor }) => ({
+  major,
+  minor: parseTrainChord(minor)!.tonic,
+}));
 
 function newPattern(level: number, length: number, harmonic: boolean) {
   if (!harmonic) return makePattern(level, length);
@@ -99,12 +118,12 @@ export function RhythmExercise({
 }) {
   const reading = variant === 'reading';
   const harmonic = variant === 'chord-train';
-  const length = reading ? 4 : 16;
+  const defaultLength = reading ? 4 : harmonic && config.chords?.length === 48 ? 48 : 16;
   const initialLevel = Math.max(1, Math.min(harmonic ? 4 : 10, config.level));
-  const [pattern, setPattern] = useState(() =>
-    config.pattern?.length === length
+  const [storedPattern, setPattern] = useState(() =>
+    config.pattern?.length === defaultLength
       ? [...config.pattern]
-      : newPattern(initialLevel, length, harmonic),
+      : newPattern(initialLevel, defaultLength, harmonic),
   );
   const [bpm, setBpm] = useState(String(config.bpm));
   const [level, setLevel] = useState(String(initialLevel));
@@ -120,9 +139,14 @@ export function RhythmExercise({
   const [sensitivity, setSensitivity] = useState(String(config.micSensitivity ?? 35));
   const [offset, setOffset] = useState(String(config.micOffsetMs ?? 0));
   const [meter, setMeter] = useState({ rms: 0, loud: false });
-  const [tonic, setTonic] = useState('C');
-  const [progression, setProgression] = useState(majorProgressions[0]!.value);
-  const [source, setSource] = useState(config.chords ? 'manual' : 'tonal');
+  const [mode, setMode] = useState<TrainMode>('major');
+  const [keyIndex, setKeyIndex] = useState('0');
+  const [progression, setProgression] = useState(trainProgressions[0]!.value);
+  const [difficulty, setDifficulty] = useState<TrainDifficulty>('triads');
+  const [drawn, setDrawn] = useState<ReturnType<typeof randomTrainProgression>>();
+  const [source, setSource] = useState<(typeof harmonicSources)[number]['value']>(
+    config.chords ? 'manual' : 'tonal',
+  );
   const [symbols, setSymbols] = useState(config.chords?.join(' ') ?? 'C G Am F');
   const microphone = useRef<RhythmMic | null>(null);
   const micGeneration = useRef(0);
@@ -132,36 +156,56 @@ export function RhythmExercise({
   const launching = useRef(false);
   const { width } = useWindowDimensions();
   const nomenclature = config.nomenclature ?? 'latin';
-  const chords = useMemo(
+  const presets = trainProgressions.filter((preset) => preset.mode === mode);
+  const selectedProgression = presets.find(({ value }) => value === progression) ?? presets[0]!;
+  const recipe = source === 'random' && drawn ? drawn : selectedProgression;
+  const tonic = trainKeys[Number(keyIndex)]![mode];
+  const chords = useMemo(() => {
+    if (!harmonic) return undefined;
+    return source === 'manual'
+      ? manualTrainChords(symbols, defaultLength)
+      : progressionChords(tonic, recipe);
+  }, [harmonic, source, symbols, tonic, recipe, defaultLength]);
+  const length = chords?.length ?? defaultLength;
+  const pattern = useMemo(
     () =>
-      harmonic
-        ? source === 'manual'
-          ? manualTrainChords(symbols)
-          : tonalTrainChords(tonic, progression)
-        : undefined,
-    [harmonic, source, symbols, tonic, progression],
+      storedPattern.length === length
+        ? storedPattern
+        : Array.from({ length }, (_, i) => storedPattern[i % storedPattern.length]!),
+    [storedPattern, length],
   );
   const currentChord = chords?.[Math.max(active, 0)];
   const instrument = config.instrument;
-  const marks = useMemo(
-    () =>
-      currentChord && instrument
-        ? positionsFor(
-            currentChord.tonic,
-            { ...currentChord.arpeggio, tones: trainTones(currentChord, Number(level)) },
-            instrument,
-            undefined,
-            nomenclature,
-          ).map(({ string, fret, name, isRoot, degreeLabel }) => ({
-            string,
-            fret,
-            label: name,
-            root: isRoot,
-            description: `${name}, grado ${degreeLabel}`,
-          }))
-        : [],
-    [currentChord, instrument, level, nomenclature],
-  );
+  const marks = useMemo(() => {
+    if (!currentChord || !instrument) return [];
+    const arpeggio = { ...currentChord.arpeggio, tones: trainTones(currentChord, Number(level)) };
+    const positions = (root: string) =>
+      positionsFor(root, arpeggio, instrument, undefined, nomenclature);
+    let notes;
+    try {
+      notes = positions(currentChord.tonic);
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      // The fretboard notation supports up to double accidentals.
+      const roots = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'G#', 'A', 'Bb', 'B'];
+      notes = positions(roots[currentChord.root]!);
+    }
+    return notes.map(({ string, fret, name, isRoot, degreeLabel }) => ({
+      string,
+      fret,
+      label: name,
+      root: isRoot,
+      description: `${name}, grado ${degreeLabel}`,
+    }));
+  }, [currentChord, instrument, level, nomenclature]);
+
+  function changeBeat(index: number) {
+    setPattern((previous) => {
+      const next = Array.from({ length }, (_, i) => previous[i % previous.length]!);
+      next[index] = (next[index]! + 1) % figurePool.length;
+      return next;
+    });
+  }
 
   function stop() {
     generation.current++;
@@ -267,6 +311,12 @@ export function RhythmExercise({
     const nextLevel = random ? 1 + Math.floor(Math.random() * 10) : atLevel;
     setLevel(String(nextLevel));
     setPattern(newPattern(nextLevel, length, harmonic));
+  }
+
+  function changeHarmonySource(value: typeof source) {
+    if (value === 'random' && source !== 'random')
+      setDrawn(randomTrainProgression(mode, difficulty));
+    setSource(value);
   }
 
   async function start(challenge: boolean) {
@@ -393,87 +443,101 @@ export function RhythmExercise({
   const trackRows = Array.from({ length: length / columns }, (_, row) =>
     pattern.slice(row * columns, (row + 1) * columns),
   );
+  const exerciseInk = harmonic ? harmonicColors.ink : palette.ink;
   return (
     <View style={{ gap: 18 }}>
       <View
         style={[
           styles.panel,
-          !reading && { backgroundColor: palette.yellow, borderColor: palette.ink, padding: 14 },
+          harmonic
+            ? {
+                backgroundColor: harmonicColors.stage,
+                borderColor: harmonicColors.border,
+                padding: 14,
+              }
+            : !reading && {
+                backgroundColor: palette.yellow,
+                borderColor: palette.ink,
+                padding: 14,
+              },
         ]}
       >
         <View style={styles.between}>
-          <Heading level={2} style={[styles.h2, !reading && { color: palette.ink }]}>
+          <Heading level={2} style={[styles.h2, !reading && { color: exerciseInk }]}>
             {phase}
           </Heading>
           <Badge
-            background={reading ? undefined : palette.cream}
-            color={reading ? undefined : palette.ink}
+            background={harmonic ? colors.white : reading ? undefined : palette.cream}
+            color={reading ? undefined : exerciseInk}
           >
             {hitCount} golpes
           </Badge>
         </View>
-        <Label style={reading ? undefined : { color: palette.ink }}>
+        <Label style={reading ? undefined : { color: exerciseInk }}>
           {reading
             ? 'Lee las figuras y toca después de cuatro pulsos.'
-            : 'Escucha 16 pulsos y repite el patrón después de la cuenta de entrada.'}
+            : `Escucha ${length} pulsos y repite el patrón después de la cuenta de entrada.`}
         </Label>
-        <View style={{ gap: 8 }}>
-          {trackRows.map((row, index) => (
-            <View key={index} style={{ flexDirection: 'row', gap: 6 }}>
-              {row.map((id, column) => {
-                const i = index * columns + column;
-                const chord = chords?.[i];
-                const label = chord ? chordLabel(chord, nomenclature) : undefined;
-                const selected = i === active;
-                return (
-                  <Pressable
-                    key={i}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Pulso ${i + 1}, ${label ? label + ', ' : ''}${figurePool[id]!.name}. Cambiar figura`}
-                    accessibilityState={{ selected, disabled: playing }}
-                    disabled={playing}
-                    onPress={() =>
-                      setPattern((current) =>
-                        current.map((figure, j) =>
-                          j === i ? (figure + 1) % figurePool.length : figure,
-                        ),
-                      )
-                    }
-                    style={({ pressed }) => ({
-                      flex: 1,
-                      minWidth: 0,
-                      minHeight: 58,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: 8,
-                      borderWidth: 2,
-                      opacity: pressed ? 0.68 : 1,
-                      borderColor: reading ? 'transparent' : selected ? palette.ink : palette.cream,
-                      backgroundColor: reading
-                        ? selected
-                          ? colors.green
-                          : colors.pale
-                        : selected
-                          ? palette.cream
-                          : palette.tiles[i % palette.tiles.length],
-                    })}
-                  >
-                    {label ? (
-                      <Text style={{ color: palette.ink, fontWeight: '700', textAlign: 'center' }}>
-                        {label}
-                      </Text>
-                    ) : null}
-                    <RhythmFigure
-                      id={id}
-                      color={reading && selected ? colors.white : palette.ink}
-                      size={42}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-          ))}
-        </View>
+        {harmonic ? (
+          <HarmonicWagons
+            active={active}
+            chords={chords ?? null}
+            nomenclature={nomenclature}
+            onChangeBeat={changeBeat}
+            pattern={pattern}
+            playing={playing}
+            wide={width >= 860}
+          />
+        ) : (
+          <View style={{ gap: 8 }}>
+            {trackRows.map((row, index) => (
+              <View key={index} style={{ flexDirection: 'row', gap: 6 }}>
+                {row.map((id, column) => {
+                  const i = index * columns + column;
+                  const selected = i === active;
+                  return (
+                    <Pressable
+                      key={i}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Pulso ${i + 1}, ${figurePool[id]!.name}. Cambiar figura`}
+                      accessibilityState={{ selected, disabled: playing }}
+                      disabled={playing}
+                      onPress={() => changeBeat(i)}
+                      style={({ pressed }) => ({
+                        flex: 1,
+                        minWidth: 0,
+                        minHeight: 58,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: 8,
+                        borderWidth: 2,
+                        opacity: pressed ? 0.68 : 1,
+                        borderColor: reading
+                          ? 'transparent'
+                          : selected
+                            ? palette.ink
+                            : palette.cream,
+                        backgroundColor: reading
+                          ? selected
+                            ? colors.green
+                            : colors.pale
+                          : selected
+                            ? palette.cream
+                            : palette.tiles[i % palette.tiles.length],
+                      })}
+                    >
+                      <RhythmFigure
+                        id={id}
+                        color={reading && selected ? colors.white : palette.ink}
+                        size={42}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
         {reading ? (
           <View style={{ height: 6, backgroundColor: colors.pale, borderRadius: 5 }}>
             <View
@@ -485,9 +549,9 @@ export function RhythmExercise({
               }}
             />
           </View>
-        ) : (
+        ) : !harmonic ? (
           <GrooveTrain active={active} segment={segment} />
-        )}
+        ) : null}
         <View style={[styles.row, { flexWrap: 'wrap' }]}>
           <Button disabled={!canStart} icon="play" onPress={() => void start(true)}>
             Empezar ejercicio
@@ -515,17 +579,21 @@ export function RhythmExercise({
             padding: 14,
             alignItems: 'center',
             borderRadius: 8,
-            backgroundColor: pressed
-              ? reading
-                ? colors.white
-                : palette.green
-              : reading
-                ? colors.pale
-                : palette.cream,
+            backgroundColor: harmonic
+              ? pressed
+                ? harmonicColors.tonic.background
+                : colors.white
+              : pressed
+                ? reading
+                  ? colors.white
+                  : palette.green
+                : reading
+                  ? colors.pale
+                  : palette.cream,
           })}
         >
           <Text
-            style={{ color: reading ? colors.green : palette.ink, fontSize: 17, fontWeight: '600' }}
+            style={{ color: reading ? colors.green : exerciseInk, fontSize: 17, fontWeight: '600' }}
           >
             {input === 'mic' ? 'Entrada por micrófono' : 'Registrar golpe · Espacio'}
           </Text>
@@ -560,7 +628,7 @@ export function RhythmExercise({
                 keyboardType="numeric"
               />
             </View>
-            <Label muted>Nivel</Label>
+            <Label muted>{harmonic ? 'Modo de evaluación' : 'Nivel'}</Label>
             {!reading && !harmonic ? (
               <Chips
                 value={random ? 'random' : 'levels'}
@@ -602,12 +670,10 @@ export function RhythmExercise({
             {harmonic ? (
               <>
                 <Chips
+                  minHeight={44}
                   value={source}
-                  onChange={setSource}
-                  options={[
-                    { value: 'tonal', label: 'Por tonalidad' },
-                    { value: 'manual', label: 'Escribir acordes' },
-                  ]}
+                  onChange={changeHarmonySource}
+                  options={[...harmonicSources]}
                 />
                 {source === 'manual' ? (
                   <>
@@ -615,38 +681,79 @@ export function RhythmExercise({
                       label="Acordes por pulso"
                       value={symbols}
                       onChangeText={setSymbols}
-                      placeholder="C G Am F"
+                      placeholder="Cmaj9 G7 Am6 Fadd9"
                     />
                     <Label muted>
-                      Escribe hasta 16 acordes separados por espacios. La secuencia se repite hasta
-                      llenar los 16 pulsos.
+                      Separa los acordes con espacios. La secuencia se repite hasta llenar los{' '}
+                      {defaultLength} pulsos.
                     </Label>
                     {chords === null ? (
                       <Label style={{ color: colors.error }}>
-                        Revisa el cifrado. Se admiten tríadas, sus2, sus4 y séptimas como Cmaj7, Dm7
-                        y G7.
+                        Revisa el cifrado. Prueba con C, Dm7♭5, G9, Am(maj7) o Fadd9.
                       </Label>
                     ) : null}
                   </>
                 ) : (
                   <>
-                    <Label muted>Tonalidad mayor</Label>
+                    <Label muted>Tonalidad</Label>
                     <Chips
-                      value={tonic}
-                      onChange={setTonic}
-                      options={fifthsCircle.map(({ major }) => ({
-                        value: major,
-                        label: pitchName(major + '4', false, nomenclature),
+                      minHeight={44}
+                      value={mode}
+                      onChange={(value: TrainMode) => {
+                        setMode(value);
+                        if (source === 'random')
+                          setDrawn(randomTrainProgression(value, difficulty));
+                      }}
+                      options={[
+                        { value: 'major', label: 'Mayor' },
+                        { value: 'minor', label: 'Menor' },
+                      ]}
+                    />
+                    <Chips
+                      minHeight={44}
+                      value={keyIndex}
+                      onChange={setKeyIndex}
+                      options={trainKeys.map((key, index) => ({
+                        value: String(index),
+                        label: pitchName(key[mode] + '4', false, nomenclature),
                       }))}
                     />
-                    <Chips
-                      value={progression}
-                      options={majorProgressions}
-                      onChange={setProgression}
-                    />
+                    {source === 'random' ? (
+                      <>
+                        <Label muted>Dificultad armónica</Label>
+                        <Chips
+                          minHeight={44}
+                          value={difficulty}
+                          options={difficultyOptions}
+                          onChange={(value) => {
+                            if (value === difficulty) return;
+                            setDifficulty(value);
+                            setDrawn(randomTrainProgression(mode, value));
+                          }}
+                        />
+                        <View style={[styles.row, { flexWrap: 'wrap' }]}>
+                          <Button
+                            variant="secondary"
+                            onPress={() => setDrawn(randomTrainProgression(mode, difficulty))}
+                          >
+                            Sortear progresión
+                          </Button>
+                          <Label>{recipe.label}</Label>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <Label muted>Progresión</Label>
+                        <Chips
+                          minHeight={44}
+                          value={selectedProgression.value}
+                          options={presets}
+                          onChange={setProgression}
+                        />
+                      </>
+                    )}
                     <Label muted>
-                      Cada acorde dura cuatro pulsos. Pulsa una figura para cambiar el ritmo de esa
-                      casilla.
+                      Cada vagón dura cuatro pulsos. Pulsa una figura para cambiar el ritmo.
                     </Label>
                   </>
                 )}

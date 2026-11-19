@@ -1,5 +1,7 @@
 import type { LessonProgress } from './course';
 import { grooveColors } from '../theme/groove';
+import { harmonicColors } from '../theme/harmonic';
+export const CHORD_TRAIN_TITLE = 'ChordLine';
 export type Module = 'chord-train' | 'groove' | 'notes' | 'intervals' | 'reading';
 export type Page = 'tools' | 'transcribe' | 'learn' | 'practice' | 'progress' | 'settings';
 export type { Profile } from './profile';
@@ -58,11 +60,11 @@ export const modules: {
   },
   {
     id: 'chord-train',
-    title: 'Tren de acordes',
+    title: CHORD_TRAIN_TITLE,
     subtitle: 'Toca una línea de bajo sobre los acordes de cada pulso.',
     category: 'Ritmo y armonía',
-    color: grooveColors.ink,
-    background: grooveColors.mint,
+    color: harmonicColors.ink,
+    background: harmonicColors.stage,
     minutes: 4,
   },
   {

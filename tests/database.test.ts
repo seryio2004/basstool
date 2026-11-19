@@ -179,6 +179,37 @@ test('Supabase migration isolates each bassist, keeps attempts immutable and del
       );
     }
 
+    await db.exec('reset role;');
+    await db.exec(
+      await readFile(
+        new URL('../supabase/migrations/202611190004_chord_train_v2.sql', import.meta.url),
+        'utf8',
+      ),
+    );
+    await as(alice);
+    const blues = {
+      ...chordTrain,
+      pattern: Array(48).fill(5),
+      chords: Array.from(
+        { length: 48 },
+        (_, i) => ['F#m7b5', 'G9', 'Amaj9', 'Bbm9', 'Bbbadd9', 'C6', 'Dm6', 'EmMaj7'][i % 8],
+      ),
+    };
+    await db.query(attemptSql, [alice, 'chord-train', blues]);
+    await db.query(attemptSql, [alice, 'chord-train', chordTrain]);
+    for (const override of [
+      { pattern: Array(16).fill(0) },
+      { pattern: Array(48).fill(1.5) },
+      { pattern: Array(48).fill(10) },
+      { chords: Array(48).fill('C13') },
+      { pattern: Array(32).fill(0), chords: Array(32).fill('C7') },
+    ]) {
+      await assert.rejects(
+        db.query(attemptSql, [alice, 'chord-train', { ...blues, ...override }]),
+        /check constraint/,
+      );
+    }
+
     // Course progress keeps its validation.
     const answers = {
       'harmony-01-q1': 'Dos pulsos',

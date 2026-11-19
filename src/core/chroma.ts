@@ -1,3 +1,5 @@
+import { chordArpeggios } from './theory';
+
 // Box-filter before decimation. Keep one locally decoded channel at ~4 kHz.
 export function analysisAudio(samples: Float32Array, rate: number) {
   const step = Math.max(1, Math.floor(rate / 4000));
@@ -9,25 +11,30 @@ export function analysisAudio(samples: Float32Array, rate: number) {
   }
   return { pcm, rate: rate / step };
 }
+const quality = (key: keyof typeof chordArpeggios, label: string = key): [string, number[]] => [
+  label,
+  chordArpeggios[key].tones.map(({ semitones }) => semitones % 12),
+];
 const qualities: [string, number[]][] = [
-  ['', [0, 4, 7]],
-  ['m', [0, 3, 7]],
-  ['dim', [0, 3, 6]],
-  ['aug', [0, 4, 8]],
-  ['sus2', [0, 2, 7]],
-  ['sus4', [0, 5, 7]],
-  ['7', [0, 4, 7, 10]],
-  ['maj7', [0, 4, 7, 11]],
-  ['m7', [0, 3, 7, 10]],
-  ['m7♭5', [0, 3, 6, 10]],
-  ['dim7', [0, 3, 6, 9]],
-  ['6', [0, 4, 7, 9]],
-  ['m6', [0, 3, 7, 9]],
-  ['add9', [0, 4, 7, 2]],
+  quality(''),
+  quality('m'),
+  quality('dim'),
+  quality('aug'),
+  quality('sus2'),
+  quality('sus4'),
+  quality('7'),
+  quality('maj7'),
+  quality('m7'),
+  quality('m7b5', 'm7♭5'),
+  quality('dim7'),
+  quality('mMaj7', 'm(maj7)'),
+  quality('6'),
+  quality('m6'),
+  quality('add9'),
   ['6/9', [0, 4, 7, 9, 2]],
-  ['maj9', [0, 4, 7, 11, 2]],
-  ['9', [0, 4, 7, 10, 2]],
-  ['m9', [0, 3, 7, 10, 2]],
+  quality('maj9'),
+  quality('9'),
+  quality('m9'),
   ['m(maj9)', [0, 3, 7, 11, 2]],
   ['7(♭9)', [0, 4, 7, 10, 1]],
   ['7(♯9)', [0, 4, 7, 10, 3]],

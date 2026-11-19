@@ -61,7 +61,35 @@ export const arpeggios = {
   diminished7: pattern('Séptima disminuida', [0, 3, 6, 9], [1, 3, 5, 7]),
   minorMajor7: pattern('Menor con séptima mayor', [0, 3, 7, 11], [1, 3, 5, 7]),
   augmentedMajor7: pattern('Aumentado con séptima mayor', [0, 4, 8, 11], [1, 3, 5, 7]),
+  major6: pattern('Mayor con sexta', [0, 4, 7, 9], [1, 3, 5, 6]),
+  minor6: pattern('Menor con sexta', [0, 3, 7, 9], [1, 3, 5, 6]),
+  dominant9: pattern('Novena de dominante', [0, 4, 7, 10, 14], [1, 3, 5, 7, 9]),
+  major9: pattern('Mayor con novena', [0, 4, 7, 11, 14], [1, 3, 5, 7, 9]),
+  minor9: pattern('Menor con novena', [0, 3, 7, 10, 14], [1, 3, 5, 7, 9]),
+  add9: pattern('Mayor con novena añadida', [0, 4, 7, 14], [1, 3, 5, 9]),
 } as const satisfies Record<string, TheoryPattern>;
+
+export const chordArpeggios = {
+  '': arpeggios.major,
+  m: arpeggios.minor,
+  dim: arpeggios.diminished,
+  aug: arpeggios.augmented,
+  sus2: arpeggios.sus2,
+  sus4: arpeggios.sus4,
+  '7': arpeggios.dominant7,
+  maj7: arpeggios.major7,
+  m7: arpeggios.minor7,
+  m7b5: arpeggios.halfDiminished7,
+  dim7: arpeggios.diminished7,
+  mMaj7: arpeggios.minorMajor7,
+  augMaj7: arpeggios.augmentedMajor7,
+  '6': arpeggios.major6,
+  m6: arpeggios.minor6,
+  '9': arpeggios.dominant9,
+  maj9: arpeggios.major9,
+  m9: arpeggios.minor9,
+  add9: arpeggios.add9,
+} as const;
 
 export const majorProgressions = [
   { value: '0,4,5,3', label: 'I · V · vi · IV' },
@@ -109,15 +137,17 @@ export function positionsFor(
   const root = parsePitch(`${tonic}4`);
   if (!collection.tones.length) throw new RangeError('La escala o arpegio debe contener notas.');
   const tones = collection.tones.map(({ semitones, degree }) => {
+    const simpleDegree = (degree - 1) % 7;
+    const octave = 12 * Math.floor((degree - 1) / 7);
     if (
       !Number.isInteger(semitones) ||
-      semitones < 0 ||
-      semitones > 11 ||
+      semitones < octave ||
+      semitones > octave + 11 ||
       !Number.isInteger(degree) ||
       degree < 1 ||
-      degree > 7
+      degree > 9
     ) {
-      throw new RangeError('Los intervalos deben estar entre 0 y 11 y los grados entre 1 y 7.');
+      throw new RangeError('El intervalo debe corresponder a la octava de un grado del 1 al 9.');
     }
     const diatonic = root.letter + degree - 1;
     const letter = diatonic % 7;
@@ -126,11 +156,11 @@ export function positionsFor(
     if (Math.abs(alter) > 2)
       throw new RangeError('La tonalidad requiere alteraciones mayores que dobles.');
     return {
-      semitones,
+      semitones: semitones % 12,
       degree,
       letter,
       alter,
-      degreeLabel: `${accidentalSign(semitones - majorSteps[degree - 1]!)}${degree}`,
+      degreeLabel: `${accidentalSign(semitones - octave - majorSteps[simpleDegree]!)}${degree}`,
     };
   });
   const result: TheoryPosition[] = [];

@@ -39,6 +39,14 @@ colors:
   groove-tile-6: "#8EA7D2"
   groove-tile-7: "#5E98CE"
   groove-tile-8: "#D89886"
+  harmonic-ink: "#513344"
+  harmonic-stage: "#F5EDF2"
+  harmonic-border: "#CCB8C4"
+  harmonic-tonic: "#ECDCE6"
+  harmonic-subdominant-ink: "#2E554D"
+  harmonic-subdominant: "#DFEDE6"
+  harmonic-dominant-ink: "#6B4025"
+  harmonic-dominant: "#F5E4D4"
   notes-ink: "#745437"
   notes-bg: "#F3EBDF"
   intervals-ink: "#5B547E"
@@ -164,7 +172,8 @@ El acento verde y los neutros claros se complementan con pares de color vinculad
 
 ### Secondary
 
-- **groove-ink / groove-stage:** GrooveTrain. **groove-ink / groove-mint:** Tren de acordes.
+- **groove-ink / groove-stage:** GrooveTrain.
+- **harmonic-ink / harmonic-stage:** ChordLine. **harmonic-border** delimita el tablero y los vagones.
 - **notes-ink / notes-bg:** reconocimiento de notas.
 - **intervals-ink / intervals-bg:** intervalos.
 - **reading-ink / reading-bg:** lectura musical.
@@ -242,9 +251,11 @@ El destino activo cambia relleno, color y peso a 600; el inactivo usa peso 400. 
 
 ### Musical notation and pulse
 
-Staff y RhythmFigure dibujan notación vectorial. El tablero compartido de GrooveTrain y Tren de acordes usa el amarillo del original (`groove-stage`) y alterna sus ocho `groove-tile`. La casilla activa usa `groove-cream` con contorno `groove-ink`. El cifrado acompaña a la figura rítmica de cada casilla. Lectura rítmica conserva el verde y su barra de avance.
+Staff y RhythmFigure dibujan notación vectorial. El tablero de GrooveTrain usa el amarillo del original (`groove-stage`) y alterna sus ocho `groove-tile`. La casilla activa usa `groove-cream` con contorno `groove-ink`. Lectura rítmica conserva el verde y su barra de avance.
 
 La locomotora SVG usa `groove-coral`, `groove-blue`, `groove-mint`, `groove-amber`, `groove-gold`, `groove-rose` y `groove-green`. Se desplaza linealmente por los 16 pulsos según el reloj de audio. Con movimiento reducido queda fija y las traviesas siguen indicando el pulso activo y los recorridos con `groove-cream` y `groove-green`. Las pendientes usan `groove-sleeper`. El medidor de entrada usa `groove-paper`, `groove-blue` y `groove-green`.
+
+ChordLine agrupa los cuatro pulsos de cada compás en un vagón. El cifrado del compás se muestra a 24 puntos y la función se indica con texto y color. Tónica usa `harmonic-ink` sobre `harmonic-tonic`, subdominante usa `harmonic-subdominant-ink` sobre `harmonic-subdominant` y dominante usa `harmonic-dominant-ink` sobre `harmonic-dominant`. El cifrado introducido por pulso usa el fondo blanco. El pulso activo conserva un contorno visible y su relleno aparece con un fundido de 140 ms. Con movimiento reducido el cambio es inmediato. En el blues, el tablero avanza en grupos de cuatro compases.
 
 ### Escritura en Transcribir
 

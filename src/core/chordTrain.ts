@@ -1,55 +1,53 @@
 import { expectedHits } from './music';
 import { parsePitch } from './notation';
 import { analyseHits } from './rhythm';
-import { arpeggios, majorTriads, type TheoryPattern } from './theory';
+import { chordArpeggios, majorTriads, type TheoryPattern } from './theory';
 
-const suffixes = {
-  '': 'major',
-  m: 'minor',
-  dim: 'diminished',
-  aug: 'augmented',
-  sus2: 'sus2',
-  sus4: 'sus4',
-  '7': 'dominant7',
-  maj7: 'major7',
-  m7: 'minor7',
-  m7b5: 'halfDiminished7',
-  dim7: 'diminished7',
-  mMaj7: 'minorMajor7',
-  augMaj7: 'augmentedMajor7',
-} as const satisfies Record<string, keyof typeof arpeggios>;
-
-export type Chord = { symbol: string; tonic: string; root: number; arpeggio: TheoryPattern };
+export type ChordFunction = 'tonic' | 'subdominant' | 'dominant';
+export type Chord = {
+  symbol: string;
+  tonic: string;
+  root: number;
+  arpeggio: TheoryPattern;
+  role?: ChordFunction;
+};
 export type RhythmInput = 'manual' | 'mic';
 export type RhythmHit = { t: number; midi?: number | null };
 
 const pitchClass = (midi: number) => ((midi % 12) + 12) % 12;
 
 export function parseTrainChord(text: string): Chord | null {
-  const normalized = text.replaceAll('♭', 'b').replaceAll('♯', '#').replace(/°/g, 'dim');
-  const match = /^(Do|Re|Mi|Fa|Sol|La|Si|[A-G])([#b]?)(.*)$/.exec(normalized);
+  const normalized = text
+    .trim()
+    .replaceAll('♭', 'b')
+    .replaceAll('♯', '#')
+    .replaceAll('𝄫', 'bb')
+    .replaceAll('𝄪', '##')
+    .replaceAll('°', 'dim')
+    .replace('m(maj7)', 'mMaj7');
+  const match = /^(Do|Re|Mi|Fa|Sol|La|Si|[A-G])(##|#|bb|b)?(.*)$/.exec(normalized);
   if (!match) return null;
-  const [, name, accidental, suffix] = match;
-  if (!Object.hasOwn(suffixes, suffix!)) return null;
+  const [, name, accidental = '', suffix] = match;
+  if (!Object.hasOwn(chordArpeggios, suffix!)) return null;
   const latin = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'].indexOf(name!);
-  const tonic = (latin < 0 ? name : 'CDEFGAB'[latin]) + accidental!;
+  const tonic = (latin < 0 ? name : 'CDEFGAB'[latin]) + accidental;
   return {
     symbol: tonic + suffix,
     tonic,
     root: pitchClass(parsePitch(tonic + '4').midi),
-    arpeggio: arpeggios[suffixes[suffix as keyof typeof suffixes]],
+    arpeggio: chordArpeggios[suffix as keyof typeof chordArpeggios],
   };
 }
 
-export function manualTrainChords(text: string): Chord[] | null {
+export function manualTrainChords(text: string, length = 16): Chord[] | null {
   const symbols = text
     .trim()
     .split(/[\s,|]+/)
     .filter(Boolean);
-  if (!symbols.length || symbols.length > 16) return null;
+  if (!symbols.length || symbols.length > length) return null;
   const chords = symbols.map(parseTrainChord);
   return chords.every((chord) => chord !== null)
-    ? Array.from({ length: 16 }, (_, i) => chords[i % chords.length]!)
+    ? Array.from({ length }, (_, i) => chords[i % chords.length]!)
     : null;
 }
 

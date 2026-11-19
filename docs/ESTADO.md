@@ -14,6 +14,13 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Las sugerencias escritas y por croma reconocen los catorce tipos de acorde extendido del encargo, con inversiones y omisiones. Se probaron con señales sintéticas, incluidas combinaciones de cinco alturas. Queda por medir la precisión con grabaciones reales.
 - Validación de la entrega: `npm run typecheck` y `npm run build` pasan. Se revisó la geometría a 350 y 1200 px. Pasan las siete pruebas nuevas. En `npm test` pasan 18 de 19 archivos. Claude debe repetir la suite fuera del sandbox: la prueba existente de coordinación recibe `spawnSync git EPERM` al intentar crear su repositorio temporal. La interacción en dispositivo físico sigue pendiente.
 
+### ChordLine v2
+
+- Entregado a Claude en `codex/tren-acordes-v2`, con cambios sin commit. «ChordLine» es el nombre elegido por el usuario y se define en `CHORD_TRAIN_TITLE`.
+- Once progresiones seleccionables en tonalidades mayores y menores, incluidos los dos blues de 12 compases. El sorteo distingue tríadas, séptimas y extensiones. El mismo catálogo sirve al cifrado manual, el reconocimiento y los cuatro modos de evaluación. Los vagones indican la función con texto y color. El pulso activo cambia de inmediato con movimiento reducido.
+- La migración `202611190004_chord_train_v2.sql` admite nuevos cifrados y sesiones de 48 pulsos junto con los intentos de 16 pulsos. Aplicarla en Supabase al desplegar.
+- Typecheck, exportación web y pruebas nuevas pasan. `npm test` pasa en 20 de 21 archivos. Solo falla la prueba de coordinación por `spawnSync git EPERM`; pasan los 21 archivos al capturar los subprocesos de esa prueba en archivos temporales. Se comprobó el HTML de los tableros compacto y ancho. Quedan pendientes la revisión visual interactiva y el micrófono real. `main` avanzó con documentación y el sandbox impidió adelantar la rama local.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).

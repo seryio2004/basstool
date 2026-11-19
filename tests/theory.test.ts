@@ -93,6 +93,18 @@ test('key spelling follows diatonic degrees in flat and sharp keys in both nomen
   assert.equal(pitchName('Bb3', true), 'Si♭3');
 });
 
+test('ninths appear as degree nine at every matching fret, including below the root', () => {
+  const positions = positionsFor('F#', arpeggios.major9, tunings.standard4);
+  const ninths = positions.filter(({ degree }) => degree === 9);
+  assert.ok(ninths.length > 0);
+  assert.ok(ninths.some(({ midi }) => midi < 54));
+  assert.ok(
+    ninths.every(
+      ({ degreeLabel, name, midi }) => degreeLabel === '9' && name === 'Sol♯' && midi % 12 === 8,
+    ),
+  );
+});
+
 test('fretboard data covers C major and A minor pentatonic, including repeated roots and endpoints', () => {
   const c = positionsFor('C', scales.major, tunings.standard4, { min: 0, max: 5 });
   assert.deepEqual(
