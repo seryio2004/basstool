@@ -145,7 +145,7 @@ const NotationLine = memo(function NotationLine({
                     ...m.events.map((e, i) => ({
                       event: e.event,
                       label: e.label,
-                      string: e.source.note?.string,
+                      string: e.heads[0]?.string,
                       left: i ? (m.events[i - 1]!.x + e.x) / 2 : m.x,
                       right: (e.x + (m.events[i + 1]?.x ?? e.endX)) / 2,
                     })),
@@ -171,7 +171,8 @@ const NotationLine = memo(function NotationLine({
                       measure: m.measure,
                       event: e.event,
                       string:
-                        m.tabTop !== undefined && y >= m.tabTop - 7 && hit
+                        hit &&
+                        (e.string !== undefined || (m.tabTop !== undefined && y >= m.tabTop - 7))
                           ? hit.string
                           : (e.string ?? -1),
                     });
@@ -270,7 +271,7 @@ export function ScoreView({
   const sounding =
     soundingMeasure &&
     soundingMeasure.events.find(
-      (e) => e.source.note && e.beat <= playhead!.beat && e.endBeat > playhead!.beat,
+      (e) => e.heads.length > 0 && e.beat <= playhead!.beat && e.endBeat > playhead!.beat,
     );
   const edit = cursor ? cursorPoint(layout, cursor) : null;
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);

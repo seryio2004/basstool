@@ -4,6 +4,8 @@ import type { Instrument } from './instrument';
 import { noteAt } from './instrument';
 import {
   addF,
+  eventNotes,
+  tiedStrings,
   tupletCount,
   durationValue,
   fraction,
@@ -36,6 +38,16 @@ export type Primitive =
   | { kind: 'path'; d: string; width?: number; fill?: boolean }
   | { kind: 'rect'; x: number; y: number; width: number; height: number; color?: string };
 export type EventGeometry = {
+  heads: {
+    string: number;
+    fret: number;
+    x: number;
+    y: number;
+    tabY?: number;
+    step: number;
+    accidental?: string;
+    accidentalX: number;
+  }[];
   event: number;
   source: ScoreEvent;
   x: number;
@@ -163,15 +175,19 @@ function eventWidths(events: ScoreEvent[], instrument: Instrument, fifths: numbe
   const state = new Map<number, number>();
   return events.map((e) => {
     let extra = 0;
-    if (e.note) {
-      const p = spellPitch(noteAt(instrument, e.note.string, e.note.fret), fifths);
+    for (const n of eventNotes(e)) {
+      const p = spellPitch(noteAt(instrument, n.string, n.fret), fifths);
       const key = p.octave * 7 + p.letter;
-      if ((state.get(key) ?? signatureAlter(p.letter, fifths)) !== p.alter) extra = 12;
+      if ((state.get(key) ?? signatureAlter(p.letter, fifths)) !== p.alter) extra += 12;
       state.set(key, p.alter);
     }
     return (
-      Math.max(e.note && e.note.fret >= 10 ? 22 : 14, ratio(durationValue(e.duration)) * 96) +
+      Math.max(
+        eventNotes(e).some((n) => n.fret >= 10) ? 22 : 14,
+        ratio(durationValue(e.duration)) * 96,
+      ) +
       extra +
+      (eventNotes(e).length > 1 ? 20 : 0) +
       (e.duration.dots ? 4 : 0)
     );
   });
@@ -212,7 +228,7 @@ export function layoutScore(
     }
     const pitches = batch.flatMap((b) =>
       score.measures[b.index]!.events.flatMap((e) =>
-        e.note ? [spellPitch(noteAt(instrument, e.note.string, e.note.fret), keyFifths).step] : [],
+        eventNotes(e).map((n) => spellPitch(noteAt(instrument, n.string, n.fret), keyFifths).step),
       ),
     );
     const high = Math.max(8, ...pitches),
@@ -310,38 +326,63 @@ export function layoutScore(
           onset = offset;
         offset = addF(offset, dur);
         const ew = (endX - contentX) * (b.widths[event]! / weights);
-        const pitch = e.note
-          ? spellPitch(noteAt(instrument, e.note.string, e.note.fret), keyFifths)
-          : undefined;
-        const step = pitch?.step;
-        const ey =
-          staffBottom !== undefined
-            ? staffBottom - (step ?? 4) * 5
-            : tabTop! + (instrument.strings.length - 1) * 14 + 18;
-        let accidental: string | undefined;
-        if (pitch) {
-          const diatonic = pitch.octave * 7 + pitch.letter;
-          const previous = accidentals.get(diatonic) ?? signatureAlter(pitch.letter, keyFifths);
-          if (previous !== pitch.alter)
-            accidental = pitch.alter < 0 ? '♭' : pitch.alter > 0 ? '♯' : '♮';
-          accidentals.set(diatonic, pitch.alter);
-        }
-        const ty =
-          e.note && tabTop !== undefined
-            ? tabTop + (instrument.strings.length - 1 - e.note.string) * 14
-            : undefined;
-        const name = pitch?.name ?? 'Silencio';
-        const label = `Compás ${b.index + 1}, ${name}${e.note ? `, cuerda ${spellPitch(instrument.strings[e.note.string]!, 0).name} traste ${e.note.fret}` : ''}, ${durationNames[e.duration.base]}${e.duration.dots ? ' con puntillo' : ''}${tupletCount(e.duration) === 5 ? ', quintillo' : tupletCount(e.duration) === 3 ? ', tresillo' : ''}`;
+        const pitches = eventNotes(e)
+          .map((note) => ({
+            note,
+            pitch: spellPitch(noteAt(instrument, note.string, note.fret), keyFifths),
+          }))
+          .sort((a, b) => a.pitch.step - b.pitch.step);
+        const down = pitches.length > 0 && pitches[0]!.pitch.step + pitches.at(-1)!.pitch.step >= 8;
+        if (down) pitches.reverse();
+        let columns = 0;
+        let previousStep: number | undefined;
+        let displaced = false;
+        const tabBaseline = (tabTop ?? 0) + (instrument.strings.length - 1) * 14 + 18;
+        const heads = pitches.map(({ note, pitch }) => {
+          displaced =
+            previousStep !== undefined && Math.abs(previousStep - pitch.step) <= 1 && !displaced;
+          previousStep = pitch.step;
+          const prev = accidentals.get(pitch.step) ?? signatureAlter(pitch.letter, keyFifths);
+          const accidental =
+            prev === pitch.alter ? undefined : pitch.alter < 0 ? '♭' : pitch.alter > 0 ? '♯' : '♮';
+          accidentals.set(pitch.step, pitch.alter);
+          return {
+            ...note,
+            step: pitch.step,
+            accidental,
+            accidentalX: accidental ? ex + 12 * columns++ : ex,
+            x: displaced ? (down ? -10 : 10) : 0,
+            y: staffBottom === undefined ? tabBaseline : staffBottom - pitch.step * 5,
+            tabY:
+              tabTop === undefined
+                ? undefined
+                : tabTop + (instrument.strings.length - 1 - note.string) * 14,
+          };
+        });
+        const x = ex + columns * 12 + (heads.some((h) => h.x < 0) ? 10 : 0);
+        heads.forEach((h) => {
+          h.x += x;
+        });
+        const anchor = heads[0];
+        const name = pitches.map((p) => p.pitch.name).join(' + ') || 'Silencio';
+        const fingers = pitches
+          .map(
+            ({ note }) =>
+              `cuerda ${spellPitch(instrument.strings[note.string]!, 0).name} traste ${note.fret}`,
+          )
+          .join(', ');
+        const label = `Compás ${b.index + 1}, ${name}${fingers ? ', ' + fingers : ''}, ${durationNames[e.duration.base]}${e.duration.dots ? ' con puntillo' : ''}${tupletCount(e.duration) === 5 ? ', quintillo' : tupletCount(e.duration) === 3 ? ', tresillo' : ''}`;
         const geom: EventGeometry = {
+          heads,
           event,
           source: e,
-          x: ex + (accidental ? 12 : 0),
+          x,
           endX: ex + ew,
-          y: ey,
-          tabY: ty,
-          step,
-          stem: e.note && e.duration.base !== 1 ? ((step ?? 0) >= 4 ? 'down' : 'up') : undefined,
-          accidental,
+          y: anchor?.y ?? (staffBottom === undefined ? tabBaseline : staffBottom - 20),
+          tabY: anchor?.tabY,
+          step: anchor?.step,
+          stem: anchor && e.duration.base !== 1 ? (down ? 'down' : 'up') : undefined,
+          accidental: anchor?.accidental,
           name,
           label,
           beat: ratio(onset) * meter.unit,
@@ -367,7 +408,7 @@ export function layoutScore(
         const groupSize = compound ? 3 : meter.unit === 4 ? 1 : 1;
         const group = Math.floor((e.beat + 1e-9) / groupSize);
         const eligible =
-          e.source.note &&
+          e.heads.length > 0 &&
           e.source.duration.base >= 8 &&
           e.source.duration.base <= 16 &&
           e.endBeat <= (group + 1) * groupSize + 1e-9;
@@ -389,11 +430,13 @@ export function layoutScore(
         display === 'tab' ? tabTop! + (instrument.strings.length - 1) * 14 + 13 : e.y;
       const stemDir = (e: EventGeometry) => (display === 'tab' ? 1 : e.stem === 'down' ? 1 : -1);
       const stemX = (e: EventGeometry) => e.x + (display === 'tab' ? 0 : stemDir(e) > 0 ? -5 : 5);
+      const stemTipBase = (e: EventGeometry) =>
+        display === 'tab' ? stemBase(e) : e.heads.at(-1)!.y;
       beams.forEach((g) => {
         const es = g.events.map((i) => events[i]!);
         const dir = stemDir(es[0]!);
         const end =
-          dir > 0 ? Math.max(...es.map(stemBase)) + 28 : Math.min(...es.map(stemBase)) - 28;
+          dir > 0 ? Math.max(...es.map(stemTipBase)) + 28 : Math.min(...es.map(stemTipBase)) - 28;
         es.forEach((e) => stemEnds.set(e.event, end));
         shapes.push(line(stemX(es[0]!), end, stemX(es.at(-1)!), end, 4));
         // Secondary beams form runs; a lone sixteenth gets an inward hook.
@@ -416,53 +459,58 @@ export function layoutScore(
       events.forEach((e) => {
         const src = e.source;
         if (staffBottom !== undefined) {
-          if (src.note) {
-            const step = e.step!;
+          for (const head of e.heads) {
+            const step = head.step;
             for (let l = -2; l >= step; l -= 2)
-              shapes.push(line(e.x - 9, staffBottom - l * 5, e.x + 9, staffBottom - l * 5));
+              shapes.push(line(head.x - 9, staffBottom - l * 5, head.x + 9, staffBottom - l * 5));
             for (let l = 10; l <= step; l += 2)
-              shapes.push(line(e.x - 9, staffBottom - l * 5, e.x + 9, staffBottom - l * 5));
+              shapes.push(line(head.x - 9, staffBottom - l * 5, head.x + 9, staffBottom - l * 5));
             if (src.technique === 'dead')
               shapes.push(
-                line(e.x - 4, e.y - 4, e.x + 4, e.y + 4, 2),
-                line(e.x - 4, e.y + 4, e.x + 4, e.y - 4, 2),
+                line(head.x - 4, head.y - 4, head.x + 4, head.y + 4, 2),
+                line(head.x - 4, head.y + 4, head.x + 4, head.y - 4, 2),
               );
             else
               shapes.push({
                 kind: 'ellipse',
-                x: e.x,
-                y: e.y,
+                x: head.x,
+                y: head.y,
                 rx: src.duration.base === 1 ? 7 : 5,
                 ry: 3.5,
                 hollow: src.duration.base <= 2,
               });
-            if (e.accidental) shapes.push(text(e.x - 12, e.y + 5, e.accidental, 18));
-          } else drawRest(shapes, e.x, staffBottom - 20, src.duration.base);
+            if (head.accidental)
+              shapes.push(text(head.accidentalX, head.y + 5, head.accidental, 18));
+          }
+          if (!e.heads.length) drawRest(shapes, e.x, staffBottom - 20, src.duration.base);
         }
         if (tabTop !== undefined) {
-          if (src.note) {
-            const label = src.technique === 'dead' ? 'x' : String(src.note.fret);
+          for (const head of e.heads) {
+            const label = src.technique === 'dead' ? 'x' : String(head.fret);
             shapes.push(
               {
                 kind: 'rect',
                 x: e.x - (label.length > 1 ? 9 : 6),
-                y: e.tabY! - 7,
+                y: head.tabY! - 7,
                 width: label.length > 1 ? 18 : 12,
                 height: 14,
                 color: '#FFFFFF',
               },
-              text(e.x, e.tabY! + 4, label, 13),
+              text(e.x, head.tabY! + 4, label, 13),
             );
-          } else if (display === 'tab') drawRest(shapes, e.x, e.y + 8, src.duration.base);
+          }
+          if (!e.heads.length && display === 'tab')
+            drawRest(shapes, e.x, e.y + 8, src.duration.base);
         }
         if (
-          src.note &&
+          e.heads.length > 0 &&
           src.duration.base !== 1 &&
           (staffBottom !== undefined || display === 'tab')
         ) {
           const dir = stemDir(e),
             base = stemBase(e),
-            end = stemEnds.get(e.event) ?? base + dir * (src.duration.base > 16 ? 40 : 28);
+            end =
+              stemEnds.get(e.event) ?? stemTipBase(e) + dir * (src.duration.base > 16 ? 40 : 28);
           shapes.push(line(stemX(e), base, stemX(e), end, 1.3));
           if (!beamed.has(e.event) && src.duration.base >= 8) {
             for (let f = 0; f < Math.log2(src.duration.base) - 2; f++) {
@@ -476,16 +524,14 @@ export function layoutScore(
           }
         }
         if (src.duration.dots) {
-          if (staffBottom !== undefined || display === 'tab')
-            shapes.push({
-              kind: 'ellipse',
-              x: e.x + 10,
-              y: e.y - (e.step !== undefined && e.step % 2 === 0 ? 5 : 0),
-              rx: 1.6,
-              ry: 1.6,
-            });
+          const dotted = staffBottom !== undefined && e.heads.length ? e.heads : [e];
+          const x = Math.max(e.x, ...e.heads.map((h) => h.x)) + 10;
+          const ys = new Set(
+            dotted.map((h) => h.y - (h.step !== undefined && h.step % 2 === 0 ? 5 : 0)),
+          );
+          for (const y of ys) shapes.push({ kind: 'ellipse', x, y, rx: 1.6, ry: 1.6 });
         }
-        const techniqueY = tabTop !== undefined && src.note ? e.tabY! - 10 : e.y + 14;
+        const techniqueY = tabTop !== undefined && e.heads.length ? e.tabY! - 10 : e.y + 14;
         if (src.technique === 'staccato')
           shapes.push({ kind: 'ellipse', x: e.x, y: techniqueY, rx: 2, ry: 2 });
         if (['hammer', 'pull', 'slide'].includes(src.technique ?? ''))
@@ -566,26 +612,31 @@ export function layoutScore(
   const all = lines.flatMap((l) => l.measures.flatMap((m) => m.events.map((e) => ({ l, m, e }))));
   all.forEach((a, i) => {
     const b = all[i + 1];
-    if (
-      !a.e.source.tie ||
-      !a.e.source.note ||
-      !b?.e.source.note ||
-      noteAt(instrument, a.e.source.note.string, a.e.source.note.fret) !==
-        noteAt(instrument, b.e.source.note.string, b.e.source.note.fret)
-    )
-      return;
-    const ay = a.m.staffBottom !== undefined ? a.e.y + 8 : a.e.tabY! + 8;
-    const by = b.m.staffBottom !== undefined ? b.e.y + 8 : b.e.tabY! + 8;
-    const arc = (l: ScoreLine, x1: number, y1: number, x2: number, y2: number) =>
-      l.primitives.push({
-        kind: 'path',
-        d: `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.max(y1, y2) + 10} ${x2} ${y2}`,
-        width: 1.2,
-      });
-    if (a.l === b.l) arc(a.l, a.e.x + 3, ay, b.e.x - 3, by);
-    else {
-      arc(a.l, a.e.x + 3, ay, a.m.x + a.m.width - 2, ay);
-      arc(b.l, b.m.x + 2, by, b.e.x - 3, by);
+    if (!b || !a.e.source.tie) return;
+    for (const left of a.e.heads) {
+      if (!tiedStrings(a.e.source).includes(left.string)) continue;
+      const right = b.e.heads.find((n) => n.string === left.string && n.fret === left.fret);
+      if (!right) continue;
+      const ay = (a.m.staffBottom !== undefined ? left.y : left.tabY!) + 8;
+      const by = (b.m.staffBottom !== undefined ? right.y : right.tabY!) + 8;
+      const arc = (l: ScoreLine, x1: number, y1: number, x2: number, y2: number) =>
+        l.primitives.push({
+          kind: 'path',
+          d: `M ${x1} ${y1} Q ${(x1 + x2) / 2} ${Math.max(y1, y2) + 10} ${x2} ${y2}`,
+          width: 1.2,
+        });
+      if (a.l === b.l)
+        arc(
+          a.l,
+          (display === 'tab' ? a.e.x : left.x) + 3,
+          ay,
+          (display === 'tab' ? b.e.x : right.x) - 3,
+          by,
+        );
+      else {
+        arc(a.l, (display === 'tab' ? a.e.x : left.x) + 3, ay, a.m.x + a.m.width - 2, ay);
+        arc(b.l, b.m.x + 2, by, (display === 'tab' ? b.e.x : right.x) - 3, by);
+      }
     }
   });
   return {
@@ -640,7 +691,13 @@ export function hitTest(layout: ScoreLayout, x: number, y: number): EditCursor |
   return {
     measure: m.measure,
     event: nearest.event,
-    string: m.tabTop === undefined ? (nearest.source.note?.string ?? 0) : string,
+    string:
+      m.tabTop !== undefined && localY >= m.tabTop - 7
+        ? string
+        : (nearest.heads.reduce<(typeof nearest.heads)[number] | undefined>(
+            (best, h) => (!best || Math.abs(h.y - localY) < Math.abs(best.y - localY) ? h : best),
+            undefined,
+          )?.string ?? 0),
   };
 }
 export function positionPoint(
@@ -679,7 +736,9 @@ export function cursorPoint(
         l.y +
         (m.tabTop !== undefined
           ? m.tabTop + (layout.strings - 1 - cursor.string) * 14 - 9
-          : (m.events[cursor.event]?.y ?? m.staffBottom! - 20) - 9),
+          : (m.events[cursor.event]?.heads.find((n) => n.string === cursor.string)?.y ??
+              m.events[cursor.event]?.y ??
+              m.staffBottom! - 20) - 9),
       height: 18,
     };
   }

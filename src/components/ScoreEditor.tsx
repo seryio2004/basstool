@@ -4,6 +4,7 @@ import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
 import { Button, Chips, Heading, Icon, Label, colors, styles } from './ui';
 import { pianoPosition, scoreTimeline, synthTones, type TimedEvent } from '../core/scoreAudio';
 import type { Player, PickedAudio } from '../platform/playerTypes';
+import { exportScore } from '../platform/exportScore';
 import { printTab } from '../platform/printTab';
 import { PianoEntry, pianoKeys } from './PianoEntry';
 import { ChordEditor } from './ChordEditor';
@@ -26,6 +27,9 @@ import {
   addMeasure,
   changeMeasureMeter,
   insertNote,
+  eventNotes,
+  setChordNote,
+  tiedStrings,
   insertRest,
   isMeasurePlaceholder,
   measureMeter,
@@ -157,6 +161,7 @@ export function ScoreEditor({
   const [input, setInput] = useState<'neck' | 'piano'>('neck');
   const [pianoBase, setPianoBase] = useState(Math.floor(instrument.strings[0]! / 12) * 12);
   const [preference, setPreference] = useState<'low' | 'high'>('low');
+  const [chordMode, setChordMode] = useState(false);
   const [lastNote, setLastNote] = useState<{ string: number; fret: number } | null>(null);
   const scoreRegion = useRef<React.ComponentRef<typeof View>>(null);
   const showCursor = useCallback(
@@ -351,18 +356,27 @@ export function ScoreEditor({
         return;
       }
       const duration = durationRef.current;
-      run((s, c) => advanceAfterEntry(insertNote(s, { ...c, string }, fret, duration, instrument)));
+      run((s, c) =>
+        chordMode
+          ? setChordNote(s, { ...c, string }, fret, duration, instrument)
+          : advanceAfterEntry(insertNote(s, { ...c, string }, fret, duration, instrument)),
+      );
       setLastNote({ string, fret });
     },
-    [cursor.string, instrument, loaded, run],
+    [cursor.string, instrument, loaded, run, chordMode],
   );
   const writePitch = useCallback(
     (midi: number) => {
-      const pos = pianoPosition(instrument, midi, preference);
+      const pos = pianoPosition(
+        instrument,
+        midi,
+        preference,
+        chordMode ? eventNotes(event).map((n) => n.string) : [],
+      );
       if (pos) writeNote(pos.fret, pos.string);
       else setError('Altura fuera del mástil.');
     },
-    [instrument, preference, writeNote],
+    [instrument, preference, writeNote, chordMode, event],
   );
   const latestWrite = useRef(writeNote);
   latestWrite.current = writeNote;
@@ -393,10 +407,14 @@ export function ScoreEditor({
   }, [flushFret, run]);
   const erase = useCallback(
     (backward: boolean) => {
-      run((s, c) => eraseEntry(s, c, backward));
+      run((s, c) =>
+        chordMode
+          ? setChordNote(s, c, null, durationRef.current, instrument)
+          : eraseEntry(s, c, backward),
+      );
       setLastNote(null);
     },
-    [run],
+    [run, chordMode, instrument],
   );
   useEffect(() => {
     if (Platform.OS !== 'web' || !editing || !loaded || typeof document === 'undefined') return;
@@ -426,6 +444,14 @@ export function ScoreEditor({
         return;
       }
       if (mod || e.altKey) return;
+      if (lower === 'c') {
+        e.preventDefault();
+        if (!e.repeat) {
+          flushFret();
+          setChordMode((v) => !v);
+        }
+        return;
+      }
       if (input === 'piano' && pianoKeys.includes(lower) && lower.length === 1) {
         e.preventDefault();
         if (!e.repeat) writePitch(pianoBase + pianoKeys.indexOf(lower));
@@ -634,9 +660,9 @@ export function ScoreEditor({
               instrument={instrument}
               nomenclature={nomenclature}
               leftHanded={leftHanded}
-              marks={[]}
+              marks={eventNotes(event).map((n) => ({ ...n, label: String(n.fret) }))}
               activeString={cursor.string}
-              active={lastNote}
+              active={event || chordMode ? null : lastNote}
               onPress={(string, fret) => {
                 takeFret();
                 writeNote(fret, string);
@@ -645,6 +671,16 @@ export function ScoreEditor({
           </ScrollView>
         )}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+          <EntryKey
+            label="Modo Acorde (C)"
+            selected={chordMode}
+            onPress={() => {
+              flushFret();
+              setChordMode((v) => !v);
+            }}
+          >
+            <Text style={{ color: chordMode ? colors.white : colors.green }}>Acorde</Text>
+          </EntryKey>
           <EntryKey label={playing ? 'Pausa' : 'Reproducir'} onPress={onTogglePlayback}>
             <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.green} />
           </EntryKey>
@@ -652,7 +688,7 @@ export function ScoreEditor({
             Silencio
           </Button>
           <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={() => erase(!event)}>
-            Borrar
+            {chordMode ? 'Borrar cuerda' : 'Borrar'}
           </Button>
         </View>
       </View>
@@ -678,6 +714,23 @@ export function ScoreEditor({
           >
             Exportar PDF
           </Button>
+          {Platform.OS === 'web' &&
+            (['txt', 'musicxml'] as const).map((format) => (
+              <Button
+                key={format}
+                variant="ghost"
+                disabled={!loaded}
+                onPress={() => {
+                  try {
+                    exportScore(format, audio.name, score, instrument);
+                  } catch (error) {
+                    setError((error as Error).message);
+                  }
+                }}
+              >
+                {format === 'txt' ? 'Exportar TXT' : 'Exportar MusicXML'}
+              </Button>
+            ))}
           <Chips<ScoreDisplay>
             minHeight={44}
             value={display}
@@ -706,7 +759,7 @@ export function ScoreEditor({
             <EntryKey
               label={technique.value ? `Técnica: ${technique.label}` : 'Técnica'}
               expanded={tools === 'techniques'}
-              disabled={!event?.note}
+              disabled={!eventNotes(event).length}
               onPress={() => toggleTools('techniques')}
             >
               <Icon name="note" size={16} color={colors.green} />
@@ -772,13 +825,13 @@ export function ScoreEditor({
               {input === 'piano'
                 ? 'Piano: A W S E D F T G Y H U J, desde Do hasta Si.'
                 : 'Números · traste.'}{' '}
-              Flechas · cursor. +/− · figura. . · puntillo.{' '}
+              C · modo Acorde. Flechas · cursor. +/− · figura. . · puntillo.{' '}
               {input === 'neck' ? 'T · tresillo. ' : ''} R · silencio. L · ligadura. Supr · borrar
               selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer (Mayús · rehacer). Esc
               · salir.
             </Label>
           ) : null}
-          {tools === 'techniques' && event?.note ? (
+          {tools === 'techniques' && eventNotes(event).length > 0 ? (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
               {techniques.map((item) => (
                 <EntryKey
@@ -834,10 +887,12 @@ export function ScoreEditor({
                 </Button>
                 <Button
                   variant="ghost"
-                  disabled={!event?.note}
+                  disabled={!eventNotes(event).length}
                   onPress={() => adjustEvent(toggleTie)}
                 >
-                  Ligadura
+                  {event && tiedStrings(event).includes(cursor.string)
+                    ? 'Quitar ligadura'
+                    : 'Ligadura'}
                 </Button>
                 <Button
                   variant="ghost"
@@ -879,7 +934,7 @@ export function ScoreEditor({
               flushFret();
               const e = score.measures[c.measure]?.events[c.event];
               const timed = e && timeline.find((t) => t.id === e.id);
-              if (!editing && (!timed || !e?.note)) {
+              if (!editing && (!timed || !eventNotes(e).length)) {
                 goToMeasure(c.measure);
                 return;
               }

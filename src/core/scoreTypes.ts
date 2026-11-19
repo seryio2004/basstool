@@ -26,12 +26,19 @@ export type Duration = {
 
 export type Technique = 'hammer' | 'pull' | 'slide' | 'dead' | 'staccato';
 
-/** Un evento de la línea de bajo: nota (cuerda y traste) o silencio. Una sola voz. */
+/** Índice de cuerda contado desde la más grave y traste (0 = al aire). */
+export type ScoreNote = { string: number; fret: number };
+
+/** Una figura rítmica para todas sus posiciones, o un silencio. */
 export type ScoreEvent = {
   id: string;
   duration: Duration;
-  /** Ausente = silencio. La altura sonora es instrument.strings[string] + fret. */
-  note?: { string: number; fret: number };
+  /** Primera posición para lectores de partituras antiguas. */
+  note?: ScoreNote;
+  /** Posiciones simultáneas en orden de cuerda, de grave a aguda. */
+  notes?: ScoreNote[];
+  /** Subconjunto ligado; tie sin esta lista liga todas las posiciones. */
+  tieStrings?: number[];
   /** Ligada a la siguiente nota (misma altura). */
   tie?: boolean;
   /** Técnica hacia la nota siguiente (ligados, slide) o sobre esta (muerta, staccato). */

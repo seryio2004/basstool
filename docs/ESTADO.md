@@ -9,9 +9,10 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 ## En curso
 - Integrado 2026-11-19: reproducción de la transcripción, flujo de compases guiado, acordes deducidos de las notas escritas, **selector de BPM** que recoloca los compases (commit 5f65c10).
-- **En curso (Sol, Astra): notas simultáneas (una por cuerda).** Encargo listo en `.git/coord/encargos/notas-simultaneas.md`; lanzar con `scripts/sol.sh notas-simultaneas .git/coord/encargos/notas-simultaneas.md` (si Sol ya lo lanzó, ver su rama `codex/notas-simultaneas` y `.git/coord/sol/notas-simultaneas.md`).
-
-- **En curso (parte 2 del encargo notas-simultaneas): reconocimiento de acordes extendidos** (pedido por el usuario). Ampliar la deducción por notas escritas (`inferChord` en src/core/chroma.ts) y la detección por audio para novenas, oncenas y trecenas: Cmaj9, C9, Cm9, C7(♭9/♯9), Cadd9, C11, Cm11, C7(♯11), C13…, admitiendo la omisión de la quinta (y de la 11 en acordes dominantes) cuando hay 5 o más notas. Elegir la interpretación más simple ante ambigüedad (p. ej. preferir C6 a Am7/C según el bajo) y probar con casos concretos. Encargo en `.git/coord/encargos/notas-simultaneas.md`, parte 2.
+- **Entregado a Claude para revisión e integración** en `codex/notas-simultaneas`, con los cambios en el worktree sin commit. El modo «Acorde» (tecla C) apila una nota por cuerda en la figura del cursor. «Borrar cuerda» permite quitarla. Al leer una partitura antigua, `parseScore` convierte `note` en una lista de una posición. Las ligaduras parciales se guardan en `tieStrings`.
+- La síntesis y el enlace con las marcas de audio conservan un inicio común y duraciones independientes para las cuerdas ligadas. Partitura, tab, impresión PDF y descargas web TXT y MusicXML incluyen todas las notas.
+- Las sugerencias escritas y por croma reconocen los catorce tipos de acorde extendido del encargo, con inversiones y omisiones. Se probaron con señales sintéticas, incluidas combinaciones de cinco alturas. Queda por medir la precisión con grabaciones reales.
+- Validación de la entrega: `npm run typecheck` y `npm run build` pasan. Se revisó la geometría a 350 y 1200 px. Pasan las siete pruebas nuevas. En `npm test` pasan 18 de 19 archivos. Claude debe repetir la suite fuera del sandbox: la prueba existente de coordinación recibe `spawnSync git EPERM` al intentar crear su repositorio temporal. La interacción en dispositivo físico sigue pendiente.
 
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.

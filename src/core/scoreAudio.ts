@@ -1,18 +1,33 @@
 import { positionsOf, type Instrument } from './instrument';
-import { addF, durationValue, fraction, measureMeter } from './score';
+import { eventNotes, tiedStrings, addF, durationValue, fraction, measureMeter } from './score';
 import type { Measure, Meter, Score, ScoreEvent, TimeMap } from './scoreTypes';
 import { beatAnchors, scorePlaybackMap, timeAtBeat } from './timeMap';
 
-export function pianoPosition(instrument: Instrument, midi: number, preference: 'low' | 'high') {
-  return positionsOf(instrument, midi).sort((a, b) =>
-    preference === 'low' ? a.fret - b.fret : b.fret - a.fret,
+export function pianoPosition(
+  instrument: Instrument,
+  midi: number,
+  preference: 'low' | 'high',
+  occupied: readonly number[] = [],
+) {
+  return positionsOf(instrument, midi).sort(
+    (a, b) =>
+      Number(occupied.includes(a.string)) - Number(occupied.includes(b.string)) ||
+      (preference === 'low' ? a.fret - b.fret : b.fret - a.fret),
   )[0];
 }
 
 export function noteMidi(event: ScoreEvent, instrument: Instrument): number | undefined {
-  if (!event.note) return undefined;
-  const open = instrument.strings[event.note.string];
-  return open === undefined ? undefined : open + event.note.fret;
+  return soundingVoices(event, instrument)[0]?.midi;
+}
+
+function soundingVoices(event: ScoreEvent, instrument: Instrument) {
+  const ties = tiedStrings(event);
+  return eventNotes(event).flatMap((note) => {
+    const open = instrument.strings[note.string];
+    return open === undefined
+      ? []
+      : [{ string: note.string, midi: open + note.fret, tie: ties.includes(note.string) }];
+  });
 }
 
 export function chordSegment(bar: Measure, meter: Meter, beat: number, instrument: Instrument) {
@@ -27,8 +42,7 @@ export function chordSegment(bar: Measure, meter: Meter, beat: number, instrumen
     const from = (offset.n * meter.unit) / offset.d;
     offset = addF(offset, durationValue(event.duration));
     const to = (offset.n * meter.unit) / offset.d;
-    const midi = noteMidi(event, instrument);
-    return midi !== undefined && from < end && to > start ? [midi] : [];
+    return from < end && to > start ? soundingVoices(event, instrument).map((v) => v.midi) : [];
   });
   return { start, end, notes };
 }
@@ -39,6 +53,7 @@ export type TimedEvent = {
   event: number;
   start: number;
   end: number;
+  voices?: { string: number; midi: number; tie: boolean }[];
   midi?: number;
   tie?: boolean;
 };
@@ -62,38 +77,41 @@ export function scoreTimeline(
       const start = at((offset.n * meter.unit) / offset.d);
       offset = addF(offset, durationValue(e.duration));
       const end = Math.min(duration, at((offset.n * meter.unit) / offset.d));
-      return end > start
-        ? [
-            {
-              id: e.id,
-              measure,
-              event,
-              start,
-              end,
-              midi: noteMidi(e, instrument),
-              tie: e.tie,
-            },
-          ]
-        : [];
+      if (end <= start) return [];
+      const voices = soundingVoices(e, instrument);
+      return [{ id: e.id, measure, event, start, end, midi: voices[0]?.midi, tie: e.tie, voices }];
     });
   });
 }
 export type Tone = { start: number; end: number; midi: number };
 export function synthTones(events: TimedEvent[]): Tone[] {
   const notes: Tone[] = [];
-  let tied = false;
+  let sustained = new Map<number, Tone>();
   for (const e of events) {
-    const prev = notes.at(-1);
-    if (e.midi !== undefined) {
-      if (tied && prev?.midi === e.midi && Math.abs(prev.end - e.start) < 1e-7) prev.end = e.end;
-      else notes.push({ midi: e.midi, start: e.start, end: e.end });
+    const next = new Map<number, Tone>();
+    const voices =
+      e.voices ?? (e.midi === undefined ? [] : [{ string: 0, midi: e.midi, tie: e.tie }]);
+    for (const v of voices) {
+      let tone = sustained.get(v.string);
+      if (tone?.midi === v.midi && Math.abs(tone.end - e.start) < 1e-7) tone.end = e.end;
+      else {
+        tone = { midi: v.midi, start: e.start, end: e.end };
+        notes.push(tone);
+      }
+      if (v.tie) next.set(v.string, tone);
     }
-    tied = !!e.tie;
+    sustained = next;
   }
   return notes;
 }
+// Prefix maxima stay monotonic when a tied voice outlasts later attacks.
+export function toneEndIndex(tones: Tone[]): number[] {
+  let latest = -Infinity;
+  return tones.map((tone) => (latest = Math.max(latest, tone.end)));
+}
+
 // Project a window of media time onto the AudioContext clock, including a note
-// already sounding after a seek. Entries are ordered and monophonic.
+// already sounding after a seek. Simultaneous tones may end in any order.
 export function scheduleTones(
   tones: Tone[],
   from: number,
@@ -101,18 +119,20 @@ export function scheduleTones(
   rate: number,
   clock: number,
   stop: number,
+  ends = toneEndIndex(tones),
 ) {
   let lo = 0,
-    hi = tones.length;
+    hi = ends.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (tones[mid]!.end <= from) lo = mid + 1;
+    if (ends[mid]! <= from) lo = mid + 1;
     else hi = mid;
   }
   const result = [];
   for (let i = lo; i < tones.length; i++) {
     const tone = tones[i]!;
     if (tone.start >= Math.min(to, stop)) break;
+    if (tone.end <= from) continue;
     result.push({
       midi: tone.midi,
       when: clock + Math.max(0, tone.start - from) / rate,

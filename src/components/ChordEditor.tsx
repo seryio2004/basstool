@@ -35,7 +35,7 @@ export function ChordEditor({
   }, [suggestAudio, start, end]);
   const written = bar.chords?.find((c) => c.beat === beat)?.symbol ?? '';
   const value = draft ?? written;
-  const agree = !!writtenGuess && writtenGuess.split('/')[0] === audioGuess?.symbol;
+  const agree = !!writtenGuess && writtenGuess === audioGuess?.symbol;
   return (
     <View style={{ gap: 8 }}>
       <Label>Pulso</Label>

@@ -1,5 +1,5 @@
 import { analysisAudio, detectChord } from '../core/chroma';
-import { scheduleTones, type Tone } from '../core/scoreAudio';
+import { scheduleTones, toneEndIndex, type Tone } from '../core/scoreAudio';
 import type { MixMode } from './playerTypes';
 import { peaksFrom, RATE_MIN, RATE_MAX, MIN_LOOP } from '../core/transcription';
 import type { BassMode, Loop, PickedAudio, Player } from './playerTypes';
@@ -16,6 +16,7 @@ export function createPlayer(): Player {
   let gain: GainNode | null = null;
   let analysis: ReturnType<typeof analysisAudio> | null = null;
   let tones: Tone[] = [];
+  let ends: number[] = [];
   let mode: MixMode = 'song',
     balance = 0.5,
     volume = 1;
@@ -55,6 +56,7 @@ export function createPlayer(): Player {
       rate,
       context.currentTime,
       loop?.b ?? duration,
+      ends,
     )) {
       if (voices.has(note.id) || note.until <= note.when) continue;
       const osc = context.createOscillator(),
@@ -120,6 +122,7 @@ export function createPlayer(): Player {
     synth = null;
     analysis = null;
     tones = [];
+    ends = [];
     stopFrame();
     detach?.();
     detach = null;
@@ -351,6 +354,7 @@ export function createPlayer(): Player {
     setTones(value) {
       silence();
       tones = value;
+      ends = toneEndIndex(value);
       schedule();
     },
     setMix(value, level) {

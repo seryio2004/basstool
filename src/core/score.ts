@@ -8,6 +8,7 @@ import type {
   Meter,
   Score,
   ScoreEvent,
+  ScoreNote,
   Technique,
 } from './scoreTypes';
 export type {
@@ -19,6 +20,7 @@ export type {
   Meter,
   Score,
   ScoreEvent,
+  ScoreNote,
   Technique,
 } from './scoreTypes';
 
@@ -201,29 +203,47 @@ function clampCursor(score: Score, cursor: EditCursor): EditCursor {
     string: Math.max(0, Math.trunc(cursor.string) || 0),
   };
 }
-// Without an instrument, only identical positions prove identical pitch. Edits clear
-// affected outgoing/incoming ties; unrelated enharmonic positions remain untouched.
-function cleanTies(score: Score, instrument?: Instrument): Score {
+export function eventNotes(event?: ScoreEvent): ScoreNote[] {
+  return event?.notes ?? (event?.note ? [event.note] : []);
+}
+
+function positions(notes: ScoreNote[]) {
+  notes.sort((a, b) => a.string - b.string);
+  return notes.length ? { notes, note: notes[0] } : { notes: undefined, note: undefined };
+}
+
+export function tiedStrings(e: ScoreEvent): number[] {
+  return e.tie ? (e.tieStrings ?? eventNotes(e).map((n) => n.string)) : [];
+}
+
+function withTies(e: ScoreEvent, strings: number[]): ScoreEvent {
+  const { tie, tieStrings, ...rest } = e;
+  if (!strings.length) return rest;
+  return strings.length === eventNotes(e).length
+    ? { ...rest, tie: true }
+    : { ...rest, tie: true, tieStrings: strings.sort((a, b) => a - b) };
+}
+
+function cleanTies(score: Score): Score {
   const events = score.measures.flatMap((m) => m.events);
-  const valid = new Set<string>();
-  events.forEach((e, i) => {
-    const next = events[i + 1];
-    if (
-      e.tie &&
-      e.note &&
-      next?.note &&
-      (instrument
-        ? noteAt(instrument, e.note.string, e.note.fret) ===
-          noteAt(instrument, next.note.string, next.note.fret)
-        : e.note.string === next.note.string && e.note.fret === next.note.fret)
-    )
-      valid.add(e.id);
-  });
+  let index = 0;
   return {
     ...score,
     measures: score.measures.map((m) => ({
       ...m,
-      events: m.events.map((e) => (e.tie && !valid.has(e.id) ? { ...e, tie: undefined } : e)),
+      events: m.events.map((e) => {
+        const next = events[++index];
+        if (!e.tie) return e;
+        const valid = eventNotes(e).filter(
+          (n) =>
+            tiedStrings(e).includes(n.string) &&
+            eventNotes(next).some((m) => m.string === n.string && m.fret === n.fret),
+        );
+        return withTies(
+          e,
+          valid.map((n) => n.string),
+        );
+      }),
     })),
   };
 }
@@ -248,7 +268,9 @@ function replace(
 export function isMeasurePlaceholder(measure: Measure): boolean {
   return (
     measure.events.length > 0 &&
-    measure.events.every((event, index) => !event.note && event.id === `${measure.id}-r${index}`)
+    measure.events.every(
+      (event, index) => !eventNotes(event).length && event.id === `${measure.id}-r${index}`,
+    )
   );
 }
 // Supported entry figures and bar capacities are all multiples of 1/480.
@@ -383,7 +405,8 @@ function fitMeasures(
             id: part === 0 ? event.id : fragmentId(event.id),
             duration,
             technique,
-            tie: event.note && (!last || event.tie) ? true : undefined,
+            tieStrings: last ? event.tieStrings : undefined,
+            tie: eventNotes(event).length && (!last || event.tie) ? true : undefined,
           };
         });
         if (followId === event.id) followId = parts.at(-1)!.id;
@@ -405,6 +428,7 @@ function insert(
   cursor: EditCursor,
   duration: Duration,
   note?: ScoreEvent['note'],
+  stay = false,
 ): Edit {
   durationValue(duration);
   const original = score;
@@ -420,7 +444,7 @@ function insert(
   const event: ScoreEvent = {
     id: fresh(score, 'e'),
     duration: { ...duration },
-    ...(note ? { note: { ...note } } : {}),
+    ...(note ? positions([{ ...note }]) : {}),
   };
   const events = isMeasurePlaceholder(current)
     ? [event]
@@ -429,11 +453,13 @@ function insert(
   if (!fitted) return { score: original, cursor, notice: 'limit' };
   const result = cleanTies(fitted.score);
   for (let m = measure; m < result.measures.length; m++) {
-    const i = result.measures[m]!.events.findIndex((e) => e.id === fitted.followId);
+    const i = result.measures[m]!.events.findIndex(
+      (e) => e.id === (stay ? event.id : fitted.followId),
+    );
     if (i >= 0)
       return {
         score: result,
-        cursor: { ...cursor, measure: m, event: i + 1 },
+        cursor: { ...cursor, measure: m, event: stay ? i : i + 1 },
         notice: fitted.split ? 'split' : fitted.moved ? 'reflow' : undefined,
       };
   }
@@ -461,9 +487,40 @@ export function setFret(
   const c = clampCursor(score, cursor);
   if (!score.measures[c.measure]!.events[c.event])
     return insertNote(score, c, fret, { base: 4, dots: 0 }, instrument);
-  const edit = replace(score, c, (e) => ({ ...e, note: { string: c.string, fret } }));
-  return { ...edit, score: cleanTies(edit.score, instrument) };
+  const event = score.measures[c.measure]!.events[c.event]!;
+  if (eventNotes(event).length > 1) return setChordNote(score, c, fret, event.duration, instrument);
+  const edit = replace(score, c, (e) => ({ ...e, ...positions([{ string: c.string, fret }]) }));
+  return { ...edit, score: cleanTies(edit.score) };
 }
+/** Edit one string without consuming another rhythmic slot. */
+export function setChordNote(
+  score: Score,
+  cursor: EditCursor,
+  fret: number | null,
+  duration: Duration,
+  instrument: Instrument,
+): Edit {
+  const c = clampCursor(score, cursor);
+  if (fret !== null) noteAt(instrument, c.string, fret);
+  const bar = score.measures[c.measure]!;
+  const current = bar.events[c.event];
+  if (!current || isMeasurePlaceholder(bar)) {
+    if (fret === null) return { score, cursor };
+    return insert(score, c, duration, { string: c.string, fret }, true);
+  }
+  const previous = eventNotes(current).find((n) => n.string === c.string);
+  if ((previous?.fret ?? null) === fret) return { score, cursor };
+  const notes = eventNotes(current).filter((n) => n.string !== c.string);
+  if (fret !== null) notes.push({ string: c.string, fret });
+  const edit = replace(score, c, (e) =>
+    withTies(
+      { ...e, ...positions(notes), technique: notes.length ? e.technique : undefined },
+      tiedStrings(e).filter((string) => string !== c.string),
+    ),
+  );
+  return { ...edit, score: cleanTies(edit.score) };
+}
+
 export function setDuration(score: Score, cursor: EditCursor, duration: Duration): Edit {
   durationValue(duration);
   cursor = clampCursor(score, cursor);
@@ -495,13 +552,22 @@ export function toggleTriplet(score: Score, cursor: EditCursor): Edit {
   });
 }
 export function toggleTie(s: Score, c: EditCursor): Edit {
-  const edit = replace(s, c, (e) => ({ ...e, tie: !e.tie }));
+  const edit = replace(s, c, (e) => {
+    if (!eventNotes(e).some((n) => n.string === c.string)) return e;
+    const strings = tiedStrings(e);
+    return withTies(
+      e,
+      strings.includes(c.string) ? strings.filter((s) => s !== c.string) : [...strings, c.string],
+    );
+  });
   return { ...edit, score: cleanTies(edit.score) };
 }
 export function setTechnique(s: Score, c: EditCursor, technique: Technique | null): Edit {
   if (technique !== null && !['hammer', 'pull', 'slide', 'dead', 'staccato'].includes(technique))
     throw new RangeError('Técnica no válida.');
-  return replace(s, c, (e) => (e.note ? { ...e, technique: technique ?? undefined } : e));
+  return replace(s, c, (e) =>
+    eventNotes(e).length ? { ...e, technique: technique ?? undefined } : e,
+  );
 }
 export function deleteEvent(score: Score, cursor: EditCursor): Edit {
   cursor = clampCursor(score, cursor);
@@ -549,25 +615,68 @@ export function moveCursor(
 export function retune(score: Score, from: Instrument, to: Instrument): Score {
   validateInstrument(from);
   validateInstrument(to);
-  return cleanTies(
-    {
-      ...score,
-      measures: score.measures.map((m) => ({
-        ...m,
-        events: m.events.map((e) => {
-          if (!e.note) return e;
-          const pitch = noteAt(from, e.note.string, e.note.fret);
-          const positions = to.strings
+  let sustained = new Map<number, ScoreNote>();
+  return cleanTies({
+    ...score,
+    measures: score.measures.map((m) => ({
+      ...m,
+      events: m.events.map((e) => {
+        const original = eventNotes(e);
+        if (!original.length) {
+          sustained.clear();
+          return e;
+        }
+        // Augmenting paths keep the largest playable subset on distinct strings.
+        const candidates = original.map((n) => {
+          const pitch = noteAt(from, n.string, n.fret);
+          return to.strings
             .map((open, string) => ({ string, fret: pitch - open }))
             .filter((p) => p.fret >= 0 && p.fret <= to.frets)
-            .sort((a, b) => a.fret - b.fret || a.string - b.string);
-          const { note: _, tie: __, technique: ___, ...rest } = e;
-          return positions[0] ? { ...e, note: positions[0] } : rest;
-        }),
-      })),
-    },
-    to,
-  );
+            .sort((a, b) => a.fret - b.fret);
+        });
+        const assigned = new Map<number, { index: number; note: ScoreNote }>();
+        function assign(index: number, seen: Set<number>): boolean {
+          for (const note of candidates[index]!) {
+            if (seen.has(note.string)) continue;
+            seen.add(note.string);
+            const other = assigned.get(note.string);
+            if (!other || assign(other.index, seen)) {
+              assigned.set(note.string, { index, note });
+              return true;
+            }
+          }
+          return false;
+        }
+        // Retain the fingering of a held string if the new voicing permits it.
+        const held = new Set<number>();
+        original.forEach((source, index) => {
+          const target = sustained.get(source.string);
+          if (
+            target &&
+            candidates[index]!.some((n) => n.string === target.string && n.fret === target.fret)
+          ) {
+            assigned.set(target.string, { index, note: target });
+            held.add(target.string);
+          }
+        });
+        const pinned = new Set([...assigned.values()].map((v) => v.index));
+        original.forEach((_, i) => {
+          if (!pinned.has(i) && !assign(i, new Set(held))) assign(i, new Set());
+        });
+        const voices = [...assigned.values()];
+        const continuing = voices.filter((v) => tiedStrings(e).includes(original[v.index]!.string));
+        sustained = new Map(continuing.map((v) => [original[v.index]!.string, v.note]));
+        return withTies(
+          {
+            ...e,
+            ...positions(voices.map((v) => v.note)),
+            technique: voices.length ? e.technique : undefined,
+          },
+          continuing.map((v) => v.note.string),
+        );
+      }),
+    })),
+  });
 }
 export type History<T = Score> = { past: T[]; present: T; future: T[] };
 export const createHistory = <T>(present: T): History<T> => ({ past: [], present, future: [] });
@@ -640,17 +749,25 @@ export function parseScore(value: unknown): Score | null {
                 !['hammer', 'pull', 'slide', 'dead', 'staccato'].includes(e.technique))
             )
               throw new Error();
+            if (e.notes !== undefined && !Array.isArray(e.notes)) throw new Error();
+            const notes = eventNotes(e);
+            const valid = (n: ScoreNote) =>
+              n && [n.string, n.fret].every((v) => integer(v) && v >= 0 && v <= 127);
             if (
-              e.note &&
-              (!integer(e.note.string) ||
-                e.note.string < 0 ||
-                e.note.string > 127 ||
-                !integer(e.note.fret) ||
-                e.note.fret < 0 ||
-                e.note.fret > 127)
+              (e.note !== undefined && !valid(e.note)) ||
+              !notes.every(valid) ||
+              new Set(notes.map((n) => n.string)).size !== notes.length
             )
               throw new Error();
-            if (e.note !== undefined && (!e.note || typeof e.note !== 'object')) throw new Error();
+            if (
+              e.tieStrings !== undefined &&
+              (!e.tie ||
+                !Array.isArray(e.tieStrings) ||
+                !e.tieStrings.length ||
+                new Set(e.tieStrings).size !== e.tieStrings.length ||
+                !e.tieStrings.every((s) => notes.some((n) => n.string === s)))
+            )
+              throw new Error();
             return {
               id: id(e.id),
               duration: {
@@ -659,7 +776,10 @@ export function parseScore(value: unknown): Score | null {
                 ...(e.duration.tuplet ? { tuplet: e.duration.tuplet } : {}),
                 ...(e.duration.triplet !== undefined ? { triplet: e.duration.triplet } : {}),
               },
-              ...(e.note ? { note: { string: e.note.string, fret: e.note.fret } } : {}),
+              ...(notes.length
+                ? positions(notes.map(({ string, fret }) => ({ string, fret })))
+                : {}),
+              ...(e.tieStrings ? { tieStrings: [...e.tieStrings] } : {}),
               ...(e.tie !== undefined ? { tie: e.tie } : {}),
               ...(e.technique ? { technique: e.technique } : {}),
             };
@@ -675,9 +795,14 @@ export function parseScore(value: unknown): Score | null {
           (e.technique !== undefined && !e.note) ||
           (e.tie &&
             (!e.note ||
-              !next?.note ||
-              e.note.string !== next.note.string ||
-              e.note.fret !== next.note.fret))
+              tiedStrings(e).some(
+                (s) =>
+                  !eventNotes(next).some(
+                    (n) =>
+                      n.string === s &&
+                      n.fret === eventNotes(e).find((note) => note.string === s)?.fret,
+                  ),
+              )))
         );
       })
     )
