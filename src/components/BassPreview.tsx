@@ -31,8 +31,11 @@ type RenderKey = `bass-${4 | 5 | 6}st-${BassScale}in-${'rh' | 'lh'}`;
 const renders: Partial<Record<RenderKey, ImageSourcePropType>> = {};
 
 /** Píxeles de arrastre por fotograma: una vuelta en unos 290 px. */
-const DRAG_STEP = 18;
-const SPIN_MS = 85;
+const DRAG_STEP = 290 / FRAME_COUNT;
+/** Duración de una vuelta completa al mantener pulsado. */
+const SPIN_REV_MS = 1800;
+/** Duración máxima de la vuelta a la vista frontal al soltar. */
+const HOME_MS = 420;
 const HOLD_MS = 180;
 
 // ------------------------------------------------------------------ colores
@@ -179,8 +182,9 @@ const FrameArt = React.memo(function FrameArt({
 
 type Timers = {
   hold?: ReturnType<typeof setTimeout>;
-  spin?: ReturnType<typeof setInterval>;
-  back?: ReturnType<typeof setTimeout>;
+  /** requestAnimationFrame del giro o de la vuelta de frente. */
+  raf?: number;
+  warm?: ReturnType<typeof setTimeout>;
 };
 
 export function BassPreview({ tuning, scale, leftHanded }: Props) {
@@ -219,24 +223,26 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
     const stop = () => {
       const t = timers.current;
       if (t.hold) clearTimeout(t.hold);
-      if (t.spin) clearInterval(t.spin);
-      if (t.back) clearTimeout(t.back);
-      timers.current = {};
+      if (t.raf !== undefined) cancelAnimationFrame(t.raf);
+      timers.current = { warm: t.warm };
     };
     const home = () => {
       stop();
       drag.current.active = false;
       if (reducedRef.current) return show(0);
       // Vuelve por el camino corto y frena al llegar a la vista frontal.
-      const step = () => {
-        const f = frameRef.current;
-        if (f === 0) return;
-        const half = FRAME_COUNT / 2;
-        const left = f <= half ? f : FRAME_COUNT - f;
-        show(f <= half ? f - 1 : f + 1);
-        timers.current.back = setTimeout(step, 28 + 80 / left);
+      const f0 = frameRef.current;
+      if (f0 === 0) return;
+      const delta = f0 <= FRAME_COUNT / 2 ? -f0 : FRAME_COUNT - f0;
+      const ms = Math.max(160, HOME_MS * (Math.abs(delta) / (FRAME_COUNT / 2)));
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        const p = Math.min(1, (now - t0) / ms);
+        const eased = 1 - (1 - p) ** 3;
+        show(f0 + Math.round(delta * eased));
+        if (p < 1) timers.current.raf = requestAnimationFrame(tick);
       };
-      timers.current.back = setTimeout(step, 60);
+      timers.current.raf = requestAnimationFrame(tick);
     };
     return { show, stop, home };
   }, []);
@@ -253,7 +259,14 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
           drag.current = { active: false, from: frameRef.current, dx0: 0 };
           if (!reducedRef.current)
             timers.current.hold = setTimeout(() => {
-              timers.current.spin = setInterval(() => actions.show(frameRef.current + 1), SPIN_MS);
+              // Giro por tiempo: la velocidad no depende de cuántos fotogramas pinte el dispositivo.
+              const from = frameRef.current;
+              const t0 = performance.now();
+              const tick = (now: number) => {
+                actions.show(from + Math.floor(((now - t0) / SPIN_REV_MS) * FRAME_COUNT));
+                timers.current.raf = requestAnimationFrame(tick);
+              };
+              timers.current.raf = requestAnimationFrame(tick);
             }, HOLD_MS);
         },
         onPanResponderMove: (_, g) => {
@@ -270,6 +283,20 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
     [actions],
   );
   useEffect(() => actions.stop, [actions]);
+  useEffect(() => {
+    // Precalcula el resto de fotogramas en segundo plano para que el primer giro no dé tirones.
+    let next = 0;
+    const warm = () => {
+      const end = Math.min(FRAME_COUNT, next + 4);
+      for (; next < end; next++)
+        if (!frames.has(next)) frames.set(next, bassFrame(model, frameAngle(next), !leftHanded));
+      if (next < FRAME_COUNT) timers.current.warm = setTimeout(warm, 16);
+    };
+    timers.current.warm = setTimeout(warm, 300);
+    return () => {
+      if (timers.current.warm) clearTimeout(timers.current.warm);
+    };
+  }, [frames, model, leftHanded]);
   useEffect(() => {
     // Otro bajo u otra mano: vuelve de frente.
     actions.stop();

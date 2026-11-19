@@ -20,8 +20,8 @@ export const VIEW_W = 780;
 export const VIEW_H = 220;
 const CY = 110;
 export const BRIDGE_X = 119;
-/** Fotogramas de una vuelta completa (22,5° cada uno). */
-export const FRAME_COUNT = 16;
+/** Fotogramas de una vuelta completa (5° cada uno): suficiente para un giro fluido. */
+export const FRAME_COUNT = 72;
 
 // Alturas (z) de cada pieza. El cuerpo tiene 24 unidades de grosor (~38 mm).
 const Z_FRONT = 12;
