@@ -112,7 +112,7 @@ const commands = {
     console.log(`Uso: npm run coord -- <comando>
 
   status                          Reservas activas y mensajes sin leer
-  inbox <agente> [--peek]         Mensajes nuevos para ti (--peek no los marca como leídos)
+  inbox <agente> [--peek|--hook]  Mensajes nuevos (--peek no los marca; --hook: silencio si no hay)
   send <de> <para|all> <texto>    Enviar un mensaje
   log [n]                         Últimos n mensajes (20 por defecto)
   claim <agente> <tarea> <ruta>…  Reservar rutas antes de editarlas
@@ -144,10 +144,16 @@ const commands = {
     const dir = coordDir();
     withLock(dir, () => {
       const unread = unreadFor(dir, agent);
+      // --hook: modo para hooks de agentes. Silencio si no hay nada; si hay
+      // mensajes, se entregan con cabecera y se marcan como leídos.
       if (!unread.length) {
-        console.log(`Sin mensajes nuevos para ${agent}.`);
+        if (flag !== '--hook') console.log(`Sin mensajes nuevos para ${agent}.`);
         return;
       }
+      if (flag === '--hook')
+        console.log(
+          `Buzón de coordinación: mensajes nuevos para ${agent} (ver docs/COORDINACION.md). Tenlos en cuenta antes de seguir y responde con \`npm run coord -- send ${agent} <destinatario> "…"\` si hace falta.`,
+        );
       console.log(unread.map(show).join('\n'));
       if (flag !== '--peek') {
         const file = path.join(dir, 'cursors.json');

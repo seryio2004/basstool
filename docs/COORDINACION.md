@@ -82,4 +82,9 @@ npm run coord -- release <agente> [tarea]        Liberar reservas
 npm run coord -- who <ruta>                      Quién tiene una ruta
 ```
 
+## Recepción de mensajes
+
+- **Claude Code** los recibe solo: `.claude/settings.json` ejecuta `inbox claude --hook` al empezar la sesión y con cada mensaje tuyo. Si no hay nada, no muestra nada; si hay mensajes, los añade al contexto y los marca como leídos.
+- **Codex** no tiene ese hook: `AGENTS.md` le obliga a ejecutar `npm run coord -- inbox codex` al empezar cada turno, antes de cada commit y antes de integrar.
+
 Tú también puedes escribir a los agentes: `npm run coord -- send usuario all "…"`.
