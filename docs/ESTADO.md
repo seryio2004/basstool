@@ -2,6 +2,16 @@
 
 Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo al empezar** y actualízalo al terminar cada encargo (qué se hizo, qué falta, decisiones pendientes).
 
+## Resumen actual (2026-11-19, tarde) — empieza por aquí
+- **Repositorio público:** `git@github.com:seryio2004/basstool.git` (rama `main`). Web en GitHub Pages: https://seryio2004.github.io/basstool/ (workflow `.github/workflows/pages.yml`: pruebas + build + despliegue en cada push a `main`; el usuario debe tener Pages → Source = GitHub Actions). Netlify Drop sigue valiendo para pruebas puntuales.
+- **Curso basado en Herrera retirado del repositorio** y del historial (reescrito con filter-branch antes del primer push). Copia privada fuera de git en `/home/sk/codes/clasRo-privado/`. `src/content/harmony/index.ts` es un stub vacío hasta el temario propio. No volver a añadir ese contenido al repo.
+- **Integrado hoy:** Escucha y repite v1, Práctica diaria v1 (pestaña «Hoy»: reto, racha, rutinas, plan de 21 días provisional, semana, diario), bajo dibujado en código que gira en Ajustes/configuración (`bassGeometry.ts`), limitador del bus de síntesis.
+- **En curso (Sol):** `panel-movil` — en móvil el panel de escritura de Transcribir tapa la partitura (panel acotado y plegable, seguir el cursor).
+- **Siguiente (encargos listos en `.git/coord/encargos/`):** `herr-ritmo` (13a: caja de ritmos + entrenador de velocidad, motor de patrones común con Escucha y repite), `herr-referencia` (13b: diccionario de acordes/arpegios, tono de referencia, ejercicios de técnica), `herr-grabadora` (13c: grabadora con selección de entrada, web). Lanzarlos en ese orden con `scripts/sol.sh`.
+- **Pendiente del usuario:** aprobar `expo-font` y `expo-print`; temario propio, rutinas avanzadas y validación del plan de 21 días con sus profesores; límites de la demo, precios y prueba.
+- **Pendiente técnico:** tarea 11 (separación de bajo con IA), 14 (renders), 6 (audio nativo, necesita Mac), onboarding, paywall, migraciones Supabase 0002–0006, pruebas con bajo/micrófono reales y en móvil.
+- Las secciones de abajo son el registro histórico de entregas; algunas «En curso» ya están integradas.
+
 ## Hecho (2026-11-19)
 - App para bajistas (Expo/RN, iOS/Android/web). Academias fuera (proyecto aparte).
 - Tareas 1–5 y 7–10 de docs/TAREAS.md hechas en web. Tarea 6 (audio nativo): prototipo en spikes/audio, falta medir en dispositivo y aprobar `react-native-audio-api`.
