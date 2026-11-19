@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import Svg, { Line, Rect, Text } from 'react-native-svg';
 import { type Instrument } from '../core/instrument';
 import {
@@ -10,6 +10,10 @@ import {
   tabPositions,
 } from '../core/notation';
 import { colors } from './ui';
+
+/** En web, react-native-svg hereda la serif del navegador; en nativo usa la del sistema. */
+const FONT =
+  Platform.OS === 'web' ? 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' : undefined;
 
 /** Highest string is the top line. Explicit positions preserve the chosen fingering. */
 export function Tab({
@@ -32,7 +36,7 @@ export function Tab({
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         {instrument.strings.map((midi, string) => (
           <React.Fragment key={string}>
-            <Text x={4} y={y(string) + 5} fill={colors.ink} fontSize={13}>
+            <Text x={4} y={y(string) + 5} fill={colors.ink} fontFamily={FONT} fontSize={13}>
               {pitchName(midiSpelling(midi), false, nomenclature)}
             </Text>
             <Line x1={40} x2={width - 10} y1={y(string)} y2={y(string)} stroke={colors.muted} />
@@ -53,6 +57,7 @@ export function Tab({
                 x={x}
                 y={y(position.string) + 6}
                 textAnchor="middle"
+                fontFamily={FONT}
                 fontSize={18}
                 fontWeight={active === i ? '700' : '400'}
                 fill={active === i ? colors.green : colors.ink}

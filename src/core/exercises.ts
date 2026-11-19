@@ -1,5 +1,6 @@
 import { type Instrument, type Position, noteAt, positionsOf, range, tunings } from './instrument';
 import { type Nomenclature, type ScoreNote, midiSpelling, pitchName, parsePitch } from './notation';
+import type { Level } from './profile';
 
 export type ExerciseModality = 'visual' | 'ear' | 'fretboard' | 'tab';
 export const intervals = [
@@ -29,7 +30,20 @@ export type QuestionOptions = {
   instrument?: Instrument;
   nomenclature?: Nomenclature;
   modality?: ExerciseModality;
+  /** Último traste permitido (incluido). Por defecto, todo el mástil. */
+  maxFret?: number;
 };
+
+/** Iniciación: primera posición (trastes 0–5). Intermedio: hasta el 12. Avanzado: todo el mástil. */
+export function maxFretFor(level: Level, instrument: Instrument): number {
+  const limit = level === 'beginner' ? 5 : level === 'intermediate' ? 12 : instrument.frets;
+  return Math.min(limit, instrument.frets);
+}
+
+/** Registro sonoro alcanzable hasta un traste: de la cuerda más grave al aire al traste límite de la más aguda. */
+export function registerFor(instrument: Instrument, maxFret = instrument.frets) {
+  return { min: instrument.strings[0]!, max: instrument.strings.at(-1)! + maxFret };
+}
 /** The old (module, random) signature remains supported. */
 export function buildQuestion(
   module: 'notes' | 'intervals' | 'reading',
@@ -40,12 +54,20 @@ export function buildQuestion(
   if (typeof optionsOrRandom === 'function') random = optionsOrRandom;
   const instrument = options.instrument ?? tunings.standard4;
   const nomenclature = options.nomenclature ?? 'latin';
+  const maxFret = Math.min(options.maxFret ?? instrument.frets, instrument.frets);
+  if (!Number.isInteger(maxFret) || maxFret < 0)
+    throw new RangeError('El traste máximo debe ser un entero no negativo.');
   const bounds = range(instrument);
   const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)]!;
+  /** Posición más baja de la nota dentro del límite de trastes. */
+  const reachable = (midi: number) =>
+    positionsOf(instrument, midi)
+      .filter((p) => p.fret <= maxFret)
+      .sort((a, b) => a.fret - b.fret)[0];
   const playable = Array.from(
     { length: bounds.max - bounds.min + 1 },
     (_, i) => bounds.min + i,
-  ).filter((midi) => positionsOf(instrument, midi).length > 0);
+  ).filter((midi) => reachable(midi) !== undefined);
   let notes: number[];
   let interval: (typeof intervals)[number] | undefined;
   let position: Position | undefined;
@@ -63,7 +85,7 @@ export function buildQuestion(
   } else if (options.modality === 'fretboard') {
     position = {
       string: Math.floor(random() * instrument.strings.length),
-      fret: Math.floor(random() * (instrument.frets + 1)),
+      fret: Math.floor(random() * (maxFret + 1)),
     };
     notes = [noteAt(instrument, position.string, position.fret)];
   } else {
@@ -72,7 +94,7 @@ export function buildQuestion(
   const scoreNotes = notes.map((midi) => ({
     midi,
     spelling: midiSpelling(midi),
-    position: positionsOf(instrument, midi)[0]!,
+    position: reachable(midi)!,
   }));
   if (interval) {
     // Spell the upper note by interval degree, so a written minor third is

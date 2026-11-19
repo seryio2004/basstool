@@ -106,3 +106,33 @@ test('tablature keeps explicit fingering, highest string on top, and rejects wro
     /no corresponde/,
   );
 });
+
+test('the profile level limits frets: beginner first position, intermediate up to 12', async () => {
+  const { buildQuestion, maxFretFor, registerFor } = await import('../src/core/exercises');
+  const { tunings } = await import('../src/core/instrument');
+  const bass = tunings.standard4;
+  assert.equal(maxFretFor('beginner', bass), 5);
+  assert.equal(maxFretFor('intermediate', bass), 12);
+  assert.equal(maxFretFor('advanced', bass), 24);
+  assert.equal(maxFretFor('intermediate', { ...bass, frets: 10 }), 10);
+  assert.deepEqual(registerFor(bass, 5), { min: 28, max: 48 });
+  let seed = 7;
+  const random = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (const instrument of Object.values(tunings)) {
+    for (let i = 0; i < 200; i++) {
+      for (const [module, modality] of [
+        ['notes', 'fretboard'],
+        ['notes', 'visual'],
+        ['reading', 'tab'],
+        ['intervals', 'visual'],
+      ] as const) {
+        const q = buildQuestion(module, { instrument, modality, maxFret: 5 }, random);
+        for (const note of q.scoreNotes) {
+          assert.ok(note.position && note.position.fret <= 5, `${module}/${modality}`);
+          assert.equal(instrument.strings[note.position.string]! + note.position.fret, note.midi);
+        }
+      }
+    }
+  }
+  assert.throws(() => buildQuestion('notes', { maxFret: -1 }), RangeError);
+});

@@ -3,8 +3,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import { AttemptInput, ExerciseConfig, Module, initialConfig, modules, uid } from '../core/types';
 import { buildQuestion, expectedHits, figurePool, makePattern } from '../core/music';
-import { tunings, range } from '../core/instrument';
-import { type ExerciseModality } from '../core/exercises';
+import { tunings } from '../core/instrument';
+import { Fretboard } from '../components/Fretboard';
+import { type ExerciseModality, maxFretFor, registerFor } from '../core/exercises';
 import { Tab } from '../components/Tab';
 import { analyseHits } from '../core/rhythm';
 import { audio } from '../platform/audio';
@@ -42,7 +43,8 @@ export function Exercise({ module, onBack }: { module: Module; onBack: () => voi
     instrument: { ...instrument, strings: [...instrument.strings] },
     nomenclature: profile!.nomenclature,
     clef: 'bass',
-    register: range(instrument),
+    // El nivel limita los trastes: iniciación en primera posición, intermedio hasta el 12.
+    register: registerFor(instrument, maxFretFor(profile!.level, instrument)),
   };
   const description = modules.find((m) => m.id === module)!;
   const [reading, setReading] = useState<'notes' | 'rhythm'>('notes');
@@ -166,12 +168,16 @@ function Quiz({
   config: ExerciseConfig;
   onResult: (r: Result) => void;
 }) {
+  const { profile } = useStore();
+  const leftHanded = profile.leftHanded;
+  const maxFret = maxFretFor(profile.level, config.instrument!);
   const [modality, setModality] = useState<ExerciseModality>(config.modality || 'visual');
   const generate = (mode = modality) =>
     buildQuestion(module, {
       instrument: config.instrument,
       nomenclature: config.nomenclature,
       modality: mode,
+      maxFret,
     });
   const [question, setQuestion] = useState(() => generate());
   const [index, setIndex] = useState(0),
@@ -270,8 +276,25 @@ function Quiz({
                 ? '¿Qué nota escuchas?'
                 : 'Identifica la nota'}
         </Text>
-        {modality === 'fretboard' ? (
-          <Label style={{ textAlign: 'center' }}>{question.prompt}</Label>
+        {modality === 'fretboard' && question.position ? (
+          <View style={{ gap: 10 }}>
+            <Fretboard
+              instrument={config.instrument!}
+              nomenclature={config.nomenclature ?? 'latin'}
+              leftHanded={leftHanded}
+              marks={[
+                {
+                  ...question.position,
+                  label: '?',
+                  root: true,
+                  description: `Nota por identificar`,
+                },
+              ]}
+            />
+            <Label muted style={{ textAlign: 'center' }}>
+              {question.prompt}
+            </Label>
+          </View>
         ) : modality === 'tab' ? (
           <Tab
             notes={question.scoreNotes}
@@ -518,7 +541,7 @@ function Groove({
   return (
     <View style={styles.panel}>
       <View style={styles.between}>
-        <View style={{ gap: 6 }}>
+        <View style={{ gap: 6, flexShrink: 1, minWidth: 200 }}>
           <Heading level={2} style={styles.h2}>
             {phase}
           </Heading>
