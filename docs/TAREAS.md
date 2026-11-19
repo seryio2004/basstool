@@ -276,14 +276,16 @@ Tareas para un agente de código. Hazlas de una en una y en el orden indicado sa
 
 ## Estado
 
-| Tarea | Estado |
-| --- | --- |
-| 1. Modelo de instrumento | Hecha (Codex), revisada. |
-| 2. Afinador para bajo | En curso (Codex). |
-| 3. Navegación | Hecha. |
-| 4. Mástil interactivo | Pendiente. Depende de 1 y 3: ya puede empezar. |
-| 5. Clave de fa y tablatura | Pendiente. Depende de 1: ya puede empezar. |
-| 6. Prueba de audio nativo | Prototipo hecho; falta medir en un dispositivo y aprobar la librería. |
-| 7. Reproductor de transcripción | Pendiente. La pantalla `src/screens/Transcribe.tsx` ya existe como marcador. |
-| 8. Uso sin cuenta | Hecha. El perfil vive en `src/core/profile.ts` (`tuning` usa los ids de `tunings`). |
-| 9. Retirar código docente | Hecha. |
+Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
+
+| Tarea | Responsable | Estado |
+| --- | --- | --- |
+| 1. Modelo de instrumento | Sol 6.1 | Hecha, revisada. |
+| 2. Afinador para bajo | Sol 6.1 | Hecha (web). El afinador nativo depende de la 6. |
+| 3. Navegación | Claude | Hecha. |
+| 4. Mástil interactivo | Claude (diseño y componente) | Pendiente. Puede empezar. |
+| 5. Clave de fa y tablatura | Sol 6.1 (notación y preguntas); Claude revisa la presentación | Pendiente. Puede empezar. |
+| 6. Prueba de audio nativo | Sol 6.1 (adaptadores); el usuario mide en un dispositivo | Prototipo hecho; falta medir y aprobar la librería. |
+| 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Pendiente. La pantalla `src/screens/Transcribe.tsx` ya existe como marcador. |
+| 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
+| 9. Retirar código docente | Claude | Hecha. |

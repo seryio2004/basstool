@@ -12,9 +12,26 @@ Las reservas y los mensajes se guardan en `.git/coord/`. Todos los worktrees com
 
 | Carpeta | Rama | Quién |
 | --- | --- | --- |
-| `/home/sk/codes/clasRo` | `main` | Integración. Ningún agente edita aquí. |
+| `/home/sk/codes/clasRo` | `main` | Integración: solo Claude integra aquí, con `merge --ff-only`. |
 | `/home/sk/codes/clasRo-claude` | `claude/<tarea>` | Claude Code |
-| `/home/sk/codes/clasRo-codex` | `codex/<tarea>` | Codex |
+| `/home/sk/codes/clasRo-codex` | `codex/<tarea>` | Codex (Sol 6.1) |
+
+## Papeles
+
+- **Claude (Opus 5.5)** coordina: diseño de interfaz, requisitos, tareas, revisión e integración en `main`.
+- **Sol 6.1 (Codex)** es el subagente de implementación técnica: lógica y audio, algoritmos, módulos nativos y pruebas. Entrega ramas listas; no integra.
+
+## Delegar en Sol 6.1
+
+Claude escribe el encargo en un archivo (objetivo, contexto, alcance, fuera de alcance, criterios de aceptación) y lo lanza en segundo plano:
+
+```bash
+scripts/sol.sh tarea-5 /ruta/al/encargo.md
+```
+
+El script prepara la rama `codex/tarea-5` en `clasRo-codex` y ejecuta `codex exec` sin interacción, con sandbox de escritura limitado al worktree y a `.git`. El resumen final queda en `.git/coord/sol/tarea-5.md`. Claude revisa el diff (`git diff main...codex/tarea-5`), pide cambios por buzón o con un nuevo encargo, e integra.
+
+También puedes abrir Codex tú directamente en `clasRo-codex`; las reglas son las mismas.
 
 Abre cada agente en **su** carpeta: VS Code o la terminal de Claude Code en `clasRo-claude`, y Codex en `clasRo-codex`.
 
@@ -47,14 +64,18 @@ npm run coord -- claim <yo> tarea-5 src/components/ui.tsx src/core/music.ts src/
 npm run coord -- who src/screens/Tools.tsx     # «Libre» o quién lo tiene
 npm run coord -- claim <yo> tarea-5 src/screens/Tools.tsx
 
-# 4. Integrar en main
+# 4. Dejar la rama lista
 git rebase main
 npm run typecheck && npm test && npm run build
-git -C /home/sk/codes/clasRo merge --ff-only <yo>/tarea-5
 
-# 5. Avisar y liberar
-npm run coord -- release <yo> tarea-5
-npm run coord -- send <yo> all "Integrada tarea-5 en main (clave de fa y tablatura). Haced rebase."
+# 5a. Codex: liberar y avisar a Claude (no integra)
+npm run coord -- release codex tarea-5
+npm run coord -- send codex claude "tarea-5 lista en codex/tarea-5: clave de fa y tablatura."
+
+# 5b. Claude: revisar e integrar (también sus propias ramas)
+git diff main...codex/tarea-5
+git -C /home/sk/codes/clasRo merge --ff-only codex/tarea-5
+npm run coord -- send claude all "Integrada tarea-5 en main. Haced rebase."
 ```
 
 Cuando llega un aviso de integración, el otro agente hace `git rebase main` en su rama en cuanto termine el paso en el que esté.
