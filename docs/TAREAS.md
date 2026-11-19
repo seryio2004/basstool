@@ -333,6 +333,37 @@ Se divide en tres partes. Las firmas exactas de 10a y 10b las fija Claude en `sr
 
 ---
 
+## Tarea 12: «Escucha y repite» (ejercicio propuesto por el profesor del usuario)
+
+**Idea:** suena una frase de bajo y el usuario la replica de oído en los compases siguientes, sin volver a oírla.
+
+**Ciclo:**
+1. La frase suena una vez (1–2 compases), con metrónomo o batería de fondo.
+2. Siguen **dos compases de silencio** (solo pulso) para que el usuario la toque.
+3. La frase vuelve a sonar, y así sucesivamente.
+4. Si el usuario la consigue → se genera una frase nueva. Si no → sigue el ciclo, y puede **revelar las notas** en la tablatura, la partitura o el mástil.
+
+**Generación de frases:**
+- Aleatoria, pero basada en **escalas y fundamentos de géneros conocidos**: rock (fundamental-quinta, corcheas), funk (semicorcheas, notas muertas), blues (pentatónica y blue note), reggae (silencio en el primer tiempo), latino (tumbao), jazz (walking).
+- Siempre dentro del registro del instrumento del perfil.
+
+**Dificultad:**
+- Longitud de la frase.
+- Densidad rítmica (negras → corcheas → semicorcheas y síncopas).
+- Ámbito y escala (pentatónica → mayor y menor → modos y cromatismo).
+- Tempo.
+- Repeticiones permitidas antes de poder revelar.
+
+**Comprobación:**
+- **En web con micrófono:** se compara la altura y el tiempo con la frase (detector del afinador y de ataques de GrooveTrain), con tolerancias según la dificultad.
+- **Sin micrófono:** autoevaluación con «Lo tengo» o «Revelar».
+
+**Reutiliza:** la síntesis de la transcripción (scoreAudio), Fretboard, ScoreView, la caja de ritmos y el detector.
+
+Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
+
+---
+
 ## Estado
 
 Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
@@ -348,5 +379,6 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
+| 12. Escucha y repite | Sol | Pendiente; lanzar tras GrooveTrain. |
 | 11. Separación del bajo con IA | Sol/Astra (PoC) | Pendiente. Realizable; empezar por 11a. |
 | 10. Tablatura y partitura sincronizadas | Sol (modelo, mapa de tiempo, maquetación, dibujo, integración); Claude (contrato, editor, revisión) | Hecha en web: marcas de compás y pulso al estilo de Transcribe!, editor con mástil y teclado, forma de onda con zoom y bucle por arrastre. P1 pendiente: sugerencia de notas, exportación, reproducción de lo anotado. |

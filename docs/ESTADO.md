@@ -21,6 +21,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - **En curso (Sol 6.2): GrooveTrain original (paleta, tren, niveles, micrófono) + herramienta nueva de acordes por casilla.** Encargo: `.git/coord/encargos/groovetrain.md`.
 
+- **Siguiente para Sol:** tarea 12 «Escucha y repite» (docs/TAREAS.md), tras GrooveTrain.
+
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
 - Aprobar la librería de audio de la tarea 6 tras medir en un dispositivo.
