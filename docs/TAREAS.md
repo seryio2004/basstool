@@ -312,6 +312,27 @@ Se divide en tres partes. Las firmas exactas de 10a y 10b las fija Claude en `sr
 
 ---
 
+## Tarea 11: Separación del bajo con IA (P2, empezar por prueba de concepto)
+
+**Por qué:** competidores como Moises separan pistas con IA; para transcribir, oír el bajo aislado (o quitarlo para tocar encima) es un gran valor premium.
+
+**Viabilidad (2026-11-19):** realizable con modelos abiertos con licencia MIT (Demucs/HTDemucs de Meta, Open-Unmix). Riesgos: tamaño del modelo (decenas de MB), tiempo de proceso en CPU (minutos por canción) y memoria en móvil.
+
+**11a — Prueba de concepto (Sol/Astra):**
+- Comparar Demucs, HTDemucs y Open-Unmix (stem de bajo) en calidad, tamaño, tiempo y licencia de código **y de pesos**.
+- Prototipo web aislado (`spikes/separation/`) que separe el bajo **en el dispositivo** (ONNX Runtime Web con WebGPU o WASM) y mida tiempo y memoria con una canción de 3–4 min.
+- Informe en `docs/POC_SEPARACION.md` con una recomendación.
+
+**11b — Integración (tras aprobar la PoC):**
+- En Transcribir: «Solo bajo», «Sin bajo» y «Mezcla original», con los mismos controles de velocidad, bucle y volumen.
+- El resultado se guarda en el dispositivo; la descarga del modelo se pide con permiso y una vez.
+
+**Decisiones previas:**
+- En el dispositivo (privacidad, sin coste de servidor) frente a un servidor (más rápido, pero el audio saldría del dispositivo y exige consentimiento explícito; ver §6).
+- Premium (propuesta). Añadir ONNX Runtime es una dependencia nueva: se aprueba antes.
+
+---
+
 ## Estado
 
 Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
@@ -327,4 +348,5 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
+| 11. Separación del bajo con IA | Sol/Astra (PoC) | Pendiente. Realizable; empezar por 11a. |
 | 10. Tablatura y partitura sincronizadas | Sol (modelo, mapa de tiempo, maquetación, dibujo, integración); Claude (contrato, editor, revisión) | Hecha en web: marcas de compás y pulso al estilo de Transcribe!, editor con mástil y teclado, forma de onda con zoom y bucle por arrastre. P1 pendiente: sugerencia de notas, exportación, reproducción de lo anotado. |

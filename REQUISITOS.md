@@ -137,7 +137,7 @@ Es el área que más distingue al producto de otras apps de bajo. Las grabacione
 
 ### P2: ampliaciones
 
-- Separación de fuentes para aislar o quitar el bajo de la mezcla. Es costosa en CPU y en tamaño de modelo; hay que decidir si se hace en el dispositivo o en un servidor y cómo afecta a la privacidad y al coste.
+- Separación de fuentes con IA para aislar o quitar el bajo de la mezcla (tarea 11: prueba de concepto en el dispositivo con Demucs/Open-Unmix). Es costosa en CPU y en tamaño de modelo; hay que decidir si se hace en el dispositivo o en un servidor y cómo afecta a la privacidad y al coste.
 - Exportar a formatos que abre Guitar Pro e importar MusicXML.
 - Detectar los acordes de la canción.
 
