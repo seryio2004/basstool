@@ -338,10 +338,10 @@ Se divide en tres partes. Las firmas exactas de 10a y 10b las fija Claude en `sr
 **Idea:** suena una frase de bajo y el usuario la replica de oído en los compases siguientes, sin volver a oírla.
 
 **Ciclo:**
-1. La frase suena una vez (1–2 compases), con metrónomo o batería de fondo.
+1. La frase suena una vez (1–2 compases) con la **batería propia del género** y, opcionalmente, **acordes mínimos** de fondo (se pueden desactivar).
 2. Siguen **dos compases de silencio** (solo pulso) para que el usuario la toque.
 3. La frase vuelve a sonar, y así sucesivamente.
-4. Si el usuario la consigue → se genera una frase nueva. Si no → sigue el ciclo, y puede **revelar las notas** en la tablatura, la partitura o el mástil.
+4. Si el usuario la consigue → se genera una frase nueva. Si no → sigue el ciclo. Las notas **nunca se muestran solas**: solo si el usuario pulsa «Revelar» (en la tablatura, la partitura o el mástil).
 
 **Generación de frases:**
 - Aleatoria, pero basada en **escalas y fundamentos de géneros conocidos**: rock (fundamental-quinta, corcheas), funk (semicorcheas, notas muertas), blues (pentatónica y blue note), reggae (silencio en el primer tiempo), latino (tumbao), jazz (walking).
@@ -352,7 +352,6 @@ Se divide en tres partes. Las firmas exactas de 10a y 10b las fija Claude en `sr
 - Densidad rítmica (negras → corcheas → semicorcheas y síncopas).
 - Ámbito y escala (pentatónica → mayor y menor → modos y cromatismo).
 - Tempo.
-- Repeticiones permitidas antes de poder revelar.
 
 **Comprobación:**
 - **En web con micrófono:** se compara la altura y el tiempo con la frase (detector del afinador y de ataques de GrooveTrain), con tolerancias según la dificultad.
