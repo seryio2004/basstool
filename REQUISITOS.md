@@ -186,6 +186,14 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 - **Seguimiento:**
   - **racha de días**;
   - **diario de práctica:** registro por sesión de qué se practicó, tiempo, BPM y notas propias.
+- **Reto diario:** tres niveles (iniciación, intermedio, avanzado), comunes a todos los usuarios de cada nivel; gratuito y con racha.
+- **Rutinas por nivel.** Principio rector: **sin disfrute no hay constancia**, así que toda rutina reserva tiempo para tocar canciones que le gusten al usuario.
+  - **Iniciación:** notas en el mástil y técnica base, combinadas con canciones fáciles que le gusten.
+  - **Intermedio:** calentamiento (un ejercicio base que cambia por semanas), groove y teoría, más tiempo de canciones. Se adapta a cada persona.
+  - **Avanzado:** por definir. El usuario no tiene experiencia en este nivel; se definirá con sus profesores.
+- **Canciones:** no se pueden incluir canciones ni tablaturas protegidas sin licencia. Propuesta: usar las canciones del propio usuario (Transcribir: bucle de un fragmento a tempo creciente) y bases originales de la app. Pendiente de validar.
+- **Programa fijo de 21 días por nivel**, diseñado con los profesores del usuario: una sesión corta diaria con un objetivo claro y un hito final.
+- **Diario de práctica automático** (tiempo, ejercicios, BPM, aciertos), con la opción de añadir una nota breve de forma poco invasiva.
 - Propuesta: un **programa de inicio de 21 días** que guíe la primera etapa y refuerce la racha.
 - Base existente: historial de intentos por módulo (separa intentos de aciertos).
 - Gamificación avanzada fuera de esta etapa.
