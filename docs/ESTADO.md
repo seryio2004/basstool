@@ -46,6 +46,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - ChordLine v2 y ritmos integrados. **Rediseño vintage integrado (tema oscuro/claro/sistema, Fraunces + IBM Plex en web; `expo-font` pendiente de aprobación para nativo; pendiente adaptar al tema HarmonicWagons y colores de módulo de src/core/types.ts): visual vintage/analógico, oscuro por defecto** — encargo `.git/coord/encargos/rediseno-vintage.md`.
 
+- Integrado: corcheas con grabado estándar (plicas, barras inclinadas, banderines curvos, espaciado proporcional) y acordes con 9/11 ampliados (Cm11 sin 9, m(add9), add11, 7sus4, m6/9, 9(♯11)). Pendiente de diseño: en móvil, el panel de escritura tapa casi toda la partitura.
+
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
 - Aprobar la librería de audio de la tarea 6 tras medir en un dispositivo.
