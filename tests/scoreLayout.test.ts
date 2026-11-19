@@ -232,3 +232,107 @@ test('editable note and append targets reserve 44 px with accidentals', () => {
     }
   }
 });
+
+type Shape = ReturnType<typeof layoutScore>['lines'][number]['primitives'][number];
+function engraving(pitches: number[], bases: number[], extra?: (s: Score) => void) {
+  const score = scoreOf(pitches);
+  score.measures[0]!.events.forEach((e, i) => {
+    e.duration = { base: bases[i] as BaseValue, dots: 0 };
+  });
+  extra?.(score);
+  const m = layoutScore(score, instrument, 'staff', 1200).lines[0]!.measures[0]!;
+  const stems = m.primitives
+    .filter((p): p is Extract<Shape, { kind: 'line' }> => p.kind === 'line' && p.width === 1.3)
+    .sort((a, b) => a.x1 - b.x1);
+  const fills = m.primitives.filter(
+    (p): p is Extract<Shape, { kind: 'path' }> => p.kind === 'path' && !!p.fill,
+  );
+  const beams = fills
+    .filter((p) => p.d.includes(' L '))
+    .map((p) => {
+      const n = p.d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+      return {
+        x1: n[0]!,
+        y1: n[1]!,
+        x2: n[2]!,
+        y2: n[3]!,
+        thickness: Math.round(Math.abs(n[5]! - n[3]!) * 100) / 100,
+      };
+    });
+  const flags = fills.filter((p) => p.d.includes(' C '));
+  return { m, stems, beams, flags };
+}
+test('beamed groups share the majority stem direction and a gentle, bounded slope', () => {
+  // G2 A2 up, D3 E3 down: tie broken by the note farthest from the middle line (G2).
+  const tie = engraving([31, 33, 38, 40], [16, 16, 16, 16]);
+  assert.deepEqual(
+    tie.m.events.map((e) => e.stem),
+    ['up', 'up', 'up', 'up'],
+  );
+  const majority = engraving([38, 40, 43, 31], [16, 16, 16, 16]);
+  assert.deepEqual(majority.m.beams[0]!.stem, 'down');
+  assert.ok(majority.m.events.every((e) => e.stem === 'down'));
+  // Rising scale: beam follows it, but by at most one space, with stems ≥ 3.2 spaces.
+  const rising = engraving([28, 31, 35, 40], [16, 16, 16, 16]);
+  const [primary, secondary] = rising.beams;
+  assert.equal(rising.beams.length, 2);
+  assert.ok(primary!.y2 < primary!.y1 && primary!.y1 - primary!.y2 <= 10.1);
+  assert.equal(primary!.thickness, 5);
+  assert.equal(secondary!.thickness, 5);
+  assert.ok(Math.abs(secondary!.y1 - primary!.y1 - 7.5) < 0.02); // 0.25-space gap between beams
+  const lengths = rising.stems.map((s) => Math.abs(s.y2 - s.y1));
+  assert.ok(Math.min(...lengths) >= 32 && Math.min(...lengths) <= 38);
+  // The beam ends meet the outer edge of the first and last stems.
+  assert.ok(Math.abs(primary!.x1 - (rising.stems[0]!.x1 - 0.65)) < 0.01);
+  assert.ok(Math.abs(primary!.x2 - (rising.stems.at(-1)!.x1 + 0.65)) < 0.01);
+  // A contour that turns back keeps the beam horizontal.
+  const turn = engraving([31, 40, 31, 33], [16, 16, 16, 16]);
+  assert.equal(turn.beams[0]!.y1, turn.beams[0]!.y2);
+});
+test('stems are 3.5 spaces, flush with the head and reach the middle line', () => {
+  const { m, stems, flags } = engraving([31, 33, 40, 52], [8, 4, 8, 4]);
+  // Eighths separated by a quarter that crosses the beat are flagged, not beamed.
+  assert.equal(m.beams.length, 0);
+  assert.equal(flags.length, 2);
+  const [g, , e] = m.events;
+  assert.equal(stems[0]!.x1, g!.x + 6 - 0.65);
+  assert.equal(Math.abs(stems[0]!.y2 - g!.y), 35);
+  assert.equal(stems[2]!.x1, e!.x - 6 + 0.65);
+  assert.equal(Math.abs(stems[2]!.y2 - e!.y), 35);
+  // High E (three ledger lines) stretches its stem down to the middle line.
+  assert.equal(stems[3]!.y2, m.staffBottom! - 20);
+  const sixteenth = engraving([31], [16]);
+  assert.equal(sixteenth.flags.length, 2);
+});
+test('a lone sixteenth gets a partial beam toward its own beat subdivision', () => {
+  const dotted = engraving([31, 33], [8, 16], (s) => {
+    s.measures[0]!.events[0]!.duration.dots = 1;
+  });
+  const [primary, partial] = dotted.beams;
+  assert.equal(dotted.beams.length, 2);
+  assert.ok(partial!.x2 - partial!.x1 <= 11 + 0.65 + 1e-6);
+  assert.ok(Math.abs(partial!.x2 - primary!.x2) < 1e-6); // hangs to the left from the last stem
+  const snap = engraving([31, 33], [16, 8], (s) => {
+    s.measures[0]!.events[1]!.duration.dots = 1;
+  });
+  assert.ok(Math.abs(snap.beams[1]!.x1 - snap.beams[0]!.x1) < 1e-6); // points right
+});
+test('tuplet brackets clear beams; spacing grows by about √2 per value', () => {
+  const triplet = engraving([31, 33, 35], [8, 8, 8], (s) =>
+    s.measures[0]!.events.forEach((e) => {
+      e.duration.triplet = true;
+    }),
+  );
+  const bracket = triplet.m.primitives.find(
+    (p) => p.kind === 'line' && p.y1 === p.y2 && p.width === 1 && !p.color && p.x2 - p.x1 < 400,
+  ) as Extract<Shape, { kind: 'line' }>;
+  assert.ok(bracket);
+  assert.ok(bracket.y1 < Math.min(...triplet.beams.map((b) => Math.min(b.y1, b.y2))) - 5);
+  const mixed = engraving([31, 31, 31, 31, 31, 31, 31], [4, 8, 8, 16, 16, 16, 16]);
+  const xs = mixed.m.events.map((e) => e.x);
+  const quarter = xs[1]! - xs[0]!,
+    eighth = xs[2]! - xs[1]!,
+    sixteenth = xs[4]! - xs[3]!;
+  assert.ok(quarter > eighth && eighth > sixteenth);
+  assert.ok(quarter / eighth < 1.6 && eighth / sixteenth < 1.6);
+});

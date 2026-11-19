@@ -159,6 +159,101 @@ const text = (
   color?: string,
   anchor: 'start' | 'middle' = 'middle',
 ): Primitive => ({ kind: 'text', x, y, text: value, size, color, anchor });
+/** Engraving metrics in pixels; one staff space is 10 px. */
+const SP = 10;
+const HEAD_HALF_WIDTH = 6;
+const STEM_WIDTH = 1.3;
+/** Horizontal shift of the second head in a chord with adjacent steps. */
+const SECOND_SHIFT = 11;
+/** Unbeamed stem: 3.5 spaces from the notehead. */
+const STEM = 3.5 * SP;
+/** Shortest stem in a beamed group with one beam. */
+const BEAM_STEM = 3.2 * SP;
+const BEAM_THICKNESS = 0.5 * SP;
+/** Beam thickness plus the 0.25-space gap between beams. */
+const BEAM_STEP = 0.75 * SP;
+/** A beam never rises or falls more than one space across its group. */
+const MAX_BEAM_RISE = SP;
+const PARTIAL_BEAM = 1.1 * SP;
+const TAB_STEM = 26;
+const FLAG_STEP = 0.8 * SP;
+const r2 = (v: number) => Math.round(v * 100) / 100;
+/** Number of beams or flags of a written value (eighth = 1, sixteenth = 2…). */
+export function beamLevels(base: number): number {
+  return base >= 8 ? Math.min(4, Math.log2(base) - 2) : 0;
+}
+/** Stem direction of a lone note or chord: down from the middle line (D3 written). */
+function naturalDown(steps: number[]): boolean {
+  return Math.min(...steps) + Math.max(...steps) >= 8;
+}
+/** Beam groups by beat (dotted quarter in compound meters) with the majority stem direction. */
+export function beamGroups(
+  events: ScoreEvent[],
+  meter: Meter,
+  stepsOf: (e: ScoreEvent) => number[],
+): { events: number[]; down: boolean }[] {
+  const compound = meter.unit === 8 && [6, 9, 12].includes(meter.beats);
+  const groupSize = compound ? 3 : 1;
+  const groups: { events: number[]; down: boolean }[] = [];
+  let run: number[] = [];
+  let bucket = -1;
+  const steps = events.map(stepsOf);
+  const flush = () => {
+    if (run.length >= 2) {
+      const all = run.flatMap((i) => steps[i]!);
+      const downs = run.filter((i) => naturalDown(steps[i]!)).length;
+      const ups = run.length - downs;
+      const far = all.reduce((a, b) => (Math.abs(b - 4) > Math.abs(a - 4) ? b : a), 4);
+      groups.push({ events: run, down: downs === ups ? far >= 4 : downs > ups });
+    }
+    run = [];
+  };
+  let offset = fraction(0, 1);
+  events.forEach((e, i) => {
+    const beat = ratio(offset) * meter.unit;
+    offset = addF(offset, durationValue(e.duration));
+    const endBeat = ratio(offset) * meter.unit;
+    const group = Math.floor((beat + 1e-9) / groupSize);
+    const eligible =
+      steps[i]!.length > 0 &&
+      e.duration.base >= 8 &&
+      e.duration.base <= 32 &&
+      endBeat <= (group + 1) * groupSize + 1e-9;
+    if (!eligible || group !== bucket) flush();
+    if (eligible) {
+      run.push(i);
+      bucket = group;
+    } else bucket = -1;
+  });
+  flush();
+  return groups;
+}
+/** Filled (or open, for halves) oval notehead tilted about 20 degrees. */
+function notehead(x: number, y: number, open: boolean): Primitive {
+  const rx = open ? 5.4 : 6.2,
+    ry = open ? 3.6 : 4.3,
+    angle = -20;
+  const dx = rx * Math.cos((angle * Math.PI) / 180),
+    dy = rx * Math.sin((angle * Math.PI) / 180);
+  const arc = (tx: number, ty: number) => `A ${rx} ${ry} ${angle} 1 0 ${r2(tx)} ${r2(ty)}`;
+  return {
+    kind: 'path',
+    d: `M ${r2(x - dx)} ${r2(y - dy)} ${arc(x + dx, y + dy)} ${arc(x - dx, y - dy)} Z`,
+    width: open ? 1.6 : 0,
+    fill: !open,
+  };
+}
+/** Curved, tapering flag attached to the right of the stem at its tip. */
+function flag(x: number, tip: number, dir: number, last: boolean): Primitive {
+  const k = last ? 1 : 0.78;
+  const p = (u: number, v: number) => `${r2(x + u)} ${r2(tip - dir * v * k)}`;
+  return {
+    kind: 'path',
+    d: `M ${p(0, 0)} C ${p(0.6, 5.5)} ${p(10.5, 8)} ${p(9.6, 17.5)} C ${p(9.2, 20.5)} ${p(8, 22.5)} ${p(6.6, 24.5)} C ${p(8.2, 19.5)} ${p(6.5, 13.5)} ${p(0, 9.5)} Z`,
+    width: 0,
+    fill: true,
+  };
+}
 function prefixWidth(
   score: Score,
   index: number,
@@ -184,7 +279,9 @@ function eventWidths(events: ScoreEvent[], instrument: Instrument, fifths: numbe
     return (
       Math.max(
         eventNotes(e).some((n) => n.fret >= 10) ? 22 : 14,
-        ratio(durationValue(e.duration)) * 96,
+        // Proportional spacing grows by about √2 per doubling of the value
+        // (sixteenth 15 px, eighth 21, quarter 29, half 41), as in engraved music.
+        58 * Math.sqrt(ratio(durationValue(e.duration))),
       ) +
       extra +
       (eventNotes(e).length > 1 ? 20 : 0) +
@@ -249,11 +346,14 @@ export function layoutScore(
     const measures: MeasureGeometry[] = [];
     const primitives: Primitive[] = [];
     const actualWidth = Math.max(usable, total + 24);
+    const content = batch.reduce((sum, b) => sum + b.min - b.prefix, 0) || 1;
     let x = 12;
     batch.forEach((b, batchIndex) => {
       const m = score.measures[b.index]!,
         meter = measureMeter(score, b.index);
-      const w = b.min + (actualWidth - 24 - total) / batch.length;
+      // Spare width goes to each bar in proportion to its content, so dense bars of
+      // sixteenths open up as much as sparse ones instead of staying cramped.
+      const w = b.min + (actualWidth - 24 - total) * ((b.min - b.prefix) / content);
       const contentX = x + b.prefix + 12,
         endX = x + w - (editable ? 28 : 14);
       const measureState = measureFill(score, b.index);
@@ -318,6 +418,13 @@ export function layoutScore(
           'start',
         ),
       );
+      // Beam groups are decided before the heads so that every stem of a group
+      // shares one direction (the majority, as in standard engraving).
+      const groups = beamGroups(m.events, meter, (e) =>
+        eventNotes(e).map((n) => spellPitch(noteAt(instrument, n.string, n.fret), keyFifths).step),
+      );
+      const forcedDown = new Map<number, boolean>();
+      for (const g of groups) for (const i of g.events) forcedDown.set(i, g.down);
       const accidentals = new Map<number, number>();
       let offset = fraction(0, 1),
         ex = contentX;
@@ -332,7 +439,9 @@ export function layoutScore(
             pitch: spellPitch(noteAt(instrument, note.string, note.fret), keyFifths),
           }))
           .sort((a, b) => a.pitch.step - b.pitch.step);
-        const down = pitches.length > 0 && pitches[0]!.pitch.step + pitches.at(-1)!.pitch.step >= 8;
+        const down =
+          forcedDown.get(event) ??
+          (pitches.length > 0 && naturalDown(pitches.map((p) => p.pitch.step)));
         if (down) pitches.reverse();
         let columns = 0;
         let previousStep: number | undefined;
@@ -351,7 +460,7 @@ export function layoutScore(
             step: pitch.step,
             accidental,
             accidentalX: accidental ? ex + 12 * columns++ : ex,
-            x: displaced ? (down ? -10 : 10) : 0,
+            x: displaced ? (down ? -SECOND_SHIFT : SECOND_SHIFT) : 0,
             y: staffBottom === undefined ? tabBaseline : staffBottom - pitch.step * 5,
             tabY:
               tabTop === undefined
@@ -359,7 +468,7 @@ export function layoutScore(
                 : tabTop + (instrument.strings.length - 1 - note.string) * 14,
           };
         });
-        const x = ex + columns * 12 + (heads.some((h) => h.x < 0) ? 10 : 0);
+        const x = ex + columns * 12 + (heads.some((h) => h.x < 0) ? SECOND_SHIFT : 0);
         heads.forEach((h) => {
           h.x += x;
         });
@@ -391,94 +500,123 @@ export function layoutScore(
         ex += ew;
         return geom;
       });
-      const beams: BeamGeometry[] = [];
-      let run: EventGeometry[] = [];
-      function flush() {
-        if (run.length >= 2)
-          beams.push({
-            events: run.map((e) => e.event),
-            levels: run.every((e) => e.source.duration.base === 16) ? 2 : 1,
-            stem: display === 'tab' ? 'down' : run[0]!.stem!,
-          });
-        run = [];
-      }
-      let bucket = -1;
-      events.forEach((e) => {
-        const compound = meter.unit === 8 && [6, 9, 12].includes(meter.beats);
-        const groupSize = compound ? 3 : meter.unit === 4 ? 1 : 1;
-        const group = Math.floor((e.beat + 1e-9) / groupSize);
-        const eligible =
-          e.heads.length > 0 &&
-          e.source.duration.base >= 8 &&
-          e.source.duration.base <= 16 &&
-          e.endBeat <= (group + 1) * groupSize + 1e-9;
-        if (
-          !eligible ||
-          group !== bucket ||
-          (display !== 'tab' && run.length && run[0]!.stem !== e.stem)
-        )
-          flush();
-        if (eligible) {
-          run.push(e);
-          bucket = group;
-        } else bucket = -1;
-      });
-      flush();
+      const beams: BeamGeometry[] = groups.map((g) => ({
+        events: g.events,
+        levels: Math.max(...g.events.map((i) => beamLevels(m.events[i]!.duration.base))),
+        stem: display === 'tab' ? 'down' : g.down ? 'down' : 'up',
+      }));
       const beamed = new Set(beams.flatMap((g) => g.events));
       const stemEnds = new Map<number, number>();
+      const middleLine = staffBottom === undefined ? 0 : staffBottom - 2 * SP;
       const stemBase = (e: EventGeometry) =>
         display === 'tab' ? tabTop! + (instrument.strings.length - 1) * 14 + 13 : e.y;
       const stemDir = (e: EventGeometry) => (display === 'tab' ? 1 : e.stem === 'down' ? 1 : -1);
-      const stemX = (e: EventGeometry) => e.x + (display === 'tab' ? 0 : stemDir(e) > 0 ? -5 : 5);
+      // The stem's outer edge is flush with the side of the notehead.
+      const stemX = (e: EventGeometry) =>
+        e.x + (display === 'tab' ? 0 : stemDir(e) * -(HEAD_HALF_WIDTH - STEM_WIDTH / 2));
       const stemTipBase = (e: EventGeometry) =>
         display === 'tab' ? stemBase(e) : e.heads.at(-1)!.y;
       beams.forEach((g) => {
         const es = g.events.map((i) => events[i]!);
         const dir = stemDir(es[0]!);
-        const end =
-          dir > 0 ? Math.max(...es.map(stemTipBase)) + 28 : Math.min(...es.map(stemTipBase)) - 28;
-        es.forEach((e) => stemEnds.set(e.event, end));
-        shapes.push(line(stemX(es[0]!), end, stemX(es.at(-1)!), end, 4));
-        // Secondary beams form runs; a lone sixteenth gets an inward hook.
-        let sixteenths: EventGeometry[] = [];
-        const finish = () => {
-          if (sixteenths.length) {
-            const a = sixteenths[0]!,
-              z = sixteenths.at(-1)!;
-            const hook = a === z ? (a === es.at(-1) ? -7 : 7) : 0;
-            shapes.push(line(stemX(a), end - dir * 7, stemX(z) + hook, end - dir * 7, 3));
+        const xs = es.map(stemX);
+        const tips = es.map(stemTipBase);
+        const x0 = xs[0]!,
+          dx = xs.at(-1)! - x0;
+        let slope = 0;
+        if (display !== 'tab' && dx > 0) {
+          // Follow the outer notes gently; stay flat when the contour is level or turns.
+          const signs = tips.slice(1).map((t, i) => Math.sign(t - tips[i]!));
+          const monotonic = signs.every((s) => s >= 0) || signs.every((s) => s <= 0);
+          const rise = tips.at(-1)! - tips[0]!;
+          if (monotonic && rise !== 0) {
+            const limit = Math.min(MAX_BEAM_RISE, dx * 0.25);
+            slope = Math.max(-limit, Math.min(limit, rise / 2)) / dx;
           }
-          sixteenths = [];
-        };
-        es.forEach((e) => {
-          if (e.source.duration.base === 16) sixteenths.push(e);
-          else finish();
+        }
+        const minStem = BEAM_STEM + BEAM_STEP * 0.5 * (g.levels - 1);
+        // Beam line y(x) = c + slope * (x - x0), pushed out until the shortest stem fits
+        // and, on the staff, until every stem reaches the middle line.
+        const candidates = es.flatMap((_, i) => {
+          const along = slope * (xs[i]! - x0);
+          return display === 'tab'
+            ? [tips[i]! + dir * TAB_STEM - along]
+            : [tips[i]! + dir * minStem - along, middleLine - along];
         });
-        finish();
+        const c = dir > 0 ? Math.max(...candidates) : Math.min(...candidates);
+        const beamY = (x: number) => c + slope * (x - x0);
+        es.forEach((e, i) => stemEnds.set(e.event, beamY(xs[i]!)));
+        const slab = (from: number, to: number, level: number) => {
+          const shift = -dir * level * BEAM_STEP,
+            inner = -dir * BEAM_THICKNESS;
+          const y1 = beamY(from) + shift,
+            y2 = beamY(to) + shift;
+          shapes.push({
+            kind: 'path',
+            d: `M ${r2(from)} ${r2(y1)} L ${r2(to)} ${r2(y2)} L ${r2(to)} ${r2(y2 + inner)} L ${r2(from)} ${r2(y1 + inner)} Z`,
+            width: 0,
+            fill: true,
+          });
+        };
+        const half = STEM_WIDTH / 2;
+        slab(x0 - half, xs.at(-1)! + half, 0);
+        // Secondary beams join consecutive shorter notes; a lone one gets a partial beam
+        // pointing to the note it shares its subdivision with.
+        for (let level = 2; level <= g.levels; level++) {
+          for (let i = 0; i < es.length;) {
+            if (beamLevels(es[i]!.source.duration.base) < level) {
+              i++;
+              continue;
+            }
+            let j = i;
+            while (j + 1 < es.length && beamLevels(es[j + 1]!.source.duration.base) >= level) j++;
+            if (j > i) slab(xs[i]! - half, xs[j]! + half, level - 1);
+            else {
+              const position = Math.round(es[i]!.beat * (16 / meter.unit) * 2 ** (level - 2));
+              const left = i === es.length - 1 || (i > 0 && position % 2 === 1);
+              const neighbour = left ? xs[i - 1]! : xs[i + 1]!;
+              const length = Math.min(PARTIAL_BEAM, Math.abs(xs[i]! - neighbour) / 2);
+              if (left) slab(xs[i]! - length, xs[i]! + half, level - 1);
+              else slab(xs[i]! - half, xs[i]! + length, level - 1);
+            }
+            i = j + 1;
+          }
+        }
       });
       events.forEach((e) => {
         const src = e.source;
         if (staffBottom !== undefined) {
           for (const head of e.heads) {
             const step = head.step;
+            const ledger = HEAD_HALF_WIDTH + 3.5;
             for (let l = -2; l >= step; l -= 2)
-              shapes.push(line(head.x - 9, staffBottom - l * 5, head.x + 9, staffBottom - l * 5));
+              shapes.push(
+                line(
+                  head.x - ledger,
+                  staffBottom - l * 5,
+                  head.x + ledger,
+                  staffBottom - l * 5,
+                  1.25,
+                ),
+              );
             for (let l = 10; l <= step; l += 2)
-              shapes.push(line(head.x - 9, staffBottom - l * 5, head.x + 9, staffBottom - l * 5));
+              shapes.push(
+                line(
+                  head.x - ledger,
+                  staffBottom - l * 5,
+                  head.x + ledger,
+                  staffBottom - l * 5,
+                  1.25,
+                ),
+              );
             if (src.technique === 'dead')
               shapes.push(
                 line(head.x - 4, head.y - 4, head.x + 4, head.y + 4, 2),
                 line(head.x - 4, head.y + 4, head.x + 4, head.y - 4, 2),
               );
-            else
-              shapes.push({
-                kind: 'ellipse',
-                x: head.x,
-                y: head.y,
-                rx: src.duration.base === 1 ? 7 : 5,
-                ry: 3.5,
-                hollow: src.duration.base <= 2,
-              });
+            else if (src.duration.base === 1)
+              shapes.push({ kind: 'ellipse', x: head.x, y: head.y, rx: 7, ry: 4.5, hollow: true });
+            else shapes.push(notehead(head.x, head.y, src.duration.base === 2));
             if (head.accidental)
               shapes.push(text(head.accidentalX, head.y + 5, head.accidental, 18));
           }
@@ -508,24 +646,25 @@ export function layoutScore(
           (staffBottom !== undefined || display === 'tab')
         ) {
           const dir = stemDir(e),
-            base = stemBase(e),
-            end =
-              stemEnds.get(e.event) ?? stemTipBase(e) + dir * (src.duration.base > 16 ? 40 : 28);
-          shapes.push(line(stemX(e), base, stemX(e), end, 1.3));
-          if (!beamed.has(e.event) && src.duration.base >= 8) {
-            for (let f = 0; f < Math.log2(src.duration.base) - 2; f++) {
-              const fy = end - dir * f * 7;
-              shapes.push({
-                kind: 'path',
-                d: `M ${stemX(e)} ${fy} Q ${stemX(e) + 14} ${fy + dir * 8} ${stemX(e) + 5} ${fy + dir * 18}`,
-                width: 2,
-              });
-            }
+            flags = beamed.has(e.event) ? 0 : beamLevels(src.duration.base);
+          const base = stemBase(e) + (display === 'tab' ? 0 : dir * 1.5);
+          let end = stemEnds.get(e.event);
+          if (end === undefined) {
+            const length =
+              display === 'tab' ? TAB_STEM : STEM + Math.max(0, flags - 1) * FLAG_STEP * 0.7;
+            end = stemTipBase(e) + dir * length;
+            if (display !== 'tab')
+              end = dir > 0 ? Math.max(end, middleLine) : Math.min(end, middleLine);
           }
+          shapes.push(line(stemX(e), base, stemX(e), end, STEM_WIDTH));
+          for (let f = 0; f < flags; f++)
+            shapes.push(
+              flag(stemX(e) - STEM_WIDTH / 2, end - dir * f * FLAG_STEP, dir, f === flags - 1),
+            );
         }
         if (src.duration.dots) {
           const dotted = staffBottom !== undefined && e.heads.length ? e.heads : [e];
-          const x = Math.max(e.x, ...e.heads.map((h) => h.x)) + 10;
+          const x = Math.max(e.x, ...e.heads.map((h) => h.x)) + HEAD_HALF_WIDTH + 5;
           const ys = new Set(
             dotted.map((h) => h.y - (h.step !== undefined && h.step % 2 === 0 ? 5 : 0)),
           );
@@ -562,15 +701,31 @@ export function layoutScore(
           group.push(events[i++]!);
         const a = group[0]!,
           z = group.at(-1)!;
+        // Above the staff and clear of up-stems and their beams; with down-stems the
+        // bracket sits over the noteheads, opposite the beam.
+        const clear = group.flatMap((e) =>
+          !e.heads.length
+            ? []
+            : [
+                Math.min(...e.heads.map((h) => h.y)) - 12,
+                ...(e.stem === 'up' && stemEnds.has(e.event)
+                  ? [stemEnds.get(e.event)! - 9]
+                  : e.stem === 'up' && e.source.duration.base !== 1
+                    ? [stemTipBase(e) - STEM - 9]
+                    : []),
+              ],
+        );
         const ty =
-          staffBottom !== undefined
-            ? Math.min(staffBottom - 50, ...group.map((e) => e.y - 38))
-            : chordSpace + 24;
+          staffBottom !== undefined ? Math.min(staffBottom - 48, ...clear) : chordSpace + 24;
+        const left = a.x - HEAD_HALF_WIDTH,
+          right = z.x + HEAD_HALF_WIDTH,
+          mid = (left + right) / 2;
         shapes.push(
-          line(a.x - 5, ty + 4, a.x - 5, ty),
-          line(a.x - 5, ty, z.x + 6, ty),
-          line(z.x + 6, ty, z.x + 6, ty + 4),
-          text((a.x + z.x) / 2, ty - 3, String(count), 11),
+          line(left, ty + 5, left, ty),
+          line(left, ty, mid - 6, ty),
+          line(mid + 6, ty, right, ty),
+          line(right, ty, right, ty + 5),
+          text(mid, ty + 4, String(count), 11),
         );
       }
       for (const chord of m.chords ?? []) {
