@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Platform, View } from 'react-native';
 import Svg, { Circle, G, Path, Rect } from 'react-native-svg';
+import { useTheme } from './theme';
 import { audio } from '../platform/audio';
 import { grooveColors as c } from '../theme/groove';
 
@@ -131,6 +132,7 @@ export function GrooveTrain({
 }
 
 const Locomotive = React.memo(function Locomotive() {
+  useTheme();
   return (
     <Svg width={trainWidth} height={43} viewBox="0 0 188 80" accessible={false}>
       <G stroke={c.ink} strokeWidth={3} strokeLinejoin="round">

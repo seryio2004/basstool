@@ -10,18 +10,9 @@ import {
 } from 'react-native';
 import { StoreProvider, useStore } from './src/data/Store';
 import { Module, Page } from './src/core/types';
-import {
-  Button,
-  Field,
-  Heading,
-  Icon,
-  Label,
-  colors,
-  fonts,
-  styles,
-  useTheme,
-} from './src/components/ui';
-import { ThemeProvider } from './src/components/theme';
+import { Button, Field, Heading, Icon, Label, colors, fonts, styles } from './src/components/ui';
+import { ThemeProvider, useTheme } from './src/components/theme';
+import { ThemeButton } from './src/components/ThemeButton';
 import { ToolsHome } from './src/screens/ToolsHome';
 import { Transcribe } from './src/screens/Transcribe';
 import { Learn } from './src/screens/Learn';
@@ -60,7 +51,7 @@ function Themed() {
 }
 
 function Shell() {
-  const theme = useTheme();
+  const { colors } = useTheme();
   const contentScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const store = useStore(),
     { profile, mode, loading } = store;
@@ -195,35 +186,40 @@ function Shell() {
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
-        {!desktop ? (
-          <View
-            style={{
-              minHeight: 56,
-              paddingHorizontal: pad,
-              backgroundColor: colors.chrome,
-              borderBottomWidth: 1,
-              borderBottomColor: colors.line,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
-            }}
-          >
-            <Brand compact />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Abrir ajustes"
-              onPress={() => navigate('settings')}
-              style={{ padding: 10, marginRight: -10 }}
-            >
-              <Icon
-                name="settings"
-                size={22}
-                color={page === 'settings' ? colors.accentText : colors.muted}
-              />
-            </Pressable>
+        <View
+          style={{
+            minHeight: desktop ? 48 : 56,
+            paddingHorizontal: pad,
+            backgroundColor: colors.chrome,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.line,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: desktop ? 'flex-end' : 'space-between',
+            gap: 12,
+          }}
+        >
+          {!desktop ? <Brand compact /> : null}
+          <View style={[styles.row, { gap: 4 }]}>
+            {!desktop ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Abrir ajustes"
+                onPress={() => navigate('settings')}
+                style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Icon
+                  name="settings"
+                  size={22}
+                  color={page === 'settings' ? colors.accentText : colors.muted}
+                />
+              </Pressable>
+            ) : null}
+            <ThemeButton
+              onChange={(theme) => void store.updateProfile({ theme }).catch(() => {})}
+            />
           </View>
-        ) : null}
+        </View>
         {store.message ? (
           <View
             accessibilityLiveRegion="polite"
@@ -246,7 +242,7 @@ function Shell() {
             </Button>
           </View>
         ) : null}
-        <View key={theme.name} style={{ flex: 1 }}>
+        <View style={{ flex: 1 }}>
           {profile.configured && page === 'transcribe' && !tool && !exercise ? (
             content
           ) : (

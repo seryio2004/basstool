@@ -129,7 +129,7 @@ export function ScoreEditor({
   audio: PickedAudio;
   onSeekNote: (time: number) => void;
   player: Player;
-  onTimeline: (events: TimedEvent[], bars: number[]) => void;
+  onTimeline: (events: TimedEvent[], bars: number[], beats: number[]) => void;
   duration: number;
   time: number;
   instrument: Instrument;
@@ -185,9 +185,9 @@ export function ScoreEditor({
     [score, timeMap, duration, instrument, bpm],
   );
   useEffect(() => {
-    onTimeline(timeline, timeMap.measures);
+    onTimeline(timeline, timeMap.measures, timeMap.beats);
     player.setTones(synthTones(timeline));
-  }, [timeline, timeMap.measures, player, onTimeline, audio]);
+  }, [timeline, timeMap.measures, timeMap.beats, player, onTimeline, audio]);
   const cursor = { ...position, string: Math.min(position.string, instrument.strings.length - 1) };
   const bar = score.measures[cursor.measure]!;
   const event = isMeasurePlaceholder(bar) ? undefined : bar.events[cursor.event];

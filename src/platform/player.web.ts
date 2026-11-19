@@ -1,6 +1,7 @@
+import { activeRms, createBassInstrument, type Instrument } from './bassInstrument.web';
 import { analysisAudio, detectChord } from '../core/chroma';
 import { scheduleTones, toneEndIndex, type Tone } from '../core/scoreAudio';
-import type { MixMode } from './playerTypes';
+import type { BassAttack, MixMode } from './playerTypes';
 import { peaksFrom, RATE_MIN, RATE_MAX, MIN_LOOP } from '../core/transcription';
 import type { BassMode, Loop, PickedAudio, Player } from './playerTypes';
 
@@ -21,8 +22,11 @@ export function createPlayer(): Player {
     balance = 0.5,
     volume = 1;
   let synth: GainNode | null = null;
+  let instrument: Instrument | null = null;
+  let scoreGain = 1;
+  let attack: BassAttack = 'finger';
   let timer: ReturnType<typeof setInterval> | undefined;
-  const voices = new Map<number, OscillatorNode>();
+  const voices = new Map<number, ReturnType<Instrument['play']>>();
   function silence() {
     for (const voice of voices.values()) voice.stop();
     voices.clear();
@@ -31,9 +35,11 @@ export function createPlayer(): Player {
     if (mode !== 'song' && context && !synth) {
       synth = context.createGain();
       synth.connect(context.destination);
+      instrument = createBassInstrument(context, synth);
     }
     if (gain) gain.gain.value = volume * (mode === 'score' ? 0 : mode === 'both' ? 1 - balance : 1);
-    if (synth) synth.gain.value = volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
+    if (synth)
+      synth.gain.value = scoreGain * volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
   }
   function schedule() {
     if (
@@ -44,7 +50,7 @@ export function createPlayer(): Player {
       audio.readyState < 3 ||
       !context ||
       context.state !== 'running' ||
-      !synth ||
+      !instrument ||
       mode === 'song'
     )
       return;
@@ -59,23 +65,10 @@ export function createPlayer(): Player {
       ends,
     )) {
       if (voices.has(note.id) || note.until <= note.when) continue;
-      const osc = context.createOscillator(),
-        env = context.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = 440 * 2 ** ((note.midi - 69) / 12);
-      env.gain.setValueAtTime(0, note.when);
-      env.gain.linearRampToValueAtTime(0.3, Math.min(note.until, note.when + 0.008));
-      env.gain.exponentialRampToValueAtTime(0.001, note.until);
-      osc.connect(env);
-      env.connect(synth);
-      voices.set(note.id, osc);
-      osc.onended = () => {
-        osc.disconnect();
-        env.disconnect();
-        if (voices.get(note.id) === osc) voices.delete(note.id);
-      };
-      osc.start(note.when);
-      osc.stop(note.until);
+      const voice = instrument.play({ ...note, attack }, () => {
+        if (voices.get(note.id) === voice) voices.delete(note.id);
+      });
+      voices.set(note.id, voice);
     }
   }
   let url: string | null = null;
@@ -118,6 +111,8 @@ export function createPlayer(): Player {
   const release = () => {
     clearInterval(timer);
     silence();
+    instrument?.disconnect();
+    instrument = null;
     synth?.disconnect();
     synth = null;
     analysis = null;
@@ -219,10 +214,14 @@ export function createPlayer(): Player {
         }
         const maximum = Math.max(...peaks);
         if (maximum) for (let b = 0; b < peaks.length; b++) peaks[b] = peaks[b]! / maximum;
-        const reduced = analysisAudio(decoded.getChannelData(channelIndex), decoded.sampleRate);
+        const samples = decoded.getChannelData(channelIndex);
+        const reduced = analysisAudio(samples, decoded.sampleRate);
+        const rms = activeRms(samples, decoded.sampleRate);
         decoded = null; // Only HTMLAudioElement retains the compressed file for playback.
         release();
         analysis = reduced;
+        // Reference level of a sustained synth note after compression.
+        scoreGain = rms ? Math.max(0.45, Math.min(1.8, rms / 0.15)) : 1;
         context = ctx;
         ctx = null;
         duration = length;
@@ -356,6 +355,9 @@ export function createPlayer(): Player {
       tones = value;
       ends = toneEndIndex(value);
       schedule();
+    },
+    setAttack(value) {
+      attack = value;
     },
     setMix(value, level) {
       if (mode !== value) silence();

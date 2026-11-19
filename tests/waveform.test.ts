@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { envelope, loopFromTimes, wavePath } from '../src/core/waveform';
+import { envelope, loopFromTimes, moveLoopEdge, wavePath, zoomWave } from '../src/core/waveform';
 
 test('envelope at 1× takes the largest peak in each column', () => {
   const peaks = Array<number>(16000).fill(0);
@@ -38,4 +38,25 @@ test('drag selection rejects loops shorter than 0.2 s in both directions', () =>
   assert.equal(loopFromTimes(10.199, 10), null);
   assert.deepEqual(loopFromTimes(10.2, 10), { a: 10, b: 10.2 });
   assert.deepEqual(loopFromTimes(10, 11), { a: 10, b: 11 });
+});
+
+test('zoom preserves the time below the pointer and handles moving pinch midpoints', () => {
+  const base = { zoom: 4, start: 20 };
+  assert.deepEqual(zoomWave(80, base, 8, 0.25), { zoom: 8, start: 22.5 });
+  assert.deepEqual(zoomWave(80, base, 8, 0.25, 0.75), { zoom: 8, start: 17.5 });
+  assert.deepEqual(zoomWave(80, base, 4, 0.25, 0.75), { zoom: 4, start: 10 });
+  assert.deepEqual(zoomWave(80, base, 0.5, 0.25), { zoom: 1, start: 0 });
+  assert.deepEqual(zoomWave(80, { zoom: 32, start: 77.5 }, 64, 1, 0), { zoom: 32, start: 77.5 });
+  assert.deepEqual(zoomWave(80, base, 4, 0, 2), { zoom: 4, start: 0 });
+});
+
+test('loop handles snap to the nearest reachable mark within tolerance', () => {
+  const loop = { a: 2, b: 4 };
+  const marks = [1, 3, 3.95, 4.5, 5];
+  assert.deepEqual(moveLoopEdge(loop, 'a', 3.1, 5, marks, 0.15), { a: 3, b: 4 });
+  assert.deepEqual(moveLoopEdge(loop, 'a', 3.1, 5, marks, 0.05), { a: 3.1, b: 4 });
+  assert.deepEqual(moveLoopEdge(loop, 'a', 4.5, 5, marks, 0.2), { a: 3.8, b: 4 });
+  assert.deepEqual(moveLoopEdge(loop, 'b', 4.46, 5, marks, 0.15), { a: 2, b: 4.5 });
+  assert.deepEqual(moveLoopEdge(loop, 'b', 7, 5, [], 0.15), { a: 2, b: 5 });
+  assert.deepEqual(moveLoopEdge(loop, 'b', 1, 5, [], 0.15), { a: 2, b: 2.2 });
 });

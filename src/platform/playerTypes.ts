@@ -1,5 +1,6 @@
 import type { Tone } from '../core/scoreAudio';
 import type { ChordGuess } from '../core/chroma';
+export type BassAttack = 'finger' | 'pick' | 'none';
 export type MixMode = 'song' | 'score' | 'both';
 /**
  * Contrato del reproductor de transcripción (tarea 7). Lo implementan
@@ -26,6 +27,7 @@ export interface Player {
   /** Abre el selector de archivos (MP3, M4A/AAC, WAV) y carga el elegido. null si se cancela. */
   pick(): Promise<PickedAudio | null>;
   setTones(tones: Tone[]): void;
+  setAttack(attack: BassAttack): void;
   setMix(mode: MixMode, balance: number): void;
   suggestChord(start: number, end: number): ChordGuess | null;
   play(): Promise<void>;

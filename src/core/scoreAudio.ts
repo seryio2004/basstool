@@ -17,7 +17,7 @@ export function pianoPosition(
 }
 
 export function noteMidi(event: ScoreEvent, instrument: Instrument): number | undefined {
-  return soundingVoices(event, instrument)[0]?.midi;
+  return event.technique === 'dead' ? undefined : soundingVoices(event, instrument)[0]?.midi;
 }
 
 function soundingVoices(event: ScoreEvent, instrument: Instrument) {
@@ -42,7 +42,9 @@ export function chordSegment(bar: Measure, meter: Meter, beat: number, instrumen
     const from = (offset.n * meter.unit) / offset.d;
     offset = addF(offset, durationValue(event.duration));
     const to = (offset.n * meter.unit) / offset.d;
-    return from < end && to > start ? soundingVoices(event, instrument).map((v) => v.midi) : [];
+    return from < end && to > start && event.technique !== 'dead'
+      ? soundingVoices(event, instrument).map((v) => v.midi)
+      : [];
   });
   return { start, end, notes };
 }
@@ -56,6 +58,7 @@ export type TimedEvent = {
   voices?: { string: number; midi: number; tie: boolean }[];
   midi?: number;
   tie?: boolean;
+  dead?: boolean;
 };
 export function scoreTimeline(
   score: Score,
@@ -79,11 +82,25 @@ export function scoreTimeline(
       const end = Math.min(duration, at((offset.n * meter.unit) / offset.d));
       if (end <= start) return [];
       const voices = soundingVoices(e, instrument);
-      return [{ id: e.id, measure, event, start, end, midi: voices[0]?.midi, tie: e.tie, voices }];
+      const dead = e.technique === 'dead';
+      return [
+        {
+          id: e.id,
+          measure,
+          event,
+          start,
+          end,
+          midi: dead ? undefined : voices[0]?.midi,
+          tie: e.tie,
+          voices,
+          ...(dead ? { dead: true } : {}),
+        },
+      ];
     });
   });
 }
-export type Tone = { start: number; end: number; midi: number };
+export type Tone = { start: number; end: number; midi: number; dead?: boolean };
+export const DEAD_NOTE_SECONDS = 0.075;
 export function synthTones(events: TimedEvent[]): Tone[] {
   const notes: Tone[] = [];
   let sustained = new Map<number, Tone>();
@@ -93,9 +110,14 @@ export function synthTones(events: TimedEvent[]): Tone[] {
       e.voices ?? (e.midi === undefined ? [] : [{ string: 0, midi: e.midi, tie: e.tie }]);
     for (const v of voices) {
       let tone = sustained.get(v.string);
-      if (tone?.midi === v.midi && Math.abs(tone.end - e.start) < 1e-7) tone.end = e.end;
-      else {
-        tone = { midi: v.midi, start: e.start, end: e.end };
+      if (
+        tone?.midi === v.midi &&
+        Boolean(tone.dead) === Boolean(e.dead) &&
+        Math.abs(tone.end - e.start) < 1e-7
+      ) {
+        tone.end = e.end;
+      } else {
+        tone = { midi: v.midi, start: e.start, end: e.end, ...(e.dead ? { dead: true } : {}) };
         notes.push(tone);
       }
       if (v.tie) next.set(v.string, tone);
@@ -132,12 +154,14 @@ export function scheduleTones(
   for (let i = lo; i < tones.length; i++) {
     const tone = tones[i]!;
     if (tone.start >= Math.min(to, stop)) break;
-    if (tone.end <= from) continue;
+    const end = tone.dead ? Math.min(tone.end, tone.start + DEAD_NOTE_SECONDS * rate) : tone.end;
+    if (Math.min(stop, end) <= from) continue;
     result.push({
       midi: tone.midi,
       when: clock + Math.max(0, tone.start - from) / rate,
-      until: clock + (Math.min(stop, tone.end) - from) / rate,
+      until: clock + (Math.min(stop, end) - from) / rate,
       id: i,
+      ...(tone.dead ? { dead: true as const } : {}),
     });
   }
   return result;

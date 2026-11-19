@@ -198,3 +198,34 @@ test('shorter inherited meter preserves manual chords in following bars', () => 
   assert.equal(edit.score, score);
   assert.equal(edit.notice, 'chordOutside');
 });
+
+test('dead notes have unpitched attacks that break ties and do not replay after seeking past them', () => {
+  const quarter = { base: 4, dots: 0 } as const;
+  let edit = insertNote(emptyScore(), cursor, 0, quarter, bass);
+  edit = insertNote(edit.score, edit.cursor, 0, quarter, bass);
+  edit = insertNote(edit.score, edit.cursor, 0, quarter, bass);
+  const events = edit.score.measures[0]!.events;
+  events[0] = { ...events[0]!, tie: true };
+  events[1] = { ...events[1]!, tie: true, technique: 'dead' };
+  const timeline = scoreTimeline(edit.score, { measures: [0, 4], beats: [] }, 4, bass);
+  assert.equal(timeline[1]!.midi, undefined);
+  assert.deepEqual(synthTones(timeline), [
+    { start: 0, end: 1, midi: 33 },
+    { start: 1, end: 2, midi: 33, dead: true },
+    { start: 2, end: 3, midi: 33 },
+  ]);
+  const tones = synthTones(timeline);
+  const [dead] = scheduleTones(tones, 1, 2, 0.5, 10, 4);
+  assert.equal(dead?.dead, true);
+  assert.equal(dead?.until, 10.075);
+  assert.deepEqual(scheduleTones(tones, 1.1, 2, 1, 10, 4), []);
+});
+
+test('tied fragments of the same dead note produce a single attack', () => {
+  const voices = [{ string: 0, midi: 28, tie: true }];
+  const fragments = [
+    { id: 'a', measure: 0, event: 0, start: 0, end: 0.5, voices, dead: true },
+    { id: 'b', measure: 1, event: 0, start: 0.5, end: 1, voices, dead: true },
+  ];
+  assert.deepEqual(synthTones(fragments), [{ start: 0, end: 1, midi: 28, dead: true }]);
+});

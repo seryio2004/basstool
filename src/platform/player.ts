@@ -10,6 +10,7 @@ export function createPlayer(): Player {
     },
     setTones() {},
     setMix() {},
+    setAttack() {},
     suggestChord() {
       return null;
     },

@@ -48,3 +48,49 @@ export function loopFromTimes(t0: number, t1: number) {
   const b = Math.max(t0, t1);
   return b - a >= MIN_LOOP - 1e-9 ? { a, b } : null;
 }
+
+export const MAX_WAVE_ZOOM = 32;
+export type WaveWindow = { zoom: number; start: number };
+
+const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
+
+export function waveWindow(duration: number, zoom: number, start: number): WaveWindow {
+  zoom = clamp(zoom, 1, MAX_WAVE_ZOOM);
+  return { zoom, start: clamp(start, 0, duration - duration / zoom) };
+}
+
+/** Holds the same audio time under the moving pinch midpoint or the stationary pointer. */
+export function zoomWave(
+  duration: number,
+  initial: WaveWindow,
+  zoom: number,
+  fromFraction: number,
+  toFraction = fromFraction,
+): WaveWindow {
+  const next = waveWindow(duration, zoom, 0);
+  const anchor = initial.start + clamp(fromFraction, 0, 1) * (duration / initial.zoom);
+  return waveWindow(duration, next.zoom, anchor - toFraction * (duration / next.zoom));
+}
+
+export function moveLoopEdge(
+  loop: { a: number; b: number },
+  edge: 'a' | 'b',
+  time: number,
+  duration: number,
+  marks: readonly number[],
+  tolerance: number,
+) {
+  const low = edge === 'a' ? 0 : loop.a + MIN_LOOP;
+  const high = edge === 'a' ? loop.b - MIN_LOOP : duration;
+  const target = clamp(time, low, high);
+  let value = target;
+  let distance = Infinity;
+  for (const mark of marks) {
+    const delta = Math.abs(mark - target);
+    if (mark < low || mark > high || !(delta <= tolerance && delta < distance)) continue;
+    // In a tie preserve the first marker (bars are passed before beats).
+    value = mark;
+    distance = delta;
+  }
+  return { ...loop, [edge]: value };
+}

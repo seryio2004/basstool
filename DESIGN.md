@@ -5,45 +5,45 @@ themes: [dark, light]
 source: src/theme/palette.ts
 colors:
   dark:
-    bg: "#17120E"
-    surface: "#221A14"
-    raised: "#2C231B"
-    sunken: "#120E0B"
-    chrome: "#1B1511"
-    line: "#3A2F25"
-    line-strong: "#54453A"
-    sheen: "#4A3C2F"
-    ink: "#F1E6D2"
-    muted: "#B9A88E"
-    faint: "#9C8B72"
-    accent: "#E8A33D"
-    on-accent: "#1A120A"
-    accent-text: "#E8A33D"
-    accent-soft: "#3A2A16"
-    focus: "#F4C46B"
+    bg: "#25211E"
+    surface: "#2B2521"
+    raised: "#322B26"
+    sunken: "#231F1C"
+    chrome: "#27221E"
+    line: "#40362F"
+    line-strong: "#594B3F"
+    sheen: "#483D33"
+    ink: "#D9CCB9"
+    muted: "#AA9C8A"
+    faint: "#A19482"
+    accent: "#BF9B6E"
+    on-accent: "#251C14"
+    accent-text: "#C4A57B"
+    accent-soft: "#3C3227"
+    focus: "#B9A58D"
     success: "#5FA58A"
     warning: "#D4844A"
-    error: "#E06B5B"
-    info: "#8FB3C9"
+    error: "#E17A6C"
+    info: "#9BAEB8"
   light:
-    bg: "#F6EFE3"
-    surface: "#FFFBF4"
-    raised: "#FFFFFF"
-    sunken: "#EFE5D4"
-    chrome: "#EFE6D6"
-    line: "#E2D4BE"
-    line-strong: "#C9B79C"
-    sheen: "#FFFFFF"
-    ink: "#2A2119"
-    muted: "#6E5F4C"
-    faint: "#7D6D58"
-    accent: "#94580A"
-    on-accent: "#FFFBF4"
-    accent-text: "#8A520A"
-    accent-soft: "#F3E2C2"
-    focus: "#A8670F"
+    bg: "#EEE7DC"
+    surface: "#F2ECE1"
+    raised: "#F5EFE6"
+    sunken: "#E9E0D3"
+    chrome: "#ECE3D7"
+    line: "#DACDBB"
+    line-strong: "#BAAB95"
+    sheen: "#F8F2EA"
+    ink: "#493D33"
+    muted: "#6B5D4E"
+    faint: "#71614F"
+    accent: "#805B36"
+    on-accent: "#F5EFE6"
+    accent-text: "#7D5937"
+    accent-soft: "#EDE0CB"
+    focus: "#806B55"
     success: "#2F6E57"
-    warning: "#9A5420"
+    warning: "#92501F"
     error: "#B23A2B"
     info: "#3C6880"
 typography:
@@ -75,14 +75,15 @@ Sustituye al sistema anterior (verde sobre blanco). Decisión del usuario del 20
 ## Temas
 
 - Preferencia en **Ajustes › Apariencia**: «Oscuro (por defecto)», «Claro» o «Sistema». Se guarda en el perfil local (`profile.theme`); con cuenta, sigue siendo una preferencia del dispositivo y no se sincroniza.
-- `ThemeProvider` resuelve la preferencia (con `useColorScheme` para «Sistema»), sustituye los tokens vivos (`colors`, `styles`, `grooveColors`) y vuelve a montar el contenido, de modo que los SVG (mástil, partitura, tablatura, forma de onda, diagramas, tren) se pintan con el tema nuevo. En web actualiza además las variables CSS de selección, cursor, foco, barras de desplazamiento y `color-scheme`; en nativo, el estilo de la barra de estado.
+- El botón de bajo en la esquina superior derecha alterna entre oscuro y claro. La silueta del tema oscuro es angular. La del tema claro tiene forma de violín.
+- `ThemeProvider` resuelve la preferencia (con `useColorScheme` para «Sistema») y sustituye los tokens vivos (`colors`, `styles`, `grooveColors`). Los componentes memoizados se suscriben al tema para conservar el estado de la pantalla al cambiarlo. En web también actualiza las variables CSS de selección, cursor, foco, barras de desplazamiento y `color-scheme`. En nativo actualiza el estilo de la barra de estado.
 - Alias heredados en `colors`: `green` = `accent`, `pale` = `accentSoft`, `white` = `surface` (no es el color blanco). Solo para el código que aún no usa los nombres semánticos.
 
 ## Color
 
 | Token | Uso |
 | --- | --- |
-| `bg` | Fondo de la app: nogal casi negro / papel crema. |
+| `bg` | Fondo de la app: nogal oscuro / papel crema. |
 | `surface` | Placas: paneles, tarjetas, campos sobre la placa. |
 | `raised` | Botones secundarios, opciones sin seleccionar, menús «Más». |
 | `sunken` | Pozos: campos de texto, vúmetro, contador de cinta, pistas. |
@@ -100,7 +101,7 @@ Sustituye al sistema anterior (verde sobre blanco). Decisión del usuario del 20
 | `degrees[0..6]` + `onDegree` | Grados 1–7 del mástil. Rellenos medios con tinta oscura y el número del grado siempre escrito: el color refuerza, no informa solo. La tónica lleva además un aro. |
 | `wood` / `fret` / `string` / `inlay` | Mástil: palisandro (oscuro) o arce (claro), trastes de níquel, cuerdas de cromo, incrustaciones. |
 | `staff`, `keyWhite`, `keyBlack`, `keyContext*` | Pentagramas y pianos de los diagramas y del editor. |
-| `wave` / `waveDim` | Pantalla de la forma de onda y su trazo sin reproducir (lo reproducido va en `accent`). |
+| `wave` / `waveDim` | Pantalla y trazo de la forma de onda. `wavePlayed` distingue lo reproducido. El ámbar marca el bucle y la ventana de la vista general. |
 | `groove.*` | Mundo propio de GrooveTrain (escenario, casillas, tren). En oscuro, `ink` es crema y `cream` es el resalte oscuro: los nombres se conservan por compatibilidad. |
 
 ## Tipografía
@@ -126,71 +127,78 @@ Sustituye al sistema anterior (verde sobre blanco). Decisión del usuario del 20
 
 ## Movimiento
 
-Un único movimiento con autoría: **la aguja del vúmetro** (muelle amortiguado). El tren de GrooveTrain avanza linealmente con el pulso. El resto son transiciones de 150 ms de color u opacidad en web. Con movimiento reducido, la aguja y el tren saltan sin animación.
+La aguja del vúmetro usa un muelle amortiguado. El tren de GrooveTrain avanza linealmente con el pulso. El selector de tema cruza las siluetas en 150 ms y las cambia de inmediato con movimiento reducido. En ese modo, la aguja y el tren también saltan sin animación.
 
 ## Disposición
 
-- Barra lateral `chrome` de 240 px a partir de 1000 px; por debajo, cabecera de 56 px con la marca y Ajustes, y barra inferior con cinco destinos (activo en ámbar con piloto).
+- Barra lateral `chrome` de 240 px a partir de 1000 px, con una cabecera de 48 px para el selector de tema. Por debajo de 1000 px, cabecera de 56 px con marca, Ajustes y selector de tema, y barra inferior con cinco destinos (activo en ámbar con piloto).
 - Contenido: máximo 1200 px, padding 20 (móvil) / 40 (escritorio), 24 / 44 arriba.
 - **Herramientas:** el afinador como placa principal con su dial; el resto como un rack de filas en una sola placa.
 - **Practicar:** cada módulo es una tarjeta pulsable con su par de color; no hay un botón ámbar por tarjeta.
-- **Transcribir:** transporte arriba; la mezcla («Qué suena») vive en la sección «Sonido»; la vista y la exportación de la partitura, en «Vista y exportar».
+- **Transcribir:** transporte arriba; la mezcla («Qué suena») vive en la sección «Sonido»; la vista y la exportación de la partitura, en «Vista y exportar». La onda mide 132 pt en compacto y 192 pt en escritorio, con tiradores A y B de 44 pt.
 
 ## Contraste (WCAG 2.x AA)
 
-Calculado con `contrastRatio` de `src/theme/palette.ts`; `tests/theme.test.ts` falla si algún par baja del mínimo. Texto normal ≥ 4,5; elementos no textuales ≥ 3 (foco, trazos) o el mínimo indicado.
+Calculado con `contrastRatio` de `src/theme/palette.ts`; `tests/theme.test.ts` falla si algún par baja del mínimo. Texto normal ≥ 4,5. En fondo, placa y superficie elevada, el texto principal queda entre 8 y 11 y el secundario entre 5 y 6,2. Elementos no textuales ≥ 3 (foco, trazos) o el mínimo indicado.
 
 | Par | Oscuro | Ratio | Claro | Ratio | Mínimo |
 | --- | --- | --- | --- | --- | --- |
-| Texto sobre fondo | `#F1E6D2` / `#17120E` | 15,04 | `#2A2119` / `#F6EFE3` | 13,82 | 4,5 |
-| Texto sobre placa | `#F1E6D2` / `#221A14` | 13,86 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
-| Texto sobre elevada | `#F1E6D2` / `#2C231B` | 12,46 | `#2A2119` / `#FFFFFF` | 15,79 | 4,5 |
-| Secundario sobre fondo | `#B9A88E` / `#17120E` | 8,02 | `#6E5F4C` / `#F6EFE3` | 5,40 | 4,5 |
-| Secundario sobre placa | `#B9A88E` / `#221A14` | 7,39 | `#6E5F4C` / `#FFFBF4` | 5,98 | 4,5 |
-| Marcador sobre campo | `#9C8B72` / `#221A14` | 5,18 | `#7D6D58` / `#FFFBF4` | 4,85 | 4,5 |
-| Texto sobre botón principal | `#1A120A` / `#E8A33D` | 8,58 | `#FFFBF4` / `#94580A` | 5,56 | 4,5 |
-| Ámbar como texto sobre placa | `#E8A33D` / `#221A14` | 7,94 | `#8A520A` / `#FFFBF4` | 6,18 | 4,5 |
-| Ámbar como texto sobre fondo | `#E8A33D` / `#17120E` | 8,62 | `#8A520A` / `#F6EFE3` | 5,58 | 4,5 |
-| Ámbar sobre selección suave | `#E8A33D` / `#3A2A16` | 6,39 | `#8A520A` / `#F3E2C2` | 5,00 | 4,5 |
-| Texto sobre selección suave | `#F1E6D2` / `#3A2A16` | 11,16 | `#2A2119` / `#F3E2C2` | 12,38 | 4,5 |
-| Éxito sobre placa | `#5FA58A` / `#221A14` | 5,90 | `#2F6E57` / `#FFFBF4` | 5,83 | 4,5 |
+| Texto sobre fondo | `#D9CCB9` / `#25211E` | 10,11 | `#493D33` / `#EEE7DC` | 8,56 | 4,5 |
+| Texto sobre placa | `#D9CCB9` / `#2B2521` | 9,56 | `#493D33` / `#F2ECE1` | 8,94 | 4,5 |
+| Texto sobre elevada | `#D9CCB9` / `#322B26` | 8,80 | `#493D33` / `#F5EFE6` | 9,19 | 4,5 |
+| Secundario sobre fondo | `#AA9C8A` / `#25211E` | 5,96 | `#6B5D4E` / `#EEE7DC` | 5,18 | 4,5 |
+| Secundario sobre placa | `#AA9C8A` / `#2B2521` | 5,64 | `#6B5D4E` / `#F2ECE1` | 5,41 | 4,5 |
+| Secundario sobre elevada | `#AA9C8A` / `#322B26` | 5,19 | `#6B5D4E` / `#F5EFE6` | 5,57 | 4,5 |
+| Marcador sobre pozo | `#A19482` / `#231F1C` | 5,51 | `#71614F` / `#E9E0D3` | 4,56 | 4,5 |
+| Secundario sobre selección suave | `#AA9C8A` / `#3C3227` | 4,67 | `#6B5D4E` / `#EDE0CB` | 4,89 | 4,5 |
+| Secundario sobre cabecera | `#AA9C8A` / `#27221E` | 5,87 | `#6B5D4E` / `#ECE3D7` | 5,01 | 4,5 |
+| Marcas sobre onda | `#AA9C8A` / `#231F1C` | 6,10 | `#6B5D4E` / `#E9E0D3` | 4,87 | 4,5 |
+| Texto del tirador de compás | `#D9CCB9` / `#322B26` | 8,80 | `#493D33` / `#F5EFE6` | 9,19 | 4,5 |
+| Marcador sobre campo | `#A19482` / `#2B2521` | 5,09 | `#71614F` / `#F2ECE1` | 5,07 | 4,5 |
+| Texto sobre botón principal | `#251C14` / `#BF9B6E` | 6,48 | `#F5EFE6` / `#805B36` | 5,30 | 4,5 |
+| Ámbar como texto sobre placa | `#C4A57B` / `#2B2521` | 6,49 | `#7D5937` / `#F2ECE1` | 5,32 | 4,5 |
+| Ámbar como texto sobre fondo | `#C4A57B` / `#25211E` | 6,86 | `#7D5937` / `#EEE7DC` | 5,09 | 4,5 |
+| Ámbar sobre selección suave | `#C4A57B` / `#3C3227` | 5,37 | `#7D5937` / `#EDE0CB` | 4,80 | 4,5 |
+| Texto sobre selección suave | `#D9CCB9` / `#3C3227` | 7,92 | `#493D33` / `#EDE0CB` | 8,07 | 4,5 |
+| Éxito sobre placa | `#5FA58A` / `#2B2521` | 5,21 | `#2F6E57` / `#F2ECE1` | 5,12 | 4,5 |
 | Éxito sobre su fondo | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
-| Aviso sobre placa | `#D4844A` / `#221A14` | 5,87 | `#9A5420` / `#FFFBF4` | 5,56 | 4,5 |
-| Aviso sobre su fondo | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
-| Error sobre placa | `#E06B5B` / `#221A14` | 5,24 | `#B23A2B` / `#FFFBF4` | 5,76 | 4,5 |
-| Error sobre su fondo | `#E06B5B` / `#3A1F1A` | 4,62 | `#B23A2B` / `#F8E1DC` | 4,75 | 4,5 |
-| Información sobre placa | `#8FB3C9` / `#221A14` | 7,72 | `#3C6880` / `#FFFBF4` | 5,84 | 4,5 |
-| Información sobre su fondo | `#8FB3C9` / `#1D2830` | 6,76 | `#3C6880` / `#E1ECF2` | 5,02 | 4,5 |
-| Módulo groove | `#E8A33D` / `#3A2A16` | 6,39 | `#8A520A` / `#F3E2C2` | 5,00 | 4,5 |
+| Aviso sobre placa | `#D4844A` / `#2B2521` | 5,18 | `#92501F` / `#F2ECE1` | 5,27 | 4,5 |
+| Aviso sobre su fondo | `#D4844A` / `#33231A` | 5,16 | `#92501F` / `#F6E5D6` | 5,04 | 4,5 |
+| Error sobre placa | `#E17A6C` / `#2B2521` | 5,18 | `#B23A2B` / `#F2ECE1` | 5,06 | 4,5 |
+| Error sobre su fondo | `#E17A6C` / `#3A1F1A` | 5,18 | `#B23A2B` / `#F8E1DC` | 4,75 | 4,5 |
+| Información sobre placa | `#9BAEB8` / `#2B2521` | 6,58 | `#3C6880` / `#F2ECE1` | 5,13 | 4,5 |
+| Información sobre su fondo | `#9BAEB8` / `#1D2830` | 6,54 | `#3C6880` / `#E1ECF2` | 5,02 | 4,5 |
+| Módulo groove | `#C4A57B` / `#3C3227` | 5,37 | `#7D5937` / `#EDE0CB` | 4,80 | 4,5 |
 | Módulo chord | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
-| Módulo notes | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
+| Módulo notes | `#D4844A` / `#33231A` | 5,16 | `#92501F` / `#F6E5D6` | 5,04 | 4,5 |
 | Módulo intervals | `#B497C6` / `#2D2233` | 5,89 | `#7A5690` / `#EEE5F3` | 4,81 | 4,5 |
 | Módulo reading | `#6FAAB9` / `#1B2A2E` | 5,73 | `#33707F` / `#E0EEF1` | 4,69 | 4,5 |
 | Función T | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
 | Función S | `#8FB3C9` / `#1D2830` | 6,76 | `#3C6880` / `#E1ECF2` | 5,02 | 4,5 |
-| Función D | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
+| Función D | `#D4844A` / `#33231A` | 5,16 | `#92501F` / `#F6E5D6` | 5,04 | 4,5 |
 | Función Dsec | `#B497C6` / `#2D2233` | 5,89 | `#7A5690` / `#EEE5F3` | 4,81 | 4,5 |
-| Grado 1 | `#1A120A` / `#E8A33D` | 8,58 | `#1A120A` / `#E8A33D` | 8,58 | 4,5 |
+| Grado 1 | `#1A120A` / `#BF9B6E` | 7,16 | `#1A120A` / `#BF9B6E` | 7,16 | 4,5 |
 | Grado 2 | `#1A120A` / `#8FB3C9` | 8,34 | `#1A120A` / `#8FB3C9` | 8,34 | 4,5 |
 | Grado 3 | `#1A120A` / `#6CC3A0` | 8,77 | `#1A120A` / `#6CC3A0` | 8,77 | 4,5 |
 | Grado 4 | `#1A120A` / `#E9D66B` | 12,60 | `#1A120A` / `#E9D66B` | 12,60 | 4,5 |
 | Grado 5 | `#1A120A` / `#E07B5F` | 6,32 | `#1A120A` / `#E07B5F` | 6,32 | 4,5 |
 | Grado 6 | `#1A120A` / `#C19AD6` | 7,81 | `#1A120A` / `#C19AD6` | 7,81 | 4,5 |
 | Grado 7 | `#1A120A` / `#A9C46A` | 9,51 | `#1A120A` / `#A9C46A` | 9,51 | 4,5 |
-| Foco sobre placa (no texto) | `#F4C46B` / `#221A14` | 10,57 | `#A8670F` / `#FFFBF4` | 4,41 | 3 |
-| Borde de campo sobre placa (no texto) | `#54453A` / `#17120E` | 2,03 | `#C9B79C` / `#F6EFE3` | 1,71 | 1,5 |
-| Trazo de onda sobre pantalla | `#E8A33D` / `#120E0B` | 8,91 | `#94580A` / `#EFE5D4` | 4,60 | 3 |
-| Nombre sobre tecla blanca | `#120E0B` / `#E9DCC4` | 14,18 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
-| Nombre sobre tecla de contexto | `#120E0B` / `#D9B97A` | 10,22 | `#2A2119` / `#F3E2C2` | 12,38 | 4,5 |
+| Foco sobre placa (no texto) | `#B9A58D` / `#2B2521` | 6,36 | `#806B55` / `#F2ECE1` | 4,30 | 3 |
+| Borde de campo sobre placa (no texto) | `#594B3F` / `#25211E` | 1,90 | `#BAAB95` / `#EEE7DC` | 1,83 | 1,5 |
+| Trazo de onda sobre pantalla | `#8A7B6D` / `#231F1C` | 4,00 | `#897967` / `#E9E0D3` | 3,22 | 3 |
+| Trazo reproducido sobre pantalla | `#A99A86` / `#231F1C` | 5,96 | `#685B4C` / `#E9E0D3` | 5,04 | 3 |
+| Nombre sobre tecla blanca | `#231F1C` / `#E9DCC4` | 12,07 | `#2A2119` / `#F2ECE1` | 13,43 | 4,5 |
+| Nombre sobre tecla de contexto | `#231F1C` / `#D9B97A` | 8,70 | `#2A2119` / `#EDE0CB` | 12,12 | 4,5 |
 | Cuerdas sobre madera | `#B8AE9E` / `#2A1D14` | 7,46 | `#6E5F4C` / `#E9DCC6` | 4,56 | 3 |
-| GrooveTrain: texto sobre escenario | `#F1E6D2` / `#2E2112` | 12,66 | `#2A2119` / `#F0C877` | 9,95 | 4,5 |
-| GrooveTrain: texto sobre resalte | `#F1E6D2` / `#17120E` | 15,04 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
-| GrooveTrain: texto sobre pulsado | `#F1E6D2` / `#2F5E4C` | 6,01 | `#2A2119` / `#7FB89E` | 6,96 | 4,5 |
-| GrooveTrain: casilla 1 | `#F1E6D2` / `#5A3F1E` | 7,85 | `#2A2119` / `#E9B95E` | 8,70 | 4,5 |
-| GrooveTrain: casilla 2 | `#F1E6D2` / `#2F4A3F` | 7,82 | `#2A2119` / `#9FCDB8` | 8,95 | 4,5 |
-| GrooveTrain: casilla 3 | `#F1E6D2` / `#5A3A2A` | 8,19 | `#2A2119` / `#E5A989` | 7,80 | 4,5 |
-| GrooveTrain: casilla 4 | `#F1E6D2` / `#43344F` | 9,22 | `#2A2119` / `#C9B3DA` | 8,23 | 4,5 |
-| GrooveTrain: casilla 5 | `#F1E6D2` / `#2C4750` | 8,00 | `#2A2119` / `#9FC6D1` | 8,63 | 4,5 |
-| GrooveTrain: casilla 6 | `#F1E6D2` / `#4A3A22` | 8,85 | `#2A2119` / `#EBCB8B` | 10,11 | 4,5 |
-| GrooveTrain: casilla 7 | `#F1E6D2` / `#3B4A2E` | 7,71 | `#2A2119` / `#B9CF9A` | 9,36 | 4,5 |
-| GrooveTrain: casilla 8 | `#F1E6D2` / `#503040` | 9,24 | `#2A2119` / `#DDA9B5` | 7,83 | 4,5 |
+| GrooveTrain: texto sobre escenario | `#E1D5C3` / `#2E2112` | 10,81 | `#493D33` / `#F0C877` | 6,62 | 4,5 |
+| GrooveTrain: texto sobre resalte | `#E1D5C3` / `#17120E` | 12,85 | `#493D33` / `#F2ECE1` | 8,94 | 4,5 |
+| GrooveTrain: texto sobre pulsado | `#E1D5C3` / `#2F5E4C` | 5,13 | `#493D33` / `#7FB89E` | 4,63 | 4,5 |
+| GrooveTrain: casilla 1 | `#E1D5C3` / `#5A3F1E` | 6,70 | `#493D33` / `#E9B95E` | 5,79 | 4,5 |
+| GrooveTrain: casilla 2 | `#E1D5C3` / `#2F4A3F` | 6,68 | `#493D33` / `#9FCDB8` | 5,95 | 4,5 |
+| GrooveTrain: casilla 3 | `#E1D5C3` / `#5A3A2A` | 7,00 | `#493D33` / `#E5A989` | 5,19 | 4,5 |
+| GrooveTrain: casilla 4 | `#E1D5C3` / `#43344F` | 7,87 | `#493D33` / `#C9B3DA` | 5,48 | 4,5 |
+| GrooveTrain: casilla 5 | `#E1D5C3` / `#2C4750` | 6,83 | `#493D33` / `#9FC6D1` | 5,74 | 4,5 |
+| GrooveTrain: casilla 6 | `#E1D5C3` / `#4A3A22` | 7,56 | `#493D33` / `#EBCB8B` | 6,73 | 4,5 |
+| GrooveTrain: casilla 7 | `#E1D5C3` / `#3B4A2E` | 6,58 | `#493D33` / `#B9CF9A` | 6,23 | 4,5 |
+| GrooveTrain: casilla 8 | `#E1D5C3` / `#503040` | 7,89 | `#493D33` / `#DDA9B5` | 5,21 | 4,5 |

@@ -28,6 +28,13 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - La migración `202611190005_chord_line_rhythm.sql` valida el ritmo efectivamente tocado por vagón y admite los intentos anteriores. Aplicarla en Supabase antes de publicar la versión.
 - Pasan `npm run typecheck`, `npm run build`, las once pruebas de ChordLine y el render estático web de ambas disposiciones del tren. `npm test` pasa en 20 de 21 archivos. La prueba de coordinación recibe `spawnSync git EPERM` y pasa al capturar sus subprocesos en archivos temporales. Quedan pendientes la revisión interactiva y la detección con bajo y micrófono reales.
 
+### Pulido de sonido, onda y temas
+
+- Entregado a Claude en `codex/pulido-sonido`, con cambios sin commit. La paleta vintage atenúa ambos temas y conserva AA en los pares de texto documentados. La cabecera alterna oscuro y claro con dos siluetas SVG originales y un fundido de 150 ms que respeta el movimiento reducido. «Sistema» sigue en Ajustes. El cambio de tema conserva la canción cargada y la edición.
+- Transcribir admite zoom de 1 a 32× por pellizco, Ctrl+rueda centrada en el puntero, teclas +/− y deslizador. Dos dedos o Mayús+arrastre desplazan la ventana. La vista general permite saltar. Los tiradores A/B respetan la duración mínima del bucle y pueden encajar en marcas de compás y pulso. Se mantienen toque, doble toque y arrastre para buscar, quitar y crear bucles.
+- La voz Web Audio separa el instrumento del transporte para admitir un sampler. Usa síntesis sustractiva, ADSR, armónicos, saturación suave, compresión y un ajuste de ganancia por RMS activo de la canción que conserva el balance. «Ataque del bajo» ofrece dedo, púa o prescindir del transitorio añadido. Las voces simultáneas mantienen sus duraciones y ligaduras. Las notas muertas usan ataques sin altura.
+- Pasan `npm run typecheck`, `npm run build`, la revisión estática de los componentes web en ambos tamaños y las pruebas de contraste, zoom, imán y programación musical. En `npm test` pasan 21 de 22 archivos, con `spawnSync git EPERM` en la prueba de coordinación. Los 22 pasan al capturar la salida de sus subprocesos en archivos temporales. Quedan por verificar los gestos y el cambio de tema en un navegador interactivo y la sonoridad con canciones y altavoces físicos. El reproductor nativo sigue en la tarea 6.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).

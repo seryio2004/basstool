@@ -20,3 +20,14 @@ for (const [name, palette] of Object.entries(palettes)) {
 test('both themes define the same tokens', () => {
   assert.deepEqual(Object.keys(palettes.dark).sort(), Object.keys(palettes.light).sort());
 });
+
+test('content surfaces keep their text within the intended contrast ranges', () => {
+  for (const palette of Object.values(palettes)) {
+    for (const background of [palette.bg, palette.surface, palette.raised]) {
+      const main = contrastRatio(palette.ink, background);
+      const secondary = contrastRatio(palette.muted, background);
+      assert.ok(main >= 8 && main <= 11, `Texto principal: ${main.toFixed(2)}`);
+      assert.ok(secondary >= 5 && secondary <= 6.2, `Texto secundario: ${secondary.toFixed(2)}`);
+    }
+  }
+});

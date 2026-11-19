@@ -14,8 +14,8 @@ import { applyDocumentTheme } from '../platform/bootstrap';
 
 /**
  * Tokens vivos del tema. `colors` y `styles` son objetos estables cuyo contenido
- * se sustituye al cambiar de tema; `ThemeProvider` vuelve a montar el contenido
- * para que todo lo que los lee (incluidos los SVG) se pinte con el tema nuevo.
+ * se sustituye al cambiar de tema. Los componentes memoizados se suscriben
+ * con `useTheme` para repintarse sin perder el estado de la pantalla.
  *
  * Alias heredados (`green`, `pale`, `white`): se mantienen para el código que
  * todavía no usa los nombres semánticos. `green` es el acento, `pale` la

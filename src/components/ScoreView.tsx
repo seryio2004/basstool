@@ -12,7 +12,7 @@ import {
   type ScoreLine,
 } from '../core/scoreLayout';
 import type { EditCursor, MusicalPosition, Score, ScoreDisplay } from '../core/scoreTypes';
-import { colors, fonts } from './ui';
+import { colors, fonts, useTheme } from './ui';
 const FONT = Platform.OS === 'web' ? fonts.body : undefined;
 /**
  * `scoreLayout` (lógica pura) marca algunos trazos con colores con nombre
@@ -106,6 +106,7 @@ const NotationLine = memo(function NotationLine({
   interactiveEvents: boolean;
   interactiveMeasures: boolean;
 }) {
+  useTheme();
   return (
     <View
       style={{
@@ -224,6 +225,7 @@ const Notation = memo(function Notation({
   interactiveEvents: boolean;
   interactiveMeasures: boolean;
 }) {
+  useTheme();
   return (
     <>
       {layout.lines.map((line) => (

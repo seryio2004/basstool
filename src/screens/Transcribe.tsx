@@ -35,7 +35,7 @@ import {
 } from '../core/transcription';
 import { listSessions, loadSession, saveSession } from '../data/transcriptions';
 import type { TimedEvent } from '../core/scoreAudio';
-import type { MixMode } from '../platform/playerTypes';
+import type { BassAttack, MixMode } from '../platform/playerTypes';
 import { createPlayer } from '../platform/player';
 import type { BassMode, Loop, PickedAudio, Player } from '../platform/playerTypes';
 
@@ -44,14 +44,21 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   const wide = width >= 1100;
   const player = useRef<Player | null>(null);
   if (!player.current) player.current = createPlayer();
-  const [annotations, setAnnotations] = useState<{ events: TimedEvent[]; bars: number[] }>({
+  const [annotations, setAnnotations] = useState<{
+    events: TimedEvent[];
+    bars: number[];
+    beats: number[];
+  }>({
     events: [],
     bars: [],
+    beats: [],
   });
   const onTimeline = useCallback(
-    (events: TimedEvent[], bars: number[]) => setAnnotations({ events, bars }),
+    (events: TimedEvent[], bars: number[], beats: number[]) =>
+      setAnnotations({ events, bars, beats }),
     [],
   );
+  const [attack, setAttack] = useState<BassAttack>('finger');
   const [mixMode, setMixMode] = useState<MixMode>('song'),
     [balance, setBalance] = useState(0.5);
   const [audio, setAudio] = useState<PickedAudio | null>(null);
@@ -379,7 +386,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
       </View>
       <Waveform
         key={session.id}
-        height={wide ? 120 : 88}
+        height={width >= 1000 ? 192 : 132}
         annotations={annotations}
         peaks={audio.peaks}
         duration={session.duration}
@@ -387,6 +394,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         loop={session.loop}
         markers={session.markers}
         playing={playing}
+        editing={editing}
         onSeek={seek}
         onSelect={selectLoop}
         onClearLoop={() => selectLoop(null)}
@@ -519,8 +527,26 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
               { value: 'both', label: 'Ambas' },
             ]}
           />
-          {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
+          {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined || e.dead) ? (
             <Label muted>Escribe notas para escuchar la transcripción.</Label>
+          ) : null}
+          {mixMode !== 'song' ? (
+            <>
+              <Text style={[styles.text, { fontWeight: '600' }]}>Ataque del bajo</Text>
+              <Chips<BassAttack>
+                minHeight={44}
+                value={attack}
+                onChange={(next) => {
+                  setAttack(next);
+                  p.setAttack(next);
+                }}
+                options={[
+                  { value: 'finger', label: 'Dedo' },
+                  { value: 'pick', label: 'Púa' },
+                  { value: 'none', label: 'Sin ataque añadido' },
+                ]}
+              />
+            </>
           ) : null}
           {mixMode === 'both' ? (
             <Stepper
