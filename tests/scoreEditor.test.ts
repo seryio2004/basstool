@@ -119,3 +119,15 @@ test('changing the meter of an untouched bar keeps its first note at beat zero',
   assert.equal(edit.score.measures[0]!.events.length, 1);
   assert.equal(entryMeasureFill(edit.score, 0).status, 'short');
 });
+
+test('changing the BPM relocates every measure from measure 1, keeping earlier marks', async () => {
+  const { createScoreEditor, fillScoreMeasures } = await import('../src/core/scoreEditor');
+  const { emptyScore } = await import('../src/core/score');
+  const base = createScoreEditor(emptyScore({ beats: 4, unit: 4 }, 1), { measures: [2], beats: [] });
+  const at120 = fillScoreMeasures(base, 2, 120, 20);
+  assert.deepEqual(at120.timeMap.measures.slice(0, 4), [2, 4, 6, 8]); // 4/4 a 120 = 2 s por compás
+  const at100 = fillScoreMeasures(at120, 2, 100, 20);
+  assert.deepEqual(at100.timeMap.measures.slice(0, 3), [2, 4.4, 6.8]); // 2,4 s por compás
+  const withPickup = createScoreEditor(emptyScore({ beats: 4, unit: 4 }, 2), { measures: [0.5, 2], beats: [] });
+  assert.equal(fillScoreMeasures(withPickup, 2, 120, 20).timeMap.measures[0], 0.5);
+});

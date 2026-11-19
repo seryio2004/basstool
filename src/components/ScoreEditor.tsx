@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Platform, Pressable, ScrollView, Text, View, TextInput } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
 import { Button, Chips, Heading, Icon, Label, colors, styles } from './ui';
 import { pianoPosition, scoreTimeline, synthTones, type TimedEvent } from '../core/scoreAudio';
@@ -168,7 +168,9 @@ export function ScoreEditor({
   const [taps, setTaps] = useState<number[]>([]);
   const [marking, setMarking] = useState<'manual' | 'tempo'>('manual');
   const tempo = useMemo(() => tapTempo(taps), [taps]);
-  const bpm = tempo?.bpm ?? DEFAULT_SCORE_BPM;
+  // BPM elegido a mano: manda sobre el tap tempo y recoloca los compases.
+  const [manualBpm, setManualBpm] = useState<number | null>(null);
+  const bpm = manualBpm ?? tempo?.bpm ?? DEFAULT_SCORE_BPM;
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
@@ -197,6 +199,7 @@ export function ScoreEditor({
         if (doc) {
           setEditor(createScoreEditor(doc.score, doc.timeMap));
           setDisplay(doc.display);
+          setManualBpm(doc.bpm ?? null);
         }
         setLoaded(true);
       })
@@ -211,7 +214,13 @@ export function ScoreEditor({
   // Conserva la última edición aunque se cambie de canción antes de los 700 ms.
   useEffect(() => {
     if (!loaded) return;
-    const doc = { score, timeMap, display, updatedAt: new Date().toISOString() };
+    const doc = {
+      score,
+      timeMap,
+      display,
+      updatedAt: new Date().toISOString(),
+      ...(manualBpm !== null ? { bpm: manualBpm } : {}),
+    };
     pendingSave.current = doc;
     const timer = setTimeout(() => {
       pendingSave.current = null;
@@ -286,11 +295,23 @@ export function ScoreEditor({
       return [...keep, now].slice(-9);
     });
   };
+  /** Cambia el BPM y, si hay compás 1, recoloca todos los compases desde él. */
+  const applyBpm = (value: number) => {
+    if (!Number.isFinite(value)) return;
+    const next = Math.round(Math.min(300, Math.max(20, value)) * 10) / 10;
+    setManualBpm(next);
+    if (!loaded) return;
+    setEditor((state) =>
+      state.timeMap.measures.length
+        ? fillScoreMeasures(state, state.timeMap.measures[0]!, next, duration)
+        : state,
+    );
+  };
   const fillFromFirst = () => {
-    if (!loaded || !tempo) return;
+    if (!loaded || (!tempo && manualBpm === null)) return;
     setEditor((state) =>
       state.timeMap.measures.length === 1
-        ? fillScoreMeasures(state, state.timeMap.measures[0]!, tempo.bpm, duration)
+        ? fillScoreMeasures(state, state.timeMap.measures[0]!, bpm, duration)
         : state,
     );
   };
@@ -922,10 +943,38 @@ export function ScoreEditor({
             >
               {timeMap.measures.length > 0 ? 'Compás 1 marcado' : 'Marcar compás 1'}
             </Button>
-            <Label>3. Rellena los compases. Amplía la onda para ajustar las marcas.</Label>
+            <Label>3. Ajusta el tempo si hace falta: los compases se recolocan solos.</Label>
+            <View style={[styles.row, { flexWrap: 'wrap', gap: 6 }]}>
+              <Button small variant="secondary" onPress={() => applyBpm(bpm - 1)}>
+                −1
+              </Button>
+              <Button small variant="secondary" onPress={() => applyBpm(bpm - 0.1)}>
+                −0,1
+              </Button>
+              <TextInput
+                accessibilityLabel="Tempo en BPM"
+                keyboardType="numeric"
+                defaultValue={String(Math.round(bpm * 10) / 10)}
+                key={Math.round(bpm * 10)}
+                onEndEditing={(e) => applyBpm(Number(e.nativeEvent.text.replace(',', '.')))}
+                onSubmitEditing={(e) => applyBpm(Number(e.nativeEvent.text.replace(',', '.')))}
+                style={[
+                  styles.field,
+                  { width: 84, minHeight: 40, paddingVertical: 8, textAlign: 'center' },
+                ]}
+              />
+              <Label>BPM</Label>
+              <Button small variant="secondary" onPress={() => applyBpm(bpm + 0.1)}>
+                +0,1
+              </Button>
+              <Button small variant="secondary" onPress={() => applyBpm(bpm + 1)}>
+                +1
+              </Button>
+            </View>
+            <Label>4. Rellena los compases. Amplía la onda para ajustar las marcas.</Label>
             <Button
               style={{ alignSelf: 'flex-start' }}
-              disabled={!tempo || timeMap.measures.length !== 1}
+              disabled={(!tempo && manualBpm === null) || timeMap.measures.length !== 1}
               onPress={fillFromFirst}
             >
               {timeMap.measures.length > 1 ? 'Compases marcados' : 'Rellenar compases'}

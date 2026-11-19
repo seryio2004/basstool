@@ -2,7 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { parseScore } from '../core/score';
 import { parseTimeMap } from '../core/timeMap';
 import type { Score, ScoreDisplay, TimeMap } from '../core/scoreTypes';
-export type ScoreDoc = { score: Score; timeMap: TimeMap; display: ScoreDisplay; updatedAt: string };
+export type ScoreDoc = {
+  score: Score;
+  timeMap: TimeMap;
+  display: ScoreDisplay;
+  updatedAt: string;
+  /** BPM elegido a mano (20–300). Ausente en partituras antiguas. */
+  bpm?: number;
+};
 const KEY = 'clasro.scores.v1';
 function parse(value: unknown): ScoreDoc | null {
   if (!value || typeof value !== 'object') return null;
@@ -14,7 +21,13 @@ function parse(value: unknown): ScoreDoc | null {
     ['both', 'tab', 'staff'].includes(d.display) &&
     typeof d.updatedAt === 'string' &&
     Number.isFinite(Date.parse(d.updatedAt))
-    ? { score, timeMap, display: d.display, updatedAt: d.updatedAt }
+    ? {
+        score,
+        timeMap,
+        display: d.display,
+        updatedAt: d.updatedAt,
+        ...(typeof d.bpm === 'number' && d.bpm >= 20 && d.bpm <= 300 ? { bpm: d.bpm } : {}),
+      }
     : null;
 }
 async function read(): Promise<Record<string, ScoreDoc>> {
