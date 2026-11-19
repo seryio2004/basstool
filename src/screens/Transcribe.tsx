@@ -249,7 +249,15 @@ export function Transcribe() {
           position={time}
           loop={session.loop}
           markers={session.markers}
+          playing={playing}
           onSeek={seek}
+          onSelect={(l) =>
+            withPlayer(
+              (s) => setLoopEnd(setLoopStart(s, l.a), l.b),
+              (s) => p.setLoop(s.loop),
+            )
+          }
+          onClearLoop={() => withPlayer(clearLoop, () => p.setLoop(null))}
         />
         <View style={[styles.between, { alignItems: 'flex-end' }]}>
           <Text

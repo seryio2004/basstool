@@ -1,6 +1,8 @@
 import { peaksFrom, RATE_MIN, RATE_MAX, MIN_LOOP } from '../core/transcription';
 import type { BassMode, Loop, PickedAudio, Player } from './playerTypes';
 
+/** Resolución de la envolvente: suficiente para zoom 32× en pantallas anchas. */
+const PEAKS = 16000;
 const ACCEPT = 'audio/mpeg,audio/mp4,audio/aac,audio/x-m4a,audio/wav,.mp3,.m4a,.aac,.wav';
 export function createPlayer(): Player {
   let audio: HTMLAudioElement | null = null;
@@ -120,13 +122,13 @@ export function createPlayer(): Player {
         if (!Number.isFinite(length) || length <= 0)
           throw new Error('El archivo de audio está vacío.');
         // Preserve peaks from every channel, including stereo with opposite phases.
-        const peaks = Array<number>(1000).fill(0);
+        const peaks = Array<number>(PEAKS).fill(0);
         for (let c = 0; c < decoded.numberOfChannels; c++) {
           const samples = decoded.getChannelData(c);
           // peaksFrom normalizes per channel; restore channel amplitude before merging.
           let max = 0;
           for (const sample of samples) max = Math.max(max, Math.abs(sample));
-          const channel = peaksFrom(samples, 1000);
+          const channel = peaksFrom(samples, PEAKS);
           for (let b = 0; b < peaks.length; b++) peaks[b] = Math.max(peaks[b]!, channel[b]! * max);
         }
         const maximum = Math.max(...peaks);
