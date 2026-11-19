@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-10T17:30:44.259601+00:00",
+  "title": "Design System: clasRo",
+  "extensions": {
+    "shadows": [],
+    "motion": [
+      {
+        "name": "pressable-state",
+        "value": "background-color .15s ease, opacity .15s ease",
+        "purpose": "Solo con prefers-reduced-motion:no-preference en controles con role=button."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "compact-detail",
+        "value": "650px"
+      },
+      {
+        "name": "staff-preview",
+        "value": "800px"
+      },
+      {
+        "name": "auth-columns",
+        "value": "900px"
+      },
+      {
+        "name": "desktop-navigation",
+        "value": "1000px"
+      },
+      {
+        "name": "home-auxiliary-column",
+        "value": "1200px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Button primary",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Variante existente de Button; el tamaño small reduce padding y altura.",
+      "html": "<button class=\"ds-button-primary\">Continuar</button>",
+      "css": ".ds-button-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 18px;border:0;border-radius:8px;background:#295E43;color:#FFFFFF;font-size:13px;font-weight:600}.ds-button-primary:hover{opacity:.84}.ds-button-primary:active{opacity:.65}.ds-button-primary:disabled{opacity:.45}.ds-button-primary:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-button-primary{transition:background-color .15s ease,opacity .15s ease}}"
+    },
+    {
+      "name": "Button secondary",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Variante existente de Button; el tamaño small reduce padding y altura.",
+      "html": "<button class=\"ds-button-secondary\">Continuar</button>",
+      "css": ".ds-button-secondary{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 18px;border:0;border-radius:8px;background:#E8EFE7;color:#295E43;font-size:13px;font-weight:600}.ds-button-secondary:hover{opacity:.84}.ds-button-secondary:active{opacity:.65}.ds-button-secondary:disabled{opacity:.45}.ds-button-secondary:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-button-secondary{transition:background-color .15s ease,opacity .15s ease}}"
+    },
+    {
+      "name": "Button ghost",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Variante existente de Button; el tamaño small reduce padding y altura.",
+      "html": "<button class=\"ds-button-ghost\">Continuar</button>",
+      "css": ".ds-button-ghost{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 18px;border:0;border-radius:8px;background:transparent;color:#295E43;font-size:13px;font-weight:600}.ds-button-ghost:hover{opacity:.84}.ds-button-ghost:active{opacity:.65}.ds-button-ghost:disabled{opacity:.45}.ds-button-ghost:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-button-ghost{transition:background-color .15s ease,opacity .15s ease}}"
+    },
+    {
+      "name": "Button danger",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Variante existente de Button; el tamaño small reduce padding y altura.",
+      "html": "<button class=\"ds-button-danger\">Continuar</button>",
+      "css": ".ds-button-danger{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:12px 18px;border:0;border-radius:8px;background:transparent;color:#A33131;font-size:13px;font-weight:600}.ds-button-danger:hover{opacity:.84}.ds-button-danger:active{opacity:.65}.ds-button-danger:disabled{opacity:.45}.ds-button-danger:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-button-danger{transition:background-color .15s ease,opacity .15s ease}}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Campo con etiqueta visible.",
+      "html": "<label class=\"ds-field-label\">Nombre<input class=\"ds-field\" placeholder=\"Tu nombre\"></label>",
+      "css": ".ds-field-label{display:flex;flex-direction:column;gap:7px;color:#202E26;font-size:13px;font-weight:500}.ds-field{min-height:44px;padding:12px;border:1px solid #C8D1C7;border-radius:8px;background:#FFFFFF;color:#202E26;font-size:14px;caret-color:#295E43}.ds-field::placeholder{color:#727D73}.ds-field:focus-visible{outline:2px solid #295E43;outline-offset:4px}"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Contenedor estático sin elevación ni estado hover propio.",
+      "html": "<section class=\"ds-panel\"><h2 class=\"ds-panel-title\">Mis tareas</h2><p class=\"ds-panel-copy\">Todavía no tienes tareas.</p></section>",
+      "css": ".ds-panel{display:flex;flex-direction:column;gap:18px;padding:24px;border:1px solid #E2E7DF;border-radius:14px;background:#FFFFFF}.ds-panel-title{margin:0;color:#202E26;font-size:19px;font-weight:600;letter-spacing:-.25px}.ds-panel-copy{margin:0;color:#657168;font-size:13px;line-height:20px}"
+    },
+    {
+      "name": "Chips",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Filtro con opción seleccionada y sin seleccionar.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip\" aria-pressed=\"true\">Todas</button><button class=\"ds-chip\" aria-pressed=\"false\">Ritmo</button></div>",
+      "css": ".ds-chips{display:flex;flex-wrap:wrap;gap:7px}.ds-chip{padding:9px 13px;border:0;border-radius:7px;background:#F1F3EE;color:#657168;font-size:13px;font-weight:400}.ds-chip:hover{background:#EDF1EA}.ds-chip[aria-pressed=true]{background:#295E43;color:white;font-weight:600}.ds-chip:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-chip{transition:background-color .15s ease,opacity .15s ease}}"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Metadato informativo; no es una acción.",
+      "html": "<span class=\"ds-badge\">Ritmo</span>",
+      "css": ".ds-badge{display:inline-block;padding:4px 9px;border-radius:5px;background:#E8EFE7;color:#295E43;font-size:11px;font-weight:600}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav-selected",
+      "description": "Destino de escritorio con estado seleccionado.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item\" aria-pressed=\"true\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M3 10 12 3l9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z\"/></svg>Mi espacio</button></nav>",
+      "css": ".ds-nav{background:#F0F3EC;padding:20px}.ds-nav-item{display:flex;align-items:center;gap:12px;padding:12px;border:0;border-radius:7px;background:transparent;color:#5E6B59;font-size:13px;font-weight:400}.ds-nav-item:hover{background:#E8EDE2}.ds-nav-item[aria-pressed=true]{background:#DDE8D5;color:#2D5738;font-weight:600}.ds-nav-item:focus-visible{outline:2px solid #295E43;outline-offset:4px}@media(prefers-reduced-motion:no-preference){.ds-nav-item{transition:background-color .15s ease,opacity .15s ease}}"
+    }
+  ],
+  "narrative": {
+    "overview": "Este documento describe el resultado implementado, no una nueva identidad aprobada. La única restricción de identidad confirmada es una interfaz simple, concisa y sin eslóganes. No se ha acordado una metáfora ni un nombre creativo para el sistema.\n\nLas superficies claras, la tinta oscura y el verde reúnen navegación, tareas y práctica. Los componentes compartidos de React Native mantienen las mismas formas y estados en las pantallas; las APIs de la plataforma resuelven las diferencias del dispositivo. La densidad se adapta mediante columnas, saltos de línea y navegación horizontal.",
+    "keyCharacteristics": [
+      "Superficies planas delimitadas por trazos suaves.",
+      "Verde para acciones y selección; cuatro pares de color identifican módulos.",
+      "Jerarquía breve de texto y componentes reutilizados."
+    ],
+    "rules": [
+      {
+        "name": "The Module Pair Rule",
+        "body": "El color de cada módulo acompaña a su nombre e icono en catálogo y tareas.",
+        "section": "colors"
+      },
+      {
+        "name": "The Semantic Heading Rule",
+        "body": "El nivel semántico se pasa a Heading; el tamaño visual se determina con el estilo correspondiente.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Surface Rule",
+        "body": "Los paneles se separan del fondo mediante tono y borde, sin sombras añadidas.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reutilizar los componentes y estilos compartidos antes de introducir variantes locales.",
+      "Do mantener el foco visible y diferenciar selección, pulsación y deshabilitado.",
+      "Do usar los pares de color del módulo junto a su nombre e icono.",
+      "Do conservar encabezados con nivel semántico mediante Heading."
+    ],
+    "donts": [
+      "Don't añadir eslóganes ni texto ornamental.",
+      "Don't convertir una composición particular del inicio en requisito de todas las pantallas.",
+      "Don't presentar los valores extraídos como aprobación de una nueva identidad o como certificación completa de accesibilidad."
+    ]
+  }
+}

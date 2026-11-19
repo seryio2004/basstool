@@ -1,0 +1,12 @@
+node_modules/
+.expo/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+coverage/
+.DS_Store
+supabase/.temp/
+
+# Material fuente con copyright: se conserva en local, no se publica.
+*.pdf

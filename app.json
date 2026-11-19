@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "clasRo",
+    "slug": "clasro",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "web": {
+      "bundler": "metro",
+      "name": "clasRo",
+      "lang": "es",
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-audio"
+    ]
+  }
+}

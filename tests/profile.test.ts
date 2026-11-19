@@ -1,0 +1,50 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { tunings } from '../src/core/instrument';
+import { defaultProfile, parseProfile, tuningIds } from '../src/core/profile';
+
+test('a new local profile works without an account and starts unconfigured', () => {
+  const p = defaultProfile('local-1');
+  assert.equal(p.email, null);
+  assert.equal(p.tuning, 'standard4');
+  assert.equal(p.configured, false);
+  assert.deepEqual(tunings[p.tuning].strings, [28, 33, 38, 43]);
+});
+
+test('every tuning in the profile maps to an instrument preset', () => {
+  assert.deepEqual(tuningIds.sort(), Object.keys(tunings).sort());
+});
+
+test('stored profiles are normalised instead of breaking the app', () => {
+  assert.deepEqual(parseProfile(null, 'x'), defaultProfile('x'));
+  assert.deepEqual(parseProfile('corrupt', 'x'), defaultProfile('x'));
+  const p = parseProfile(
+    {
+      id: 'abc',
+      email: 'bajista@example.com',
+      tuning: 'standard5',
+      level: 'advanced',
+      nomenclature: 'english',
+      leftHanded: true,
+      configured: true,
+    },
+    'x',
+  );
+  assert.deepEqual(p, {
+    id: 'abc',
+    email: 'bajista@example.com',
+    tuning: 'standard5',
+    level: 'advanced',
+    nomenclature: 'english',
+    leftHanded: true,
+    configured: true,
+  });
+  const unknown = parseProfile(
+    { id: 'abc', tuning: 'guitar', level: 'pro', nomenclature: 'german', leftHanded: 'yes' },
+    'x',
+  );
+  assert.equal(unknown.tuning, 'standard4');
+  assert.equal(unknown.level, 'beginner');
+  assert.equal(unknown.nomenclature, 'latin');
+  assert.equal(unknown.leftHanded, false);
+});
