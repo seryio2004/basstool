@@ -392,6 +392,29 @@ Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
 
 ---
 
+## Tarea 14: Imagen del bajo en la configuración (opción B: renders, sin 3D en tiempo real)
+
+**Decisión del usuario (2026-11-19):** mostrar un bajo genérico para cada configuración, con imágenes renderizadas a partir de modelos 3D, no 3D interactivo.
+
+1. **Escala en el perfil del bajo:**
+   - Corta (30"), media (32"), larga (34") y extralarga (35"), añadidas al modelo de instrumento y al perfil, con compatibilidad con perfiles antiguos.
+   - Se elige en la configuración inicial y en Ajustes.
+   - Propuesta: el mástil dibujado puede usar proporciones reales de trastes según la escala, como opción.
+2. **Modelos 3D:**
+   - Buscar bajos genéricos con licencia **CC0** o **CC-BY que permita uso comercial**, sin marcas ni copias de modelos concretos.
+   - Documentar la fuente, el autor y la licencia de cada uno en `assets/README.md`, y los créditos en la app si es CC-BY.
+3. **Renders:**
+   - Un render por configuración (4, 5 y 6 cuerdas × escalas) en WebP de unos 50–150 KB, con fondo transparente y el mismo encuadre.
+   - Variante para zurdos: imagen invertida.
+   - Los renders los hace el usuario o alguien con Blender; Sol prepara el flujo y las especificaciones (tamaño, encuadre, nombres de archivo).
+4. **Interfaz:**
+   - La imagen cambia al elegir la configuración, con una transición suave que respeta el movimiento reducido.
+   - Carga diferida, y un marcador provisional mientras faltan los renders.
+
+Sin dependencias nuevas. El 3D interactivo, si se quiere más adelante, solo en web.
+
+---
+
 ## Estado
 
 Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
@@ -407,6 +430,7 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
+| 14. Imagen del bajo en configuración | Sol (+ renders del usuario) | Pendiente. |
 | 13. Herramientas nuevas | Sol | Pendiente (caja de ritmos primero: la usan rutinas y tarea 12). |
 | 12. Escucha y repite | Sol | Pendiente; lanzar tras GrooveTrain. |
 | 11. Separación del bajo con IA | Sol/Astra (PoC) | Pendiente. Realizable; empezar por 11a. |
