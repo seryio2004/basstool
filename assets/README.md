@@ -7,11 +7,11 @@
 
 ## Ilustraciones y renders del bajo
 
-El dibujo SVG de `src/components/BassPreview.tsx` es original. Se genera a partir de la afinación y la escala, con un trasteado de 24 posiciones, dos pastillas y cuerpo sin marca.
+El dibujo SVG de `src/components/BassPreview.tsx` es original. `src/components/bassGeometry.ts` lo genera en código como un modelo 3D sencillo (perfiles extruidos) a partir de la afinación, la escala y la mano: cuerpo de doble cutaway sin marca, golpeador, dos pastillas, puente de selletas, 24 trastes y una clavija por cuerda. Al mantenerlo pulsado o arrastrarlo gira en 16 fotogramas; los colores salen de los tokens del tema.
 
 Para incorporar renders, usa `assets/bass/bass-{4|5|6}st-{30|32|34|35}in-{rh|lh}.webp`
 (por ejemplo, `bass-5st-34in-lh.webp`). Añade a `renders` en `BassPreview.tsx` la clave sin
-extensión y su `require('../../assets/bass/…')`. Cada combinación sin archivo conserva el SVG.
+extensión y su `require('../../assets/bass/…')`. Cada combinación sin archivo conserva el SVG. El render solo sustituye la vista frontal en reposo; el giro sigue usando el SVG.
 Las afinaciones de cuatro cuerdas comparten el render.
 
 - Lienzo de 1560 × 440 px, WebP con transparencia. Conserva el encuadre y la línea de las

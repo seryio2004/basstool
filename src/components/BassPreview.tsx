@@ -1,233 +1,310 @@
-import React, { useId } from 'react';
-import { Image, View, type ImageSourcePropType } from 'react-native';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Image, PanResponder, Platform, View, type ImageSourcePropType } from 'react-native';
 import Svg, {
-  Circle,
+  ClipPath,
   Defs,
-  Ellipse,
   G,
-  Line,
   LinearGradient,
   Path,
-  Rect,
+  RadialGradient,
   Stop,
 } from 'react-native-svg';
 import type { BassScale, Profile } from '../core/profile';
 import { tunings } from '../core/instrument';
-import { useTheme } from './ui';
+import { Label, useTheme } from './ui';
+import { useReducedMotion } from './harmony/DiagramCanvas';
+import {
+  FRAME_COUNT,
+  VIEW_H,
+  VIEW_W,
+  bassFrame,
+  bassModel,
+  frameAngle,
+  type Frame,
+  type Paint,
+  type Shape,
+} from './bassGeometry';
 
 type Props = Pick<Profile, 'tuning' | 'scale' | 'leftHanded'>;
 type RenderKey = `bass-${4 | 5 | 6}st-${BassScale}in-${'rh' | 'lh'}`;
+/** Renders opcionales de la vista frontal (ver assets/README.md). El giro usa siempre el SVG. */
 const renders: Partial<Record<RenderKey, ImageSourcePropType>> = {};
 
-const width = 780;
-const height = 220;
-const center = 108;
-const bridgeX = 119;
-const body =
-  'M250 87C270 81 273 64 301 56C333 47 335 20 302 26C272 29 260 49 230 47C202 45 190 25 154 25C109 24 72 39 55 65C41 86 41 123 54 147C71 180 102 192 142 193C183 195 207 174 226 161C250 145 282 163 292 148C304 128 267 128 254 119Z';
-const inlays = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
+/** Píxeles de arrastre por fotograma: una vuelta en unos 290 px. */
+const DRAG_STEP = 18;
+const SPIN_MS = 85;
+const HOLD_MS = 180;
+
+// ------------------------------------------------------------------ colores
+
+const hex = (c: string) => {
+  const v = c.replace('#', '');
+  const n = parseInt(v.length === 3 ? v.replace(/./g, (x) => x + x) : v.slice(0, 6), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+};
+const toHex = (rgb: readonly number[]) =>
+  '#' +
+  rgb
+    .map((v) =>
+      Math.round(Math.min(255, Math.max(0, v)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('');
+/** Mezcla dos tokens del tema: los materiales se derivan, no se inventan colores. */
+const mix = (a: string, b: string, t: number) => {
+  const x = hex(a),
+    y = hex(b);
+  return toHex(x.map((v, i) => v + (y[i]! - v) * t));
+};
+/**
+ * Aclara (k > 1) u oscurece (k < 1) un color según la luz que recibe la cara.
+ * La sombra tira hacia el negro cálido del tema, no hacia el gris.
+ */
+const shade = (color: string, k: number, dark: string, light: string) => {
+  if (k === 1) return color;
+  return k < 1 ? mix(color, dark, Math.min(1, (1 - k) * 1.1)) : mix(color, light, (k - 1) * 0.6);
+};
+
+type Colors = ReturnType<typeof useTheme>['colors'];
+
+function materials(colors: Colors) {
+  const { accent, keyWhite, keyBlack, fret } = colors;
+  const maple = mix(keyWhite, accent, 0.32);
+  const solid: Record<Paint, string> = {
+    burst: accent,
+    lacquer: mix(accent, keyBlack, 0.72),
+    maple,
+    mapleRound: maple,
+    board: mix(keyBlack, accent, 0.26),
+    guard: mix(keyWhite, accent, 0.14),
+    guardEdge: mix(keyBlack, accent, 0.2),
+    black: mix(keyBlack, keyWhite, 0.06),
+    metal: mix(fret, keyWhite, 0.25),
+    chrome: mix(keyWhite, fret, 0.35),
+    string: mix(fret, keyWhite, 0.3),
+    shine: keyWhite,
+    inlay: mix(keyWhite, accent, 0.06),
+    bone: keyWhite,
+    shadow: keyBlack,
+    edge: mix(keyBlack, fret, 0.3),
+  };
+  return {
+    shade: (color: string, k: number) => shade(color, k, keyBlack, keyWhite),
+    solid,
+    burstCenter: mix(accent, keyWhite, 0.3),
+    burstMid: accent,
+    burstEdge: mix(accent, keyBlack, 0.62),
+    burstRim: mix(accent, keyBlack, 0.86),
+    maple,
+    chromeLight: mix(keyWhite, fret, 0.12),
+    chromeDark: mix(fret, keyBlack, 0.45),
+  };
+}
+
+type Materials = ReturnType<typeof materials>;
+
+const FrameArt = React.memo(function FrameArt({
+  frame,
+  mat,
+  id,
+}: {
+  frame: Frame;
+  mat: Materials;
+  id: string;
+}) {
+  const gradient: Partial<Record<Paint, string>> = {
+    burst: `url(#${id}-burst)`,
+    mapleRound: `url(#${id}-round)`,
+    chrome: `url(#${id}-chrome)`,
+  };
+  const paint = (p: Paint | undefined, k = 1) => (p ? mat.shade(mat.solid[p], k) : 'none');
+  const draw = (sh: Shape, i: number) => {
+    const k = sh.k ?? 1;
+    const grad = sh.fill && gradient[sh.fill];
+    const common = {
+      d: sh.d,
+      stroke: sh.stroke ? paint(sh.stroke, sh.stroke === sh.fill || !sh.fill ? k : 1) : undefined,
+      strokeWidth: sh.width,
+      strokeLinecap: 'round' as const,
+      strokeLinejoin: 'round' as const,
+      opacity: sh.opacity,
+      clipPath: sh.clip ? `url(#${id}-clip)` : undefined,
+    };
+    if (!grad) return <Path key={i} {...common} fill={paint(sh.fill, k)} />;
+    // Degradado del material y, encima, la luz de la cara como velo.
+    return (
+      <G key={i}>
+        <Path {...common} fill={grad} />
+        {k !== 1 ? (
+          <Path
+            d={sh.d}
+            fill={k < 1 ? mat.solid.shadow : mat.solid.shine}
+            opacity={k < 1 ? (1 - k) * 0.95 : (k - 1) * 0.5}
+          />
+        ) : null}
+      </G>
+    );
+  };
+  return (
+    <>
+      <Defs>
+        <RadialGradient id={`${id}-burst`} cx="44%" cy="50%" r="62%" fx="40%" fy="44%">
+          <Stop offset="0" stopColor={mat.burstCenter} />
+          <Stop offset="0.42" stopColor={mat.burstMid} />
+          <Stop offset="0.78" stopColor={mat.burstEdge} />
+          <Stop offset="1" stopColor={mat.burstRim} />
+        </RadialGradient>
+        <LinearGradient id={`${id}-round`} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={mat.shade(mat.maple, 0.62)} />
+          <Stop offset="0.45" stopColor={mat.shade(mat.maple, 1.12)} />
+          <Stop offset="1" stopColor={mat.shade(mat.maple, 0.7)} />
+        </LinearGradient>
+        <LinearGradient id={`${id}-chrome`} x1="0" y1="0" x2="0.3" y2="1">
+          <Stop offset="0" stopColor={mat.chromeLight} />
+          <Stop offset="0.5" stopColor={mat.solid.chrome} />
+          <Stop offset="0.56" stopColor={mat.chromeDark} />
+          <Stop offset="1" stopColor={mat.solid.chrome} />
+        </LinearGradient>
+        <ClipPath id={`${id}-clip`}>
+          <Path d={frame.clip} />
+        </ClipPath>
+      </Defs>
+      {frame.shapes.map(draw)}
+    </>
+  );
+});
+
+// --------------------------------------------------------------- componente
+
+type Timers = {
+  hold?: ReturnType<typeof setTimeout>;
+  spin?: ReturnType<typeof setInterval>;
+  back?: ReturnType<typeof setTimeout>;
+};
 
 export function BassPreview({ tuning, scale, leftHanded }: Props) {
   const { colors } = useTheme();
+  const reduced = useReducedMotion();
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const { strings, frets } = tunings[tuning];
   const count = strings.length as 4 | 5 | 6;
   const render = renders[`bass-${count}st-${scale}in-${leftHanded ? 'lh' : 'rh'}`];
   const label = `Bajo de ${count} cuerdas, escala de ${scale} pulgadas, para ${leftHanded ? 'zurdos' : 'diestros'}`;
-  const style = { width: '100%', aspectRatio: width / height } as const;
-  if (render) {
-    return (
-      <Image
-        accessible
-        accessibilityLabel={label}
-        source={render}
-        style={style}
-        resizeMode="contain"
-      />
-    );
-  }
 
-  const nutX = bridgeX + scale * 16;
-  const fretX = (fret: number) => bridgeX + (nutX - bridgeX) * 2 ** (-fret / 12);
-  const lastFretX = fretX(frets) - 4;
-  const nutHalf = (count - 1) * 2.6 + 4;
-  const neckHalf = (count - 1) * 3.8 + 5;
-  const neckHalfAt = (x: number) =>
-    nutHalf + ((nutX - x) / (nutX - lastFretX)) * (neckHalf - nutHalf);
-  const head = `M${nutX - 2} ${center - nutHalf}q13 -23 32 -24h31q17 0 17 16v22q0 15 -17 15h-32q-19 0 -31 -${31 - nutHalf}Z`;
-  const stringPaths = strings.map((_, i) => {
-    const offset = i - (count - 1) / 2;
-    const upper = i < Math.ceil(count / 2);
-    const tunerIndex = upper ? i : count - 1 - i;
-    return {
-      nutY: center + offset * 5.2,
-      bridgeY: center + offset * 9,
-      postX: nutX + 23 + tunerIndex * 15,
-      postY: center + (upper ? -20 : 20),
-      keyY: center + (upper ? -41 : 40),
+  const [frame, setFrame] = useState(0);
+  const model = useMemo(() => bassModel(count, scale, frets), [count, scale, frets]);
+  // Cada fotograma se calcula una vez por configuración y se reutiliza.
+  const frames = useMemo(() => new Map<number, Frame>(), [model, leftHanded]);
+  let current = frames.get(frame);
+  if (!current) {
+    current = bassFrame(model, frameAngle(frame), !leftHanded);
+    frames.set(frame, current);
+  }
+  const themeKey = `${colors.accent}${colors.keyWhite}${colors.keyBlack}${colors.fret}`;
+  const mat = useMemo(() => materials(colors), [themeKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gestos: mantener pulsado gira solo; arrastrar en horizontal gira a mano.
+  const frameRef = useRef(0);
+  const reducedRef = useRef(reduced);
+  reducedRef.current = reduced;
+  const timers = useRef<Timers>({});
+  const drag = useRef({ active: false, from: 0, dx0: 0 });
+  const actions = useMemo(() => {
+    const show = (f: number) => {
+      const next = ((f % FRAME_COUNT) + FRAME_COUNT) % FRAME_COUNT;
+      frameRef.current = next;
+      setFrame(next);
     };
-  });
+    const stop = () => {
+      const t = timers.current;
+      if (t.hold) clearTimeout(t.hold);
+      if (t.spin) clearInterval(t.spin);
+      if (t.back) clearTimeout(t.back);
+      timers.current = {};
+    };
+    const home = () => {
+      stop();
+      drag.current.active = false;
+      if (reducedRef.current) return show(0);
+      // Vuelve por el camino corto y frena al llegar a la vista frontal.
+      const step = () => {
+        const f = frameRef.current;
+        if (f === 0) return;
+        const half = FRAME_COUNT / 2;
+        const left = f <= half ? f : FRAME_COUNT - f;
+        show(f <= half ? f - 1 : f + 1);
+        timers.current.back = setTimeout(step, 28 + 80 / left);
+      };
+      timers.current.back = setTimeout(step, 60);
+    };
+    return { show, stop, home };
+  }, []);
+  const pan = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, g) =>
+          Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
+        // Sin arrastre horizontal, el desplazamiento vertical de la pantalla sigue mandando.
+        onPanResponderTerminationRequest: () => !drag.current.active,
+        onPanResponderGrant: () => {
+          actions.stop();
+          drag.current = { active: false, from: frameRef.current, dx0: 0 };
+          if (!reducedRef.current)
+            timers.current.hold = setTimeout(() => {
+              timers.current.spin = setInterval(() => actions.show(frameRef.current + 1), SPIN_MS);
+            }, HOLD_MS);
+        },
+        onPanResponderMove: (_, g) => {
+          if (!drag.current.active && Math.abs(g.dx) > 6) {
+            actions.stop();
+            drag.current = { active: true, from: frameRef.current, dx0: g.dx };
+          }
+          if (drag.current.active)
+            actions.show(drag.current.from + Math.round((g.dx - drag.current.dx0) / DRAG_STEP));
+        },
+        onPanResponderRelease: actions.home,
+        onPanResponderTerminate: actions.home,
+      }),
+    [actions],
+  );
+  useEffect(() => actions.stop, [actions]);
+  useEffect(() => {
+    // Otro bajo u otra mano: vuelve de frente.
+    actions.stop();
+    actions.show(0);
+  }, [actions, model, leftHanded]);
+
+  const style = { width: '100%', aspectRatio: VIEW_W / VIEW_H } as const;
+  const web =
+    Platform.OS === 'web'
+      ? ({ cursor: 'grab', userSelect: 'none', touchAction: 'pan-y' } as object)
+      : null;
   return (
-    <View style={style}>
-      <Svg
+    <View style={{ gap: 4 }}>
+      <View
         accessible
         accessibilityRole="image"
         accessibilityLabel={label}
-        viewBox={`0 0 ${width} ${height}`}
-        height="100%"
-        width="100%"
+        style={[style, web]}
+        {...pan.panHandlers}
       >
-        <Defs>
-          <LinearGradient id={`${id}-lacquer`} x1="0%" y1="0%" x2="44%" y2="100%">
-            <Stop offset="0%" stopColor={colors.accentSoft} />
-            <Stop offset="38%" stopColor={colors.accent} />
-            <Stop offset="78%" stopColor={colors.accentText} />
-            <Stop offset="100%" stopColor={colors.wood} />
-          </LinearGradient>
-          <LinearGradient id={`${id}-metal`} x1="0%" y1="0%" x2="0%" y2="100%">
-            <Stop offset="0%" stopColor={colors.ink} />
-            <Stop offset="48%" stopColor={colors.string} />
-            <Stop offset="100%" stopColor={colors.faint} />
-          </LinearGradient>
-        </Defs>
-        {/* Se dibuja desde el puente hacia la pala. En diestros, la pala queda a la izquierda. */}
-        <G transform={leftHanded ? undefined : `translate(${width} 0) scale(-1 1)`}>
-          <Ellipse cx={171} cy={201} rx={122} ry={7} fill={colors.ink} opacity={0.09} />
-          <Path d={body} fill={colors.wood} transform="translate(2 8)" />
-          <Path
-            d={body}
-            fill={`url(#${id}-lacquer)`}
-            stroke={colors.accentText}
-            strokeWidth={1.4}
-          />
-          <Path
-            d="M54 82C62 54 95 31 145 31C177 31 195 48 221 53"
-            fill="none"
-            stroke={colors.ink}
-            strokeWidth={2.8}
-            strokeLinecap="round"
-            opacity={0.36}
-          />
-          <Path
-            d="M111 123C133 156 177 168 208 149L251 125V99C223 96 210 74 186 74C146 69 120 88 111 123Z"
-            fill={colors.keyWhite}
-            stroke={colors.fret}
-            strokeWidth={1.4}
-          />
-          <Path d={head} fill={colors.wood} transform="translate(1 4)" />
-          <Path d={head} fill={`url(#${id}-lacquer)`} stroke={colors.accentText} />
-          <Path
-            d={`M${lastFretX} ${center - neckHalf}L${nutX} ${center - nutHalf}
-          V${center + nutHalf}L${lastFretX} ${center + neckHalf}Z`}
-            fill={colors.wood}
-            stroke={colors.fret}
-          />
-          {Array.from({ length: frets }, (_, i) => {
-            const x = fretX(i + 1);
-            const half = neckHalfAt(x);
-            return (
-              <Line
-                key={i}
-                x1={x}
-                x2={x}
-                y1={center - half}
-                y2={center + half}
-                stroke={colors.fret}
-                strokeWidth={1.25}
-              />
-            );
-          })}
-          {inlays
-            .filter((fret) => fret <= frets)
-            .flatMap((fret) =>
-              (fret % 12 === 0 ? [-8, 8] : [0]).map((offset) => (
-                <Circle
-                  key={`${fret}-${offset}`}
-                  cx={(fretX(fret) + fretX(fret - 1)) / 2}
-                  cy={center + offset}
-                  r={2}
-                  fill={colors.inlay}
-                />
-              )),
-            )}
-          <Line
-            x1={nutX}
-            x2={nutX}
-            y1={center - nutHalf}
-            y2={center + nutHalf}
-            stroke={colors.keyWhite}
-            strokeWidth={3.6}
-          />
-          {[155, 198].map((x) => (
-            <Rect
-              key={x}
-              x={x}
-              y={center - 29}
-              width={17}
-              height={58}
-              rx={3}
-              fill={colors.keyBlack}
-              stroke={colors.fret}
-            />
-          ))}
-          <Rect
-            x={bridgeX - 11}
-            y={center - 32}
-            width={19}
-            height={64}
-            rx={3}
-            fill={`url(#${id}-metal)`}
-            stroke={colors.fret}
-          />
-          {[112, 136, 160].map((x) => (
-            <Circle
-              key={x}
-              cx={x}
-              cy={159 + (x === 136 ? 7 : 0)}
-              r={6}
-              fill={`url(#${id}-metal)`}
-              stroke={colors.fret}
-            />
-          ))}
-          {stringPaths.map(({ nutY, bridgeY, postX, postY, keyY }, i) => (
-            <G key={i}>
-              <Line
-                x1={postX}
-                x2={postX}
-                y1={postY}
-                y2={keyY}
-                stroke={colors.string}
-                strokeWidth={3}
-              />
-              <Rect
-                x={postX - 5}
-                y={keyY - 3.5}
-                width={10}
-                height={7}
-                rx={2}
-                fill={`url(#${id}-metal)`}
-                stroke={colors.fret}
-              />
-              <Circle cx={postX} cy={postY} r={3.8} fill={colors.ink} stroke={colors.fret} />
-              {[163.5, 206.5].map((x) => (
-                <Circle
-                  key={x}
-                  cx={x}
-                  cy={bridgeY + ((x - bridgeX) / (nutX - bridgeX)) * (nutY - bridgeY)}
-                  r={2}
-                  fill={colors.fret}
-                />
-              ))}
-              <Path
-                d={`M${bridgeX} ${bridgeY}L${nutX} ${nutY}L${postX} ${postY}`}
-                fill="none"
-                stroke={colors.string}
-                strokeWidth={1.7 - i * 0.17}
-              />
-            </G>
-          ))}
-        </G>
-      </Svg>
+        {render && frame === 0 ? (
+          <Image source={render} style={style} resizeMode="contain" />
+        ) : (
+          <Svg viewBox={`${current.viewX} 0 ${VIEW_W} ${VIEW_H}`} height="100%" width="100%">
+            <FrameArt frame={current} mat={mat} id={id} />
+          </Svg>
+        )}
+      </View>
+      <View aria-hidden importantForAccessibility="no-hide-descendants">
+        <Label muted style={{ textAlign: 'center', fontSize: 13 }}>
+          {reduced
+            ? 'Arrastra a los lados para girarlo.'
+            : 'Mantén pulsado o arrastra para girarlo.'}
+        </Label>
+      </View>
     </View>
   );
 }
