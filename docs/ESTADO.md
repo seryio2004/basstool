@@ -8,8 +8,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Transcribir: reproductor (velocidad, bucle por arrastre, graves, volumen, zoom), partitura/tab sincronizadas por marcas de compás (M) y pulso (B), editor con figura persistente, mástil completo y piano, compases limitados a su métrica, acordes por compás, quintillos, síntesis de la transcripción, PDF por impresión en web.
 
 ## En curso
-- Integrado 2026-11-19: reproducción de la transcripción, flujo de compases guiado, acordes deducidos de las notas escritas.
-- **Siguiente encargo para Sol (no empezado):** notas simultáneas, una por cuerda (buzón #22), y selector de BPM editable que regenera los compases (buzón #24). Ver `npm run coord -- log 12`. Crear encargo nuevo y lanzarlo con `scripts/sol.sh`.
+- Integrado 2026-11-19: reproducción de la transcripción, flujo de compases guiado, acordes deducidos de las notas escritas, **selector de BPM** que recoloca los compases (commit 5f65c10).
+- **Pendiente: notas simultáneas (una por cuerda).** No empezado. Encargo listo en `.git/coord/encargos/notas-simultaneas.md`; lanzar con `scripts/sol.sh notas-simultaneas .git/coord/encargos/notas-simultaneas.md` (si Sol ya lo lanzó, ver su rama `codex/notas-simultaneas` y `.git/coord/sol/notas-simultaneas.md`).
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
