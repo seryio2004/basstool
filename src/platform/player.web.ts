@@ -1,4 +1,9 @@
-import { activeRms, createBassInstrument, type Instrument } from './bassInstrument.web';
+import {
+  activeRms,
+  createBassInstrument,
+  createLimiter,
+  type Instrument,
+} from './bassInstrument.web';
 import { analysisAudio, detectChord } from '../core/chroma';
 import { scheduleTones, toneEndIndex, type Tone } from '../core/scoreAudio';
 import type { BassAttack, MixMode } from './playerTypes';
@@ -22,6 +27,7 @@ export function createPlayer(): Player {
     balance = 0.5,
     volume = 1;
   let synth: GainNode | null = null;
+  let limiter: DynamicsCompressorNode | null = null;
   let instrument: Instrument | null = null;
   let scoreGain = 1;
   let attack: BassAttack = 'finger';
@@ -34,12 +40,12 @@ export function createPlayer(): Player {
   function mix() {
     if (mode !== 'song' && context && !synth) {
       synth = context.createGain();
-      synth.connect(context.destination);
-      instrument = createBassInstrument(context, synth);
+      limiter = createLimiter(context);
+      synth.connect(limiter).connect(context.destination);
+      instrument = createBassInstrument(context, synth, scoreGain);
     }
     if (gain) gain.gain.value = volume * (mode === 'score' ? 0 : mode === 'both' ? 1 - balance : 1);
-    if (synth)
-      synth.gain.value = scoreGain * volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
+    if (synth) synth.gain.value = volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
   }
   function schedule() {
     if (
@@ -115,6 +121,8 @@ export function createPlayer(): Player {
     instrument = null;
     synth?.disconnect();
     synth = null;
+    limiter?.disconnect();
+    limiter = null;
     analysis = null;
     tones = [];
     ends = [];

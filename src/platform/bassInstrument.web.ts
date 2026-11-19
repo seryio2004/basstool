@@ -37,23 +37,38 @@ function pluckNoise(context: BaseAudioContext) {
   return buffer;
 }
 
-export function createBassInstrument(context: BaseAudioContext, output: AudioNode): Instrument {
+/**
+ * `level` calibra la voz con la canción antes del compresor, para que una
+ * calibración alta se comprima en lugar de saturar la salida.
+ */
+export function createBassInstrument(
+  context: BaseAudioContext,
+  output: AudioNode,
+  level = 1,
+): Instrument {
   const saturation = context.createWaveShaper();
   saturation.curve = softClip();
   saturation.oversample = '2x';
+  const trim = context.createGain();
+  trim.gain.value = level;
   const compressor = context.createDynamicsCompressor();
   compressor.threshold.value = -15;
   compressor.knee.value = 12;
   compressor.ratio.value = 4;
   compressor.attack.value = 0.004;
   compressor.release.value = 0.12;
-  saturation.connect(compressor).connect(output);
+  // Nivel fijo tras el compresor: con el balance a la mitad, la voz queda algo por debajo de la canción.
+  const makeup = context.createGain();
+  makeup.gain.value = VOICE_LEVEL;
+  saturation.connect(trim).connect(compressor).connect(makeup).connect(output);
   const noise = pluckNoise(context);
 
   return {
     disconnect() {
       saturation.disconnect();
+      trim.disconnect();
       compressor.disconnect();
+      makeup.disconnect();
     },
     play(note, onEnded) {
       const { midi, when, dead, attack } = note;
@@ -142,6 +157,19 @@ export function createBassInstrument(context: BaseAudioContext, output: AudioNod
     },
   };
 }
+
+/** Limitador final del bus: ningún pico pasa de −1 dBFS. */
+export function createLimiter(context: BaseAudioContext) {
+  const limiter = context.createDynamicsCompressor();
+  limiter.threshold.value = LIMIT_DB;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.08;
+  return limiter;
+}
+export const LIMIT_DB = -1;
+export const VOICE_LEVEL = 0.4;
 
 /** RMS of audible 50 ms windows, so intros and silence don't shrink the bass. */
 export function activeRms(samples: Float32Array, sampleRate: number) {

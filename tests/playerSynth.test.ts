@@ -53,7 +53,9 @@ class Param {
 
 class Node {
   outputs: Node[] = [];
-  constructor(public context: Context) {}
+  constructor(public context: Context) {
+    context.nodes.push(this);
+  }
   connect<T extends Node>(target: T) {
     assert.equal(target.context, this.context, 'conexión entre contextos distintos');
     this.outputs.push(target);
@@ -82,6 +84,8 @@ class Source extends Node {
   }
 }
 class Context {
+  nodes: Node[] = [];
+  songs: Node[] = [];
   state: 'suspended' | 'running' | 'closed' = 'suspended';
   currentTime = 0;
   sampleRate = 8000;
@@ -124,12 +128,14 @@ class Context {
     return { getChannelData: () => new Float32Array(length) };
   }
   createMediaElementSource() {
-    return new Node(this);
+    const song = new Node(this);
+    this.songs.push(song);
+    return song;
   }
   async decodeAudioData() {
     const samples = new Float32Array(this.sampleRate * DURATION);
     for (let i = 0; i < samples.length; i++)
-      samples[i] = 0.3 * Math.sin((2 * Math.PI * 55 * i) / this.sampleRate);
+      samples[i] = songAmplitude * Math.sin((2 * Math.PI * 55 * i) / this.sampleRate);
     return {
       duration: DURATION,
       numberOfChannels: 1,
@@ -149,9 +155,35 @@ class Context {
     const own = from instanceof Gain ? from.gain.at(t) : 1;
     return own * Math.max(0, ...from.outputs.map((next) => this.level(next, t)));
   }
+  /**
+   * Cota del pico que llega al destino en t si cada fuente activa da `amplitude(n)`:
+   * suma las entradas, multiplica ganancias, recorta en el saturador y en un limitador
+   * (ratio ≥ 20, sin rodilla). Un compresor suave deja pasar el pico.
+   */
+  peak(t: number, amplitude: (n: Node) => number) {
+    const inputs = new Map<Node, Node[]>();
+    for (const n of this.nodes)
+      for (const next of n.outputs) inputs.set(next, [...(inputs.get(next) ?? []), n]);
+    const memo = new Map<Node, number>();
+    const out = (n: Node): number => {
+      if (memo.has(n)) return memo.get(n)!;
+      let x = amplitude(n);
+      for (const p of inputs.get(n) ?? []) x += out(p);
+      if (n instanceof Gain) x *= Math.abs(n.gain.at(t));
+      const shaper = n as Partial<{ curve: Float32Array | null }>;
+      if (shaper.curve) x = Math.min(x, Math.max(...Array.from(shaper.curve, Math.abs)));
+      const dyn = n as Partial<{ ratio: Param; knee: Param; threshold: Param }>;
+      if (dyn.ratio && dyn.ratio.value >= 20 && dyn.knee!.value === 0)
+        x = Math.min(x, 10 ** (dyn.threshold!.value / 20));
+      memo.set(n, x);
+      return x;
+    };
+    return out(this.destination);
+  }
 }
 
 const DURATION = 8;
+let songAmplitude = 0.3;
 class FakeAudio {
   paused = true;
   ended = false;
@@ -279,7 +311,7 @@ for (const marks of [false, true])
           const t = source.startAt! + 0.05;
           assert.ok(source.stopAt > t, 'la nota se para antes de sonar');
           const level = context.level(source, t);
-          assert.ok(level > 0.05, `nivel en destino ${level.toFixed(4)} a ${t.toFixed(2)} s`);
+          assert.ok(level > 0.02, `nivel en destino ${level.toFixed(4)} a ${t.toFixed(2)} s`);
         }
         const first = Math.min(...pitched.map((s) => s.startAt!));
         assert.ok(Math.abs(first - (marks ? 0.5 : 0)) < 0.05, `primera nota en ${first}`);
@@ -287,3 +319,57 @@ for (const marks of [false, true])
         player.unload();
       }
     });
+
+test('una calibración alta no satura el bus ni deja la voz por encima de la canción', async () => {
+  // Canción fuerte: el ajuste por RMS llega a su máximo.
+  songAmplitude = 0.95;
+  installBrowser();
+  const player = createPlayer();
+  try {
+    assert.ok(await player.pick());
+    const context = contexts.at(-1)!;
+    // Acorde de cuatro cuerdas y redonda: todas las voces suenan a la vez.
+    let edit: Edit = { score: emptyScore(), cursor: { measure: 0, event: 0, string: 0 } };
+    edit = insertNote(edit.score, edit.cursor, 5, { base: 1, dots: 0 }, bass);
+    const events = scoreTimeline(edit.score, { measures: [], beats: [] }, DURATION, bass).map(
+      (e, i) =>
+        i
+          ? e
+          : {
+              ...e,
+              voices: [0, 1, 2, 3].map((string) => ({ string, midi: 30 + 5 * string, tie: false })),
+            },
+    );
+    player.setTones(synthTones(events));
+    player.setVolume(1);
+    for (const [mode, balance] of [
+      ['score', 1],
+      ['both', 0.5],
+      ['both', 1],
+    ] as const) {
+      player.setMix(mode, balance);
+      if (element!.paused) await player.play();
+      element!.currentTime = 0;
+      context.currentTime = 0;
+      element!.emit('playing');
+      const active = (n: Node) =>
+        n instanceof Source && n.startAt !== null && n.startAt <= 0.05 && n.stopAt > 0.05 ? 1 : 0;
+      const voice = context.peak(0.05, active);
+      const song = context.peak(0.05, (n) => (context.songs.includes(n) ? songAmplitude : 0));
+      assert.ok(voice > 0.02, `${mode}: la voz no suena (${voice})`);
+      assert.ok(
+        voice + song <= 1,
+        `${mode} ${balance}: pico ${(voice + song).toFixed(2)} > 0 dBFS`,
+      );
+      if (mode === 'both' && balance === 0.5)
+        assert.ok(
+          voice <= song,
+          `la voz (${voice.toFixed(2)}) supera a la canción (${song.toFixed(2)})`,
+        );
+      element!.emit('pause');
+    }
+  } finally {
+    player.unload();
+    songAmplitude = 0.3;
+  }
+});
