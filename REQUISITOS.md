@@ -96,6 +96,10 @@ Se acceden desde la navegación principal y funcionan sin cuenta.
 - Tocar la nota al pulsar sobre el mástil.
 - Alternar la nomenclatura latina (Do, Re, Mi) y la anglosajona (C, D, E).
 
+### Más herramientas (decididas 2026-11-19)
+
+Entrenador de velocidad, grabadora (encima de bases y transcripciones, con selección de micrófono o interfaz de audio), diccionario de acordes y arpegios, ejercicios de técnica y tono de referencia. Detalle en la tarea 13 de docs/TAREAS.md.
+
 ### Progresiones y líneas de bajo — P1
 
 - Seleccionar tonalidad y progresión, ver grados y acordes, y reproducirla en bucle para tocar encima.

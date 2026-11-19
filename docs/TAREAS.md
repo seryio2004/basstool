@@ -363,6 +363,30 @@ Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
 
 ---
 
+## Tarea 13: Herramientas nuevas (decididas por el usuario, 2026-11-19)
+
+1. **Caja de ritmos:**
+   - Batería por género (rock, funk, blues, reggae, latino, jazz…) con BPM, compás y relleno.
+   - Muestras propias o sintetizadas: sin audio de terceros sin licencia.
+   - Es la base de las rutinas y de «Escucha y repite».
+2. **Entrenador de velocidad:**
+   - Metrónomo que sube el BPM cada N compases, o tras N repeticiones sin fallo.
+   - El BPM máximo alcanzado se registra en el diario.
+3. **Grabadora:**
+   - Grabarte encima de una base o de una **transcripción**: suena la canción o la síntesis mientras grabas.
+   - **Selección de entrada:** micrófono o interfaz de audio conectada al ordenador o al móvil.
+     - **Web:** `enumerateDevices` y `getUserMedia` con `deviceId`.
+     - **Nativo:** depende del motor de audio de la tarea 6.
+   - Compensación de latencia y escucha sincronizada.
+   - Las grabaciones se quedan en el dispositivo.
+4. **Diccionario de acordes y arpegios para bajo:** formas en el mástil según la afinación del perfil, con sonido.
+5. **Ejercicios de técnica:**
+   - Biblioteca: cromáticos, permutaciones, saltos de cuerda, muteo, slap, alternancia de dedos…
+   - Con metrónomo y progreso de BPM. Se usan en el calentamiento semanal de las rutinas.
+6. **Tono de referencia:** suena cada cuerda de la afinación del perfil, para afinar de oído sin micrófono.
+
+---
+
 ## Estado
 
 Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
@@ -378,6 +402,7 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
+| 13. Herramientas nuevas | Sol | Pendiente (caja de ritmos primero: la usan rutinas y tarea 12). |
 | 12. Escucha y repite | Sol | Pendiente; lanzar tras GrooveTrain. |
 | 11. Separación del bajo con IA | Sol/Astra (PoC) | Pendiente. Realizable; empezar por 11a. |
 | 10. Tablatura y partitura sincronizadas | Sol (modelo, mapa de tiempo, maquetación, dibujo, integración); Claude (contrato, editor, revisión) | Hecha en web: marcas de compás y pulso al estilo de Transcribe!, editor con mástil y teclado, forma de onda con zoom y bucle por arrastre. P1 pendiente: sugerencia de notas, exportación, reproducción de lo anotado. |
