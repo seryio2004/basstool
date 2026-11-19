@@ -13,6 +13,7 @@ import {
 import { Button, Chips, Heading, Icon, Label, colors, fonts, styles } from '../components/ui';
 import { Waveform } from '../components/Waveform';
 import { ScoreEditor } from '../components/ScoreEditor';
+import type { ScoreFrame } from '../components/ScoreView';
 import { songLoop, songRate } from '../core/dailyPractice';
 import { loadScoreDoc } from '../data/scores';
 import { tunings } from '../core/instrument';
@@ -102,16 +103,20 @@ export function Transcribe({
   const [editing, setEditing] = useState(false);
   const [openSection, setOpenSection] = useState<'Bucle' | 'Sonido' | 'Secciones' | null>(null);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [frameHeight, setFrameHeight] = useState(height);
+  // En ventanas bajas, reservar espacio para un sistema de pentagrama y tablatura.
+  const entryMaxHeight = Math.min(Math.floor(height * 0.45), Math.max(112, frameHeight - 290));
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const scrollBody = useRef<React.ComponentRef<typeof View>>(null);
   const scrollY = useRef(0);
   const resumeVolume = useRef(1);
   const revealCursor = useCallback(
-    (view: React.ComponentRef<typeof View>, top: number, height: number) => {
+    (view: React.ComponentRef<typeof View>, cursor: ScoreFrame, system?: ScoreFrame) => {
       if (!scrollBody.current || !viewportHeight) return;
       view.measureLayout(scrollBody.current, (_, offset) => {
-        const start = offset + top;
-        const end = start + height;
+        const frame = system && system.height + 24 <= viewportHeight ? system : cursor;
+        const start = offset + frame.top;
+        const end = start + frame.height;
         const y = scrollY.current;
         const next =
           start < y + 12
@@ -125,7 +130,10 @@ export function Transcribe({
     [viewportHeight],
   );
   const frame = (body: React.ReactNode, entry?: React.ReactNode) => (
-    <View style={{ flex: 1, minHeight: 0 }}>
+    <View
+      style={{ flex: 1, minHeight: 0 }}
+      onLayout={wide ? undefined : (event) => setFrameHeight(event.nativeEvent.layout.height)}
+    >
       <ScrollView
         ref={scroll}
         onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
@@ -152,20 +160,26 @@ export function Transcribe({
       </ScrollView>
       {entry ? (
         <View
-          style={{
-            backgroundColor: colors.surface,
-            borderTopWidth: 1,
-            borderTopColor: colors.line,
-          }}
+          style={[
+            {
+              backgroundColor: colors.surface,
+              borderTopWidth: 1,
+              borderTopColor: colors.line,
+            },
+            !wide && { maxHeight: entryMaxHeight, flexShrink: 0 },
+          ]}
         >
           <View
-            style={{
-              width: '100%',
-              maxWidth: 1400,
-              alignSelf: 'center',
-              paddingHorizontal: Math.min(20, pagePadding),
-              paddingVertical: 6,
-            }}
+            style={[
+              {
+                width: '100%',
+                maxWidth: 1400,
+                alignSelf: 'center',
+                paddingHorizontal: Math.min(20, pagePadding),
+                paddingVertical: 6,
+              },
+              !wide && { flexShrink: 1, minHeight: 0 },
+            ]}
           >
             {entry}
           </View>

@@ -1,7 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View, TextInput } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
-import { Button, Chips, Heading, Icon, Label, MoreMenu, colors, styles } from './ui';
+import {
+  Button,
+  Chips,
+  Heading,
+  Icon,
+  Label,
+  MoreMenu,
+  colors,
+  radius,
+  space,
+  styles,
+  useTheme,
+} from './ui';
 import { pianoPosition, scoreTimeline, synthTones, type TimedEvent } from '../core/scoreAudio';
 import type { Player, PickedAudio } from '../platform/playerTypes';
 import { exportScore } from '../platform/exportScore';
@@ -9,7 +21,7 @@ import { printTab } from '../platform/printTab';
 import { PianoEntry, pianoKeys } from './PianoEntry';
 import { ChordEditor } from './ChordEditor';
 import { Fretboard } from './Fretboard';
-import { ScoreView } from './ScoreView';
+import { ScoreView, type ScoreFrame } from './ScoreView';
 import type { Instrument } from '../core/instrument';
 import type { Nomenclature } from '../core/notation';
 import type {
@@ -26,6 +38,7 @@ import {
   MAX_SCORE_MEASURES,
   addMeasure,
   changeMeasureMeter,
+  durationValue,
   insertNote,
   eventNotes,
   setChordNote,
@@ -41,6 +54,7 @@ import {
   toggleDot,
   toggleTie,
   toggleTriplet,
+  tupletCount,
   undo,
 } from '../core/score';
 import {
@@ -73,6 +87,7 @@ import { loadScoreDoc, saveScoreDoc, type ScoreDoc } from '../data/scores';
 
 const figureLabels = ['Redonda', 'Blanca', 'Negra', 'Corchea', 'Semicorchea'];
 const figureKeys = 'whqes';
+const pulseFormat = new Intl.NumberFormat('es', { maximumFractionDigits: 2 });
 const techniques: { value: Technique | null; icon: string; label: string }[] = [
   { value: null, icon: '–', label: 'Sin técnica' },
   { value: 'hammer', icon: 'h', label: 'Ligado asc.' },
@@ -139,7 +154,11 @@ export function ScoreEditor({
   fretboardHeight: number;
   playing: boolean;
   onTogglePlayback: () => void;
-  onCursorFrame: (view: React.ComponentRef<typeof View>, top: number, height: number) => void;
+  onCursorFrame: (
+    view: React.ComponentRef<typeof View>,
+    cursor: ScoreFrame,
+    system?: ScoreFrame,
+  ) => void;
   renderLayout: (
     score: React.ReactNode,
     entry: React.ReactNode,
@@ -153,6 +172,8 @@ export function ScoreEditor({
   /** Transcribe registra aquí las acciones de marcado para sus atajos (M, B). */
   register: (actions: { markMeasure: () => void; markBeat: () => void } | null) => void;
 }) {
+  const { colors: theme } = useTheme();
+  const [entryExpanded, setEntryExpanded] = useState(true);
   const [{ history, timeMap }, setEditor] = useState(createScoreEditor);
   const [display, setDisplay] = useState<ScoreDisplay>('both');
   const [entryDuration, setEntryDuration] = useState<Duration>({ base: 8, dots: 0 });
@@ -165,8 +186,8 @@ export function ScoreEditor({
   const [lastNote, setLastNote] = useState<{ string: number; fret: number } | null>(null);
   const scoreRegion = useRef<React.ComponentRef<typeof View>>(null);
   const showCursor = useCallback(
-    (top: number, height: number) => {
-      if (scoreRegion.current) onCursorFrame(scoreRegion.current, top, height);
+    (cursor: ScoreFrame, system?: ScoreFrame) => {
+      if (scoreRegion.current) onCursorFrame(scoreRegion.current, cursor, system);
     },
     [onCursorFrame],
   );
@@ -547,161 +568,420 @@ export function ScoreEditor({
   const fillColor = fill.status === 'over' ? colors.error : colors.accentText;
   const toggleTools = (next: typeof tools) => setTools(tools === next ? null : next);
   const technique = techniques.find((item) => item.value === (event?.technique ?? null))!;
-  const entry =
-    editing && loaded ? (
-      <View style={{ gap: 6 }}>
-        <View style={[styles.between, { gap: 8 }]}>
-          <Label>
-            Compás {cursor.measure + 1} · {meterKey(currentMeter)}
-          </Label>
-          <Label style={{ color: fillColor }}>{fillLabels[fill.status]}</Label>
-        </View>
+  const entryFolded = !wide && !entryExpanded;
+  const entryStatus = (
+    <>
+      <View style={[styles.between, { gap: 8 }]}>
+        <Label>
+          Compás {cursor.measure + 1} · {meterKey(currentMeter)}
+        </Label>
+        <Label style={{ color: fillColor }}>{fillLabels[fill.status]}</Label>
+      </View>
+      <View
+        accessibilityRole="progressbar"
+        accessibilityLabel={`Llenado del compás ${cursor.measure + 1}`}
+        accessibilityValue={{
+          text: `${fillLabels[fill.status]}, ${Math.round(ratio * 100)} %`,
+        }}
+        style={{
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: colors.accentSoft,
+          overflow: 'hidden',
+        }}
+      >
         <View
-          accessibilityRole="progressbar"
-          accessibilityLabel={`Llenado del compás ${cursor.measure + 1}`}
-          accessibilityValue={{
-            text: `${fillLabels[fill.status]}, ${Math.round(ratio * 100)} %`,
-          }}
           style={{
-            height: 6,
-            borderRadius: 3,
-            backgroundColor: colors.accentSoft,
-            overflow: 'hidden',
+            height: '100%',
+            width: `${Math.min(ratio * 100, 100)}%`,
+            backgroundColor: fillColor,
           }}
+        />
+      </View>
+      {fill.status === 'over' ? (
+        <Button variant="secondary" onPress={() => run(repairMeasure)}>
+          Corregir compás pasado
+        </Button>
+      ) : null}
+      {wide && history.present.notice ? (
+        <Text accessibilityLiveRegion="polite" style={styles.muted}>
+          {notices[history.present.notice]}
+        </Text>
+      ) : null}
+    </>
+  );
+  const figureControls = (
+    <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
+      {ENTRY_BASES.map((base, i) => (
+        <EntryKey
+          key={base}
+          label={figureLabels[i]!}
+          selected={entryDuration.base === base}
+          onPress={() => changeFigure((d) => ({ ...d, base }))}
         >
-          <View
-            style={{
-              height: '100%',
-              width: `${Math.min(ratio * 100, 100)}%`,
-              backgroundColor: fillColor,
-            }}
+          <Figure
+            base={base}
+            color={entryDuration.base === base ? colors.onAccent : colors.accentText}
           />
-        </View>
-        {fill.status === 'over' ? (
-          <Button variant="secondary" onPress={() => run(repairMeasure)}>
-            Corregir compás pasado
-          </Button>
-        ) : null}
-        {history.present.notice ? (
-          <Text accessibilityLiveRegion="polite" style={styles.muted}>
-            {notices[history.present.notice]}
-          </Text>
-        ) : null}
-        <View style={{ flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
-          {ENTRY_BASES.map((base, i) => (
-            <EntryKey
-              key={base}
-              label={figureLabels[i]!}
-              selected={entryDuration.base === base}
-              onPress={() => changeFigure((d) => ({ ...d, base }))}
+        </EntryKey>
+      ))}
+      <EntryKey
+        label="Puntillo"
+        selected={!!entryDuration.dots}
+        onPress={() => changeFigure((d) => ({ ...d, dots: d.dots ? 0 : 1 }))}
+      >
+        <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
+          <Circle
+            cx={12}
+            cy={12}
+            r={2.5}
+            fill={entryDuration.dots ? colors.onAccent : colors.accent}
+          />
+        </Svg>
+      </EntryKey>
+      {([3, 5] as const).map((count) => {
+        const selected = (entryDuration.tuplet ?? (entryDuration.triplet ? 3 : 1)) === count;
+        return (
+          <EntryKey
+            key={count}
+            label={count === 3 ? 'Tresillo' : 'Quintillo'}
+            selected={selected}
+            onPress={() =>
+              changeFigure((d) => ({
+                ...d,
+                triplet: undefined,
+                tuplet: selected ? undefined : count,
+              }))
+            }
+          >
+            <Text
+              style={{
+                color: selected ? colors.onAccent : colors.accentText,
+                fontWeight: '700',
+              }}
             >
-              <Figure
-                base={base}
-                color={entryDuration.base === base ? colors.onAccent : colors.accentText}
-              />
+              {count}
+            </Text>
+          </EntryKey>
+        );
+      })}
+    </View>
+  );
+  const inputSelector = (
+    <Chips
+      minHeight={wide ? undefined : 44}
+      value={input}
+      onChange={(v) => {
+        takeFret();
+        setInput(v);
+      }}
+      options={[
+        { value: 'neck', label: 'Mástil' },
+        { value: 'piano', label: 'Piano' },
+      ]}
+    />
+  );
+  const piano = (
+    <PianoEntry
+      instrument={instrument}
+      base={pianoBase}
+      onBase={setPianoBase}
+      preference={preference}
+      onPreference={setPreference}
+      onPitch={writePitch}
+      nomenclature={nomenclature}
+      keysOnly={entryFolded}
+      minControlHeight={wide ? undefined : 44}
+    />
+  );
+  const fretboard = (
+    <Fretboard
+      compact
+      onlyString={entryFolded ? cursor.string : undefined}
+      instrument={instrument}
+      nomenclature={nomenclature}
+      leftHanded={leftHanded}
+      marks={eventNotes(event).map((n) => ({ ...n, label: String(n.fret) }))}
+      activeString={cursor.string}
+      active={event || chordMode ? null : lastNote}
+      onPress={(string, fret) => {
+        takeFret();
+        writeNote(fret, string);
+      }}
+    />
+  );
+  const entryActions = (
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+      <EntryKey
+        label="Modo Acorde (C)"
+        selected={chordMode}
+        onPress={() => {
+          flushFret();
+          setChordMode((v) => !v);
+        }}
+      >
+        <Text style={{ color: chordMode ? colors.onAccent : colors.accentText }}>Acorde</Text>
+      </EntryKey>
+      <EntryKey label={playing ? 'Pausa' : 'Reproducir'} onPress={onTogglePlayback}>
+        <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.accentText} />
+      </EntryKey>
+      <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={writeRest}>
+        Silencio
+      </Button>
+      <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={() => erase(!event)}>
+        {chordMode ? 'Borrar cuerda' : 'Borrar'}
+      </Button>
+    </View>
+  );
+  const editorTools = (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+        <EntryKey
+          label={technique.value ? `Técnica: ${technique.label}` : 'Técnica'}
+          expanded={tools === 'techniques'}
+          disabled={!eventNotes(event).length}
+          onPress={() => toggleTools('techniques')}
+        >
+          <Icon name="note" size={16} color={colors.accentText} />
+          <Text style={{ color: colors.accentText }}>
+            {' '}
+            {technique.value ? technique.label : 'Técnica'}
+          </Text>
+        </EntryKey>
+        <EntryKey
+          label="Acciones de edición"
+          expanded={tools === 'actions'}
+          onPress={() => toggleTools('actions')}
+        >
+          <Text style={{ color: colors.accentText }}>Acciones</Text>
+        </EntryKey>
+        <EntryKey
+          label="Acordes del compás"
+          expanded={tools === 'chords'}
+          onPress={() => toggleTools('chords')}
+        >
+          <Text style={{ color: colors.accentText }}>Acordes</Text>
+        </EntryKey>
+        {Platform.OS === 'web' ? (
+          <EntryKey
+            label="Atajos de teclado"
+            expanded={tools === 'keys'}
+            onPress={() => toggleTools('keys')}
+          >
+            <Text style={{ color: colors.accentText }}>Teclado</Text>
+          </EntryKey>
+        ) : null}
+      </View>
+      {tools === 'chords' ? (
+        <ChordEditor
+          key={bar.id + '-' + meterKey(currentMeter)}
+          bar={bar}
+          meter={currentMeter}
+          instrument={instrument}
+          suggestAudio={suggestAudio}
+          onSave={(beat, symbol) =>
+            run((s, c) => ({
+              cursor: c,
+              score: {
+                ...s,
+                measures: s.measures.map((m, i) =>
+                  i !== c.measure
+                    ? m
+                    : {
+                        ...m,
+                        chords: [
+                          ...(m.chords ?? []).filter((ch) => ch.beat !== beat),
+                          ...(symbol ? [{ beat, symbol }] : []),
+                        ].sort((a, b) => a.beat - b.beat),
+                      },
+                ),
+              },
+            }))
+          }
+        />
+      ) : null}
+      {tools === 'keys' ? (
+        <Label muted>
+          {input === 'piano'
+            ? 'Piano: A W S E D F T G Y H U J, desde Do hasta Si.'
+            : 'Números · traste.'}{' '}
+          C · modo Acorde. Flechas · cursor. +/− · figura. . · puntillo.{' '}
+          {input === 'neck' ? 'T · tresillo. ' : ''} R · silencio. L · ligadura. Supr · borrar
+          selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer (Mayús · rehacer). Esc ·
+          salir.
+        </Label>
+      ) : null}
+      {tools === 'techniques' && eventNotes(event).length > 0 ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+          {techniques.map((item) => (
+            <EntryKey
+              key={item.label}
+              label={item.label}
+              selected={item === technique}
+              onPress={() => {
+                adjustEvent((s, c) => setTechnique(s, c, item.value));
+                setTools(null);
+              }}
+            >
+              <Text style={{ color: item === technique ? colors.onAccent : colors.accentText }}>
+                {item.icon} {item.label}
+              </Text>
             </EntryKey>
           ))}
-          <EntryKey
-            label="Puntillo"
-            selected={!!entryDuration.dots}
-            onPress={() => changeFigure((d) => ({ ...d, dots: d.dots ? 0 : 1 }))}
-          >
-            <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
-              <Circle
-                cx={12}
-                cy={12}
-                r={2.5}
-                fill={entryDuration.dots ? colors.onAccent : colors.accent}
-              />
-            </Svg>
-          </EntryKey>
-          {([3, 5] as const).map((count) => {
-            const selected = (entryDuration.tuplet ?? (entryDuration.triplet ? 3 : 1)) === count;
-            return (
-              <EntryKey
-                key={count}
-                label={count === 3 ? 'Tresillo' : 'Quintillo'}
-                selected={selected}
-                onPress={() =>
-                  changeFigure((d) => ({
-                    ...d,
-                    triplet: undefined,
-                    tuplet: selected ? undefined : count,
-                  }))
-                }
-              >
-                <Text
-                  style={{
-                    color: selected ? colors.onAccent : colors.accentText,
-                    fontWeight: '700',
-                  }}
-                >
-                  {count}
-                </Text>
-              </EntryKey>
-            );
-          })}
         </View>
-        <Chips
-          value={input}
-          onChange={(v) => {
-            takeFret();
-            setInput(v);
-          }}
-          options={[
-            { value: 'neck', label: 'Mástil' },
-            { value: 'piano', label: 'Piano' },
-          ]}
-        />
-        {input === 'piano' ? (
-          <PianoEntry
-            instrument={instrument}
-            base={pianoBase}
-            onBase={setPianoBase}
-            preference={preference}
-            onPreference={setPreference}
-            onPitch={writePitch}
-            nomenclature={nomenclature}
-          />
-        ) : (
-          <ScrollView nestedScrollEnabled style={{ flexGrow: 0, maxHeight: fretboardHeight }}>
-            <Fretboard
-              compact
-              instrument={instrument}
-              nomenclature={nomenclature}
-              leftHanded={leftHanded}
-              marks={eventNotes(event).map((n) => ({ ...n, label: String(n.fret) }))}
-              activeString={cursor.string}
-              active={event || chordMode ? null : lastNote}
-              onPress={(string, fret) => {
-                takeFret();
-                writeNote(fret, string);
-              }}
-            />
-          </ScrollView>
-        )}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-          <EntryKey
-            label="Modo Acorde (C)"
-            selected={chordMode}
-            onPress={() => {
-              flushFret();
-              setChordMode((v) => !v);
+      ) : null}
+      {tools === 'actions' ? (
+        <View style={{ gap: 8 }}>
+          <Chips
+            minHeight={44}
+            value={meterKey(currentMeter)}
+            onChange={(k) => {
+              const m = meters.find((x) => meterKey(x) === k)!;
+              run((s, c) => changeMeasureMeter(s, c, m));
             }}
-          >
-            <Text style={{ color: chordMode ? colors.onAccent : colors.accentText }}>Acorde</Text>
-          </EntryKey>
-          <EntryKey label={playing ? 'Pausa' : 'Reproducir'} onPress={onTogglePlayback}>
-            <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.accentText} />
-          </EntryKey>
-          <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={writeRest}>
-            Silencio
-          </Button>
-          <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={() => erase(!event)}>
-            {chordMode ? 'Borrar cuerda' : 'Borrar'}
-          </Button>
+            options={meters.map((m) => ({ value: meterKey(m), label: meterKey(m) }))}
+          />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+            <Button
+              variant="ghost"
+              disabled={score.measures.length >= MAX_SCORE_MEASURES}
+              onPress={() =>
+                run((s, c) =>
+                  s.measures.length < MAX_SCORE_MEASURES
+                    ? {
+                        score: addMeasure(s, c.measure),
+                        cursor: { ...c, measure: c.measure + 1, event: 0 },
+                      }
+                    : { score: s, cursor: c },
+                )
+              }
+            >
+              Añadir compás
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!event}
+              onPress={() => adjustEvent((s, c) => setDuration(s, c, durationRef.current))}
+            >
+              Aplicar figura
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!eventNotes(event).length}
+              onPress={() => adjustEvent(toggleTie)}
+            >
+              {event && tiedStrings(event).includes(cursor.string) ? 'Quitar ligadura' : 'Ligadura'}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!history.past.length}
+              onPress={() => changeHistory(undo)}
+            >
+              Deshacer
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={!history.future.length}
+              onPress={() => changeHistory(redo)}
+            >
+              Rehacer
+            </Button>
+          </View>
         </View>
-      </View>
+      ) : null}
+    </View>
+  );
+  const pulse = isMeasurePlaceholder(bar)
+    ? 1
+    : 1 +
+      bar.events.slice(0, cursor.event).reduce((offset, item) => {
+        const length = durationValue(item.duration);
+        return offset + (length.n * currentMeter.unit) / length.d;
+      }, 0);
+  const figure = figureLabels[ENTRY_BASES.indexOf(entryDuration.base)];
+  const tuplet = tupletCount(entryDuration);
+  const figureName = `${figure}${entryDuration.dots ? ' con puntillo' : ''}${
+    tuplet === 3 ? ' en tresillo' : tuplet === 5 ? ' en quintillo' : ''
+  }`;
+  const entryToggleLabel = entryExpanded ? 'Ocultar teclado' : 'Mostrar teclado';
+  const entry =
+    editing && loaded ? (
+      wide ? (
+        <View style={{ gap: 6 }}>
+          {entryStatus}
+          {figureControls}
+          {inputSelector}
+          {input === 'piano' ? (
+            piano
+          ) : (
+            <ScrollView nestedScrollEnabled style={{ flexGrow: 0, maxHeight: fretboardHeight }}>
+              {fretboard}
+            </ScrollView>
+          )}
+          {entryActions}
+        </View>
+      ) : (
+        <View style={{ flexShrink: 1, minHeight: 0, gap: space.xs }}>
+          <View
+            accessibilityRole="toolbar"
+            accessibilityLabel="Panel de escritura"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, flexShrink: 0 }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.muted, { color: theme.ink }]}>
+                Compás {cursor.measure + 1} · Pulso {pulseFormat.format(pulse)} · {figureName}
+              </Text>
+              {history.present.notice ? (
+                <Text accessibilityLiveRegion="polite" style={styles.muted}>
+                  {notices[history.present.notice]}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={entryToggleLabel}
+              accessibilityState={{ expanded: entryExpanded }}
+              aria-expanded={entryExpanded}
+              onPress={() => setEntryExpanded((expanded) => !expanded)}
+              style={({ pressed }) => ({
+                minWidth: 44,
+                minHeight: 44,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space.xs,
+                paddingHorizontal: space.s,
+                borderRadius: radius.chip,
+                backgroundColor: theme.accentSoft,
+                opacity: pressed ? 0.65 : 1,
+              })}
+            >
+              <Text style={[styles.muted, { color: theme.accentText }]}>{entryToggleLabel}</Text>
+              <Icon
+                name={entryExpanded ? 'chevron-down' : 'chevron-up'}
+                size={16}
+                color={theme.accentText}
+              />
+            </Pressable>
+          </View>
+          <ScrollView
+            nestedScrollEnabled
+            keyboardShouldPersistTaps="handled"
+            style={{ flexGrow: 0, minHeight: 0 }}
+            contentContainerStyle={{ gap: space.s }}
+          >
+            {input === 'piano' ? piano : fretboard}
+            {entryExpanded ? (
+              <>
+                {figureControls}
+                {inputSelector}
+                {entryActions}
+                {entryStatus}
+                {editorTools}
+              </>
+            ) : null}
+          </ScrollView>
+        </View>
+      )
     ) : null;
 
   return renderLayout(
@@ -772,166 +1052,7 @@ export function ScoreEditor({
         </View>
       </MoreMenu>
 
-      {editing && loaded ? (
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-            <EntryKey
-              label={technique.value ? `Técnica: ${technique.label}` : 'Técnica'}
-              expanded={tools === 'techniques'}
-              disabled={!eventNotes(event).length}
-              onPress={() => toggleTools('techniques')}
-            >
-              <Icon name="note" size={16} color={colors.accentText} />
-              <Text style={{ color: colors.accentText }}>
-                {' '}
-                {technique.value ? technique.label : 'Técnica'}
-              </Text>
-            </EntryKey>
-            <EntryKey
-              label="Acciones de edición"
-              expanded={tools === 'actions'}
-              onPress={() => toggleTools('actions')}
-            >
-              <Text style={{ color: colors.accentText }}>Acciones</Text>
-            </EntryKey>
-            <EntryKey
-              label="Acordes del compás"
-              expanded={tools === 'chords'}
-              onPress={() => toggleTools('chords')}
-            >
-              <Text style={{ color: colors.accentText }}>Acordes</Text>
-            </EntryKey>
-            {Platform.OS === 'web' ? (
-              <EntryKey
-                label="Atajos de teclado"
-                expanded={tools === 'keys'}
-                onPress={() => toggleTools('keys')}
-              >
-                <Text style={{ color: colors.accentText }}>Teclado</Text>
-              </EntryKey>
-            ) : null}
-          </View>
-          {tools === 'chords' ? (
-            <ChordEditor
-              key={bar.id + '-' + meterKey(currentMeter)}
-              bar={bar}
-              meter={currentMeter}
-              instrument={instrument}
-              suggestAudio={suggestAudio}
-              onSave={(beat, symbol) =>
-                run((s, c) => ({
-                  cursor: c,
-                  score: {
-                    ...s,
-                    measures: s.measures.map((m, i) =>
-                      i !== c.measure
-                        ? m
-                        : {
-                            ...m,
-                            chords: [
-                              ...(m.chords ?? []).filter((ch) => ch.beat !== beat),
-                              ...(symbol ? [{ beat, symbol }] : []),
-                            ].sort((a, b) => a.beat - b.beat),
-                          },
-                    ),
-                  },
-                }))
-              }
-            />
-          ) : null}
-          {tools === 'keys' ? (
-            <Label muted>
-              {input === 'piano'
-                ? 'Piano: A W S E D F T G Y H U J, desde Do hasta Si.'
-                : 'Números · traste.'}{' '}
-              C · modo Acorde. Flechas · cursor. +/− · figura. . · puntillo.{' '}
-              {input === 'neck' ? 'T · tresillo. ' : ''} R · silencio. L · ligadura. Supr · borrar
-              selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer (Mayús · rehacer). Esc
-              · salir.
-            </Label>
-          ) : null}
-          {tools === 'techniques' && eventNotes(event).length > 0 ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-              {techniques.map((item) => (
-                <EntryKey
-                  key={item.label}
-                  label={item.label}
-                  selected={item === technique}
-                  onPress={() => {
-                    adjustEvent((s, c) => setTechnique(s, c, item.value));
-                    setTools(null);
-                  }}
-                >
-                  <Text style={{ color: item === technique ? colors.onAccent : colors.accentText }}>
-                    {item.icon} {item.label}
-                  </Text>
-                </EntryKey>
-              ))}
-            </View>
-          ) : null}
-          {tools === 'actions' ? (
-            <View style={{ gap: 8 }}>
-              <Chips
-                minHeight={44}
-                value={meterKey(currentMeter)}
-                onChange={(k) => {
-                  const m = meters.find((x) => meterKey(x) === k)!;
-                  run((s, c) => changeMeasureMeter(s, c, m));
-                }}
-                options={meters.map((m) => ({ value: meterKey(m), label: meterKey(m) }))}
-              />
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-                <Button
-                  variant="ghost"
-                  disabled={score.measures.length >= MAX_SCORE_MEASURES}
-                  onPress={() =>
-                    run((s, c) =>
-                      s.measures.length < MAX_SCORE_MEASURES
-                        ? {
-                            score: addMeasure(s, c.measure),
-                            cursor: { ...c, measure: c.measure + 1, event: 0 },
-                          }
-                        : { score: s, cursor: c },
-                    )
-                  }
-                >
-                  Añadir compás
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={!event}
-                  onPress={() => adjustEvent((s, c) => setDuration(s, c, durationRef.current))}
-                >
-                  Aplicar figura
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={!eventNotes(event).length}
-                  onPress={() => adjustEvent(toggleTie)}
-                >
-                  {event && tiedStrings(event).includes(cursor.string)
-                    ? 'Quitar ligadura'
-                    : 'Ligadura'}
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={!history.past.length}
-                  onPress={() => changeHistory(undo)}
-                >
-                  Deshacer
-                </Button>
-                <Button
-                  variant="ghost"
-                  disabled={!history.future.length}
-                  onPress={() => changeHistory(redo)}
-                >
-                  Rehacer
-                </Button>
-              </View>
-            </View>
-          ) : null}
-        </View>
-      ) : null}
+      {wide && editing && loaded ? editorTools : null}
 
       <View
         ref={scoreRegion}
@@ -949,6 +1070,7 @@ export function ScoreEditor({
             playhead={playhead}
             cursor={editing ? cursor : null}
             onCursorFrame={editing ? showCursor : undefined}
+            followCursorSystem={!wide}
             onPressEvent={(c) => {
               flushFret();
               const e = score.measures[c.measure]?.events[c.event];

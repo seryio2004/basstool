@@ -50,6 +50,7 @@ export function Fretboard({
   active,
   activeString,
   compact = false,
+  onlyString,
   firstVisibleFret,
   onPress,
 }: {
@@ -60,6 +61,7 @@ export function Fretboard({
   active?: { string: number; fret: number } | null;
   activeString?: number;
   compact?: boolean;
+  onlyString?: number;
   firstVisibleFret?: number;
   onPress?: (string: number, fret: number, midi: number) => void;
 }) {
@@ -68,19 +70,24 @@ export function Fretboard({
   const openWidth = compact ? 44 : OPEN_W;
   const fretWidth = compact ? 44 : FRET_W;
   const strings = instrument.strings.length;
+  const visibleStrings = instrument.strings
+    .map((open, index) => ({ open, index }))
+    .filter(({ index }) => onlyString === undefined || index === onlyString);
   const width = openWidth + instrument.frets * fretWidth + 12;
   const height = compact
-    ? strings * STRING_GAP + 20
-    : PAD_TOP + (strings - 1) * STRING_GAP + PAD_BOTTOM + 16;
+    ? visibleStrings.length * STRING_GAP + 20
+    : PAD_TOP + (visibleStrings.length - 1) * STRING_GAP + PAD_BOTTOM + 16;
   const boardTop = compact ? 22 : PAD_TOP + 8;
-  const boardBottom = boardTop + (strings - 1) * STRING_GAP;
+  const boardBottom = boardTop + (visibleStrings.length - 1) * STRING_GAP;
   const mirror = (x: number) => (leftHanded ? width - x : x);
-  const yOf = (string: number) => boardTop + (strings - 1 - string) * STRING_GAP;
+  const yOf = (string: number) =>
+    onlyString === undefined ? boardTop + (strings - 1 - string) * STRING_GAP : boardTop;
   /** Centro horizontal de la casilla: al aire a la izquierda del clavijero. */
   const xOf = (fret: number) =>
     mirror(fret === 0 ? openWidth / 2 : openWidth + (fret - 0.5) * fretWidth);
   const fretX = (fret: number) => mirror(openWidth + fret * fretWidth);
-  const markAt = new Map(marks.map((m) => [`${m.string}:${m.fret}`, m]));
+  const visibleMarks = marks.filter((m) => onlyString === undefined || m.string === onlyString);
+  const markAt = new Map(visibleMarks.map((m) => [`${m.string}:${m.fret}`, m]));
   // Las marcas van entre cuerdas, nunca encima: hueco central y, las dobles, en los huecos exteriores.
   const gapY = (gap: number) => boardTop + (gap + 0.5) * STRING_GAP;
   const singleY = gapY(Math.floor((strings - 2) / 2));
@@ -130,15 +137,19 @@ export function Fretboard({
               fill={colors.accentSoft}
             />
           ) : null}
-          {SINGLE_INLAYS.filter((f) => f <= instrument.frets).map((f) => (
-            <Circle key={f} cx={xOf(f)} cy={singleY} r={5} fill={colors.inlay} />
-          ))}
-          {DOUBLE_INLAYS.filter((f) => f <= instrument.frets).map((f) => (
-            <G key={f}>
-              <Circle cx={xOf(f)} cy={doubleY[0]} r={5} fill={colors.inlay} />
-              <Circle cx={xOf(f)} cy={doubleY[1]} r={5} fill={colors.inlay} />
-            </G>
-          ))}
+          {SINGLE_INLAYS.filter((f) => onlyString === undefined && f <= instrument.frets).map(
+            (f) => (
+              <Circle key={f} cx={xOf(f)} cy={singleY} r={5} fill={colors.inlay} />
+            ),
+          )}
+          {DOUBLE_INLAYS.filter((f) => onlyString === undefined && f <= instrument.frets).map(
+            (f) => (
+              <G key={f}>
+                <Circle cx={xOf(f)} cy={doubleY[0]} r={5} fill={colors.inlay} />
+                <Circle cx={xOf(f)} cy={doubleY[1]} r={5} fill={colors.inlay} />
+              </G>
+            ),
+          )}
           {Array.from({ length: instrument.frets + 1 }, (_, f) => (
             <Line
               key={f}
@@ -150,7 +161,7 @@ export function Fretboard({
               strokeWidth={f === 0 ? 5 : 1.5}
             />
           ))}
-          {instrument.strings.map((_, s) => (
+          {visibleStrings.map(({ index: s }) => (
             <Line
               key={s}
               x1={leftHanded ? 6 : openWidth}
@@ -179,7 +190,7 @@ export function Fretboard({
                 {f}
               </SvgText>
             ))}
-          {instrument.strings.map((open, s) =>
+          {visibleStrings.map(({ open, index: s }) =>
             markAt.has(`${s}:0`) ? null : (
               <SvgText
                 key={s}
@@ -195,7 +206,7 @@ export function Fretboard({
               </SvgText>
             ),
           )}
-          {marks.map((m) => {
+          {visibleMarks.map((m) => {
             const isActive = active?.string === m.string && active.fret === m.fret;
             const degreeColor = m.degree ? colors.degrees[(m.degree - 1) % 7] : undefined;
             const fill = degreeColor ?? (m.root ? colors.accent : colors.raised);
@@ -240,7 +251,9 @@ export function Fretboard({
               </G>
             );
           })}
-          {active && !markAt.has(`${active.string}:${active.fret}`) ? (
+          {active &&
+          (onlyString === undefined || active.string === onlyString) &&
+          !markAt.has(`${active.string}:${active.fret}`) ? (
             <Circle
               cx={xOf(active.fret)}
               cy={yOf(active.string)}
@@ -252,7 +265,7 @@ export function Fretboard({
           ) : null}
         </Svg>
         {/* Zonas táctiles reales encima del dibujo: accesibles y del mismo tamaño en todas las plataformas. */}
-        {instrument.strings.map((open, s) =>
+        {visibleStrings.map(({ open, index: s }) =>
           Array.from({ length: instrument.frets + 1 }, (_, f) => {
             const mark = markAt.get(`${s}:${f}`);
             const name = plainName(open + f, nomenclature);

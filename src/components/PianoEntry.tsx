@@ -14,6 +14,8 @@ export function PianoEntry({
   onPreference,
   onPitch,
   nomenclature,
+  keysOnly = false,
+  minControlHeight,
 }: {
   instrument: Instrument;
   base: number;
@@ -22,6 +24,8 @@ export function PianoEntry({
   onPreference: (p: 'low' | 'high') => void;
   onPitch: (n: number) => void;
   nomenclature: Nomenclature;
+  keysOnly?: boolean;
+  minControlHeight?: number;
 }) {
   const { min, max } = range(instrument);
   function key(pc: number) {
@@ -69,26 +73,29 @@ export function PianoEntry({
   }
   return (
     <View style={{ gap: 6 }}>
-      <View style={[styles.row, { flexWrap: 'wrap' }]}>
-        <Button
-          variant="secondary"
-          disabled={base <= Math.floor(min / 12) * 12}
-          onPress={() => onBase(base - 12)}
-        >
-          Octava −
-        </Button>
-        <Button variant="secondary" disabled={base + 12 > max} onPress={() => onBase(base + 12)}>
-          Octava +
-        </Button>
-        <Chips
-          value={preference}
-          onChange={onPreference}
-          options={[
-            { value: 'low', label: 'Traste más bajo' },
-            { value: 'high', label: 'Traste más alto' },
-          ]}
-        />
-      </View>
+      {keysOnly ? null : (
+        <View style={[styles.row, { flexWrap: 'wrap' }]}>
+          <Button
+            variant="secondary"
+            disabled={base <= Math.floor(min / 12) * 12}
+            onPress={() => onBase(base - 12)}
+          >
+            Octava −
+          </Button>
+          <Button variant="secondary" disabled={base + 12 > max} onPress={() => onBase(base + 12)}>
+            Octava +
+          </Button>
+          <Chips
+            minHeight={minControlHeight}
+            value={preference}
+            onChange={onPreference}
+            options={[
+              { value: 'low', label: 'Traste más bajo' },
+              { value: 'high', label: 'Traste más alto' },
+            ]}
+          />
+        </View>
+      )}
       <ScrollView horizontal>
         <View style={{ width: 364, height: 96 }}>
           {whites.map(key)}

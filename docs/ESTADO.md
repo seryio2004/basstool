@@ -77,6 +77,13 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - El diario agrupa por día las sesiones guiadas y el historial de intentos, registra tiempo y métricas disponibles, y permite editar una nota de hasta 240 caracteres. Las sesiones guiadas guardan avances parciales. Los nuevos campos se almacenan en AsyncStorage y los perfiles antiguos reciben valores por defecto. La práctica diaria permanece local para perfiles con cuenta. `practiceAccess` en `src/core/dailyPractice.ts` centraliza la futura clasificación por plan. Reto y racha son gratuitos.
 - Pasan `npm run typecheck`, `npm run build` y las nueve pruebas nuevas. `npm test` pasa en 25 de 26 archivos. La prueba existente de coordinación recibe `spawnSync git EPERM` en el sandbox. Los 26 pasan al capturar la salida de los subprocesos de esa prueba en archivos temporales. La comprobación estática web pasó a 350 y 1200 px en ambos temas. Queda por probar el flujo interactivo en navegador y en dispositivos, incluidos el bucle de una canción real y el uso con micrófono.
 
+### Transcribir · panel de escritura en móvil
+
+- Entregado a Claude en `codex/panel-movil`, con cambios en el worktree sin commit. Por debajo de 1100 px, el panel de escritura queda debajo de la partitura con desplazamiento interno y un límite del 45 % de la ventana. La barra muestra compás, pulso y figura. Al plegar el panel se conserva la cuerda activa del mástil o la fila de teclas del piano. El panel empieza abierto al cargar una canción.
+- El desplazamiento sigue el sistema del compás activo al escribir o mover el cursor. Si la altura disponible impide mostrar el sistema completo, se revela la zona del cursor. El DOM del editor a 1200 px coincide antes y después. Se conserva la lógica musical del editor.
+- Pasan `npm run typecheck` y `npm run build`. En `npm test` pasan 24 de 25 archivos. La prueba existente de coordinación recibe `spawnSync git EPERM` en el sandbox. Los 25 archivos pasan al capturar los subprocesos de esa prueba en archivos temporales.
+- El render estático usó la forma de onda de `linea-de-bajo.wav` y verificó los dos temas, los estados abierto y plegado, el mástil y el piano a 390 × 844. Las cinco vistas HTML están en `.impeccable/review/`. El sandbox bloqueó el puerto local y el arranque de Chromium. Quedan pendientes las capturas PNG y la comprobación interactiva del desplazamiento en navegador y dispositivo.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).
@@ -88,7 +95,7 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - ChordLine v2 y ritmos integrados. **Rediseño vintage integrado (tema oscuro/claro/sistema, Fraunces + IBM Plex en web; `expo-font` pendiente de aprobación para nativo; pendiente adaptar al tema HarmonicWagons y colores de módulo de src/core/types.ts): visual vintage/analógico, oscuro por defecto** — encargo `.git/coord/encargos/rediseno-vintage.md`.
 
-- Integrado: corcheas con grabado estándar (plicas, barras inclinadas, banderines curvos, espaciado proporcional) y acordes con 9/11 ampliados (Cm11 sin 9, m(add9), add11, 7sus4, m6/9, 9(♯11)). Pendiente de diseño: en móvil, el panel de escritura tapa casi toda la partitura.
+- Integrado: corcheas con grabado estándar (plicas, barras inclinadas, banderines curvos, espaciado proporcional) y acordes con 9/11 ampliados (Cm11 sin 9, m(add9), add11, 7sus4, m6/9, 9(♯11)).
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).

@@ -242,6 +242,8 @@ const Notation = memo(function Notation({
     </>
   );
 });
+export type ScoreFrame = { top: number; height: number };
+
 export function ScoreView({
   score,
   instrument,
@@ -251,6 +253,7 @@ export function ScoreView({
   playhead,
   cursor,
   onCursorFrame,
+  followCursorSystem = false,
   selectedMeasures,
   onPressEvent,
   onPressMeasure,
@@ -262,7 +265,8 @@ export function ScoreView({
   keyFifths?: number;
   playhead?: MusicalPosition | null;
   cursor?: EditCursor | null;
-  onCursorFrame?: (top: number, height: number) => void;
+  onCursorFrame?: (cursor: ScoreFrame, system?: ScoreFrame) => void;
+  followCursorSystem?: boolean;
   selectedMeasures?: { from: number; to: number } | null;
   onPressEvent?: (cursor: EditCursor) => void;
   onPressMeasure?: (measure: number) => void;
@@ -302,13 +306,25 @@ export function ScoreView({
   const editHeight = edit?.height;
   const measureIndex = cursor?.measure;
   const eventIndex = cursor?.event;
+  const cursorLine = useMemo(
+    () =>
+      followCursorSystem && measureIndex !== undefined
+        ? layout.lines.find((line) =>
+            line.measures.some((measure) => measure.measure === measureIndex),
+          )
+        : undefined,
+    [followCursorSystem, layout, measureIndex],
+  );
   useEffect(() => {
     if (x === undefined || y === undefined || editHeight === undefined || !onCursorFrame) return;
-    onCursorFrame(y - 20, editHeight + 40);
+    onCursorFrame(
+      { top: y - 20, height: editHeight + 40 },
+      cursorLine && { top: cursorLine.y, height: cursorLine.height },
+    );
     const left = scrollX.current;
     const next = x < left + 28 ? x - 28 : x > left + width - 28 ? x - width + 28 : left;
     if (next !== left) scroll.current?.scrollTo({ x: Math.max(0, next), animated: false });
-  }, [x, y, editHeight, width, measureIndex, eventIndex, onCursorFrame]);
+  }, [x, y, editHeight, width, measureIndex, eventIndex, cursorLine, onCursorFrame]);
   const activeMeasure = measureIndex;
   return (
     <ScrollView
