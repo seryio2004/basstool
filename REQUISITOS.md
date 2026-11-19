@@ -204,7 +204,7 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 
 | Plan | Estado | Propuesta de contenido |
 | --- | --- | --- |
-| Gratuito | Confirmado | Herramientas básicas y una **demo corta de Transcribir** (2026-11-19). Pendiente: límite exacto de la demo (p. ej. 3 canciones o una duración máxima) y qué parte de la práctica diaria es gratuita. |
+| Gratuito | Confirmado | Herramientas básicas, **reto diario y racha** y una **demo corta de Transcribir** (2026-11-19). Pendiente: límite exacto de la demo y qué más justifica el pago. |
 | Premium personal | Confirmado | **Desbloquea todo** mediante suscripción mensual o bono anual (2026-11-19). |
 
 - Confirmado: suscripción mensual y bono anual. Pendiente: precios, periodo de prueba y límites exactos del plan gratuito.
