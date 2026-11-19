@@ -383,6 +383,11 @@ Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
 5. **Ejercicios de técnica:**
    - Biblioteca: cromáticos, permutaciones, saltos de cuerda, muteo, slap, alternancia de dedos…
    - Con metrónomo y progreso de BPM. Se usan en el calentamiento semanal de las rutinas.
+7. **Mástil coloreado por grados** (herramienta Mástil y entrada del editor):
+   - Cada grado de la escala o el arpegio con su color: 1 (tónica), 2, 3, 4, 5, 6 y 7, con un tono distinto para las alteraciones (♭3, ♯4…).
+   - Leyenda visible y conmutador «color por grado / sin color».
+   - Paleta accesible, que se distinga con daltonismo, y la etiqueta del grado siempre visible además del color.
+   - Tokens en DESIGN.md.
 6. **Tono de referencia:** suena cada cuerda de la afinación del perfil, para afinar de oído sin micrófono.
 
 ---
