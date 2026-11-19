@@ -1,5 +1,7 @@
 # Instrucciones del proyecto
 
+**Al empezar cualquier sesión, lee [docs/ESTADO.md](docs/ESTADO.md) (traspaso de contexto) y actualízalo al terminar cada encargo.**
+
 Leer y aplicar [.agents/AGENTS.MD](.agents/AGENTS.MD) como guía de trabajo para todo este repositorio.
 
 Consultar [REQUISITOS.md](REQUISITOS.md) para el detalle funcional, las prioridades y los criterios de aceptación. Mantener la distinción entre decisiones confirmadas, propuestas y cuestiones pendientes.
