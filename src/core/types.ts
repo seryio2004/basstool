@@ -6,7 +6,11 @@ export type ExerciseConfig = {
   bpm: number;
   level: number;
   pattern?: number[];
-  modality?: 'visual' | 'ear';
+  modality?: import('./exercises').ExerciseModality;
+  clef?: import('./notation').Clef;
+  instrument?: import('./instrument').Instrument;
+  nomenclature?: import('./notation').Nomenclature;
+  register?: { min: number; max: number };
   reading?: 'notes' | 'rhythm';
 };
 export type Attempt = {

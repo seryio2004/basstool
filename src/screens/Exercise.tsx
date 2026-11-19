@@ -2,7 +2,10 @@ import { Heading } from '../components/ui';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, useWindowDimensions } from 'react-native';
 import { AttemptInput, ExerciseConfig, Module, initialConfig, modules, uid } from '../core/types';
-import { buildQuestion, expectedHits, figurePool, makePattern, noteName } from '../core/music';
+import { buildQuestion, expectedHits, figurePool, makePattern } from '../core/music';
+import { tunings, range } from '../core/instrument';
+import { type ExerciseModality } from '../core/exercises';
+import { Tab } from '../components/Tab';
 import { analyseHits } from '../core/rhythm';
 import { audio } from '../platform/audio';
 import { onSpace } from '../platform/keyboard';
@@ -32,7 +35,15 @@ export function Exercise({ module, onBack }: { module: Module; onBack: () => voi
     [saved, setSaved] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState('');
-  const { saveAttempt } = useStore();
+  const { saveAttempt, profile } = useStore();
+  const instrument = tunings[profile!.tuning];
+  const config: ExerciseConfig = {
+    ...initialConfig,
+    instrument: { ...instrument, strings: [...instrument.strings] },
+    nomenclature: profile!.nomenclature,
+    clef: 'bass',
+    register: range(instrument),
+  };
   const description = modules.find((m) => m.id === module)!;
   const [reading, setReading] = useState<'notes' | 'rhythm'>('notes');
   const [session, setSession] = useState(0);
@@ -129,7 +140,7 @@ export function Exercise({ module, onBack }: { module: Module; onBack: () => voi
           {module === 'groove' || (module === 'reading' && reading === 'rhythm') ? (
             <Groove
               key={`${session}-${reading}`}
-              config={initialConfig}
+              config={config}
               reading={module === 'reading'}
               onResult={setResult}
             />
@@ -137,7 +148,7 @@ export function Exercise({ module, onBack }: { module: Module; onBack: () => voi
             <Quiz
               key={session}
               module={module as 'notes' | 'intervals' | 'reading'}
-              config={initialConfig}
+              config={config}
               onResult={setResult}
             />
           )}
@@ -155,8 +166,14 @@ function Quiz({
   config: ExerciseConfig;
   onResult: (r: Result) => void;
 }) {
-  const [modality, setModality] = useState<'ear' | 'visual'>(config.modality || 'visual');
-  const [question, setQuestion] = useState(() => buildQuestion(module));
+  const [modality, setModality] = useState<ExerciseModality>(config.modality || 'visual');
+  const generate = (mode = modality) =>
+    buildQuestion(module, {
+      instrument: config.instrument,
+      nomenclature: config.nomenclature,
+      modality: mode,
+    });
+  const [question, setQuestion] = useState(() => generate());
   const [index, setIndex] = useState(0),
     [position, setPosition] = useState(0),
     [correct, setCorrect] = useState(0),
@@ -165,7 +182,7 @@ function Quiz({
   const started = useRef(Date.now()),
     total = module === 'reading' ? 12 : 8;
   const currentNumber = module === 'reading' ? index * 4 + position : index;
-  const rightAnswer = module === 'reading' ? noteName(question.notes[position]!) : question.answer;
+  const rightAnswer = module === 'reading' ? question.answers[position]! : question.answer;
   useEffect(() => () => audio.stop(), []);
   async function listen() {
     try {
@@ -190,7 +207,7 @@ function Quiz({
         total,
         duration: Math.round((Date.now() - started.current) / 1000),
         config: { ...config, modality, reading: module === 'reading' ? 'notes' : undefined },
-        detail: `${modality === 'ear' ? 'Reconocimiento auditivo' : 'Lectura en clave de sol'} · ${total} respuestas`,
+        detail: `${modality === 'ear' ? 'Reconocimiento auditivo' : modality === 'fretboard' ? 'Notas en el mástil' : modality === 'tab' ? 'Lectura de tablatura' : 'Lectura en clave de fa'} · ${config.instrument!.name} · ${total} respuestas`,
       });
       return;
     }
@@ -198,7 +215,7 @@ function Quiz({
     else {
       setPosition(0);
       setIndex((i) => i + 1);
-      setQuestion(buildQuestion(module));
+      setQuestion(generate());
     }
     setAnswer(null);
     audio.stop();
@@ -223,24 +240,26 @@ function Quiz({
           }}
         />
       </View>
-      {module !== 'reading' ? (
-        <Chips
-          options={[
-            { value: 'visual', label: 'En pentagrama' },
-            { value: 'ear', label: 'De oído' },
-          ]}
-          value={modality}
-          onChange={(v) => {
-            setModality(v);
-            setCorrect(0);
-            setIndex(0);
-            setAnswer(null);
-            setQuestion(buildQuestion(module));
-            started.current = Date.now();
-            audio.stop();
-          }}
-        />
-      ) : null}
+      <Chips<ExerciseModality>
+        options={[
+          { value: 'visual', label: 'Clave de fa' },
+          ...(module === 'reading'
+            ? [{ value: 'tab' as const, label: 'Tablatura' }]
+            : [{ value: 'ear' as const, label: 'De oído' }]),
+          ...(module === 'notes' ? [{ value: 'fretboard' as const, label: 'Mástil' }] : []),
+        ]}
+        value={modality}
+        onChange={(v) => {
+          setModality(v);
+          setCorrect(0);
+          setIndex(0);
+          setPosition(0);
+          setAnswer(null);
+          setQuestion(generate(v));
+          started.current = Date.now();
+          audio.stop();
+        }}
+      />
       <View style={{ paddingVertical: 20, gap: 14 }}>
         <Text style={[styles.h2, { textAlign: 'center' }]}>
           {module === 'intervals'
@@ -249,10 +268,24 @@ function Quiz({
               ? 'Identifica la nota marcada, de izquierda a derecha'
               : modality === 'ear'
                 ? '¿Qué nota escuchas?'
-                : '¿Qué nota aparece en el pentagrama?'}
+                : 'Identifica la nota'}
         </Text>
-        {modality === 'visual' || module === 'reading' ? (
-          <Staff notes={question.notes} active={module === 'reading' ? position : -1} />
+        {modality === 'fretboard' ? (
+          <Label style={{ textAlign: 'center' }}>{question.prompt}</Label>
+        ) : modality === 'tab' ? (
+          <Tab
+            notes={question.scoreNotes}
+            instrument={config.instrument!}
+            nomenclature={config.nomenclature}
+            active={position}
+          />
+        ) : modality === 'visual' ? (
+          <Staff
+            notes={question.scoreNotes}
+            clef="bass"
+            octaveShift={1}
+            active={module === 'reading' ? position : -1}
+          />
         ) : (
           <View style={{ alignItems: 'center', padding: 30 }}>
             <Icon name="ear" size={60} color={colors.green} />

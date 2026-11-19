@@ -10,7 +10,17 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import Svg, { Path, Circle, Line, Rect, Ellipse } from 'react-native-svg';
-import { figurePool, naturals } from '../core/music';
+import { figurePool } from '../core/music';
+import {
+  type ScoreNote,
+  type Clef,
+  midiSpelling,
+  parsePitch,
+  accidentalSign,
+  staffStep,
+  ledgerSteps,
+} from '../core/notation';
+import { Text as SvgText } from 'react-native-svg';
 export { Heading } from './Heading';
 export const colors = {
   ink: '#202E26',
@@ -294,95 +304,96 @@ export function Staff({
   notes,
   active = -1,
   reveal = true,
+  clef = 'treble',
+  octaveShift = 0,
 }: {
-  notes: number[];
+  notes: readonly (number | ScoreNote)[];
   active?: number;
   reveal?: boolean;
+  clef?: Clef;
+  /** El bajo se escribe una octava por encima de lo que suena: usar 1 con MIDI real. */
+  octaveShift?: number;
 }) {
   const width = Math.max(280, notes.length * 70 + 100);
-  const step = (midi: number) => {
-    const oct = Math.floor(midi / 12) - 4;
-    const pc = midi % 12;
-    const indexes: Record<number, number> = {
-      0: 0,
-      1: 0,
-      2: 1,
-      3: 1,
-      4: 2,
-      5: 3,
-      6: 3,
-      7: 4,
-      8: 4,
-      9: 5,
-      10: 5,
-      11: 6,
-    };
-    return oct * 7 + indexes[pc]!;
-  };
+  const pitches = notes.map((note) =>
+    typeof note === 'number' ? midiSpelling(note) : note.spelling,
+  );
+  const steps = pitches.map((pitch) => staffStep(pitch, clef, octaveShift));
+  const top = Math.max(40, 45 + Math.max(0, ...steps.map((step) => step - 8)) * 7);
+  const bottom = top + 56;
+  const height = bottom + Math.max(50, 25 - Math.min(0, ...steps) * 7);
   return (
     <View
       accessibilityLabel={
         reveal
-          ? 'Pentagrama en clave de sol. Identifica las notas.'
+          ? `Pentagrama en clave de ${clef === 'bass' ? 'fa' : 'sol'}. Identifica las notas.`
           : 'Escucha e identifica las notas.'
       }
       style={{ alignItems: 'center', paddingVertical: 15 }}
     >
-      <Svg width="100%" height={150} viewBox={`0 0 ${width} 150`}>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
         {[0, 1, 2, 3, 4].map((i) => (
           <Line
             key={i}
-            x1="10"
-            y1={40 + i * 14}
+            x1={10}
+            y1={top + i * 14}
             x2={width - 10}
-            y2={40 + i * 14}
+            y2={top + i * 14}
             stroke="#A9B4A8"
-            strokeWidth={1}
           />
         ))}
-        <Path
-          d="M40 112C5 88 68 65 46 31 32 10 22 50 38 81c16 31 29 7 18-7-12-15-33 1-25 14m10-68 9 100c3 25-24 23-21 8"
-          fill="none"
-          stroke={colors.ink}
-          strokeWidth={2.8}
-        />
+        {clef === 'bass' ? (
+          <>
+            <Path
+              d={`M23 ${top + 18}c-2-19 30-22 27-1-2 16-17 25-26 30 13-11 19-22 17-31-2-9-12-9-15-2`}
+              fill={colors.ink}
+            />
+            <Circle cx={25} cy={top + 15} r={4} fill={colors.ink} />
+            <Circle cx={58} cy={top + 7} r={2.5} fill={colors.ink} />
+            <Circle cx={58} cy={top + 21} r={2.5} fill={colors.ink} />
+          </>
+        ) : (
+          <Path
+            d="M40 112C5 88 68 65 46 31 32 10 22 50 38 81c16 31 29 7 18-7-12-15-33 1-25 14m10-68 9 100c3 25-24 23-21 8"
+            transform={`translate(0 ${top - 40})`}
+            fill="none"
+            stroke={colors.ink}
+            strokeWidth={2.8}
+          />
+        )}
         {reveal &&
-          notes.map((note, i) => {
-            const x = 95 + (i * (width - 130)) / Math.max(1, notes.length - 1),
-              y = 110 - step(note) * 7;
-            const accidental = !naturals.some((n) => n % 12 === note % 12);
+          pitches.map((pitch, i) => {
+            const x = 95 + (i * (width - 130)) / Math.max(1, notes.length - 1);
+            const y = bottom - steps[i]! * 7;
+            const alter = parsePitch(pitch).alter;
+            const color = active === i ? colors.green : colors.ink;
             return (
               <React.Fragment key={i}>
-                {y >= 110 ? (
-                  <Line x1={x - 17} x2={x + 17} y1={110} y2={110} stroke={colors.ink} />
-                ) : null}
-                {y <= 26 ? (
-                  <Line x1={x - 17} x2={x + 17} y1={26} y2={26} stroke={colors.ink} />
-                ) : null}
-                {accidental ? (
-                  <Path
-                    d={`M${x - 24} ${y - 15}v26m7-29v26m-12-16 17-3m-17 12 17-3`}
+                {ledgerSteps(steps[i]!).map((line) => (
+                  <Line
+                    key={line}
+                    x1={x - 17}
+                    x2={x + 17}
+                    y1={bottom - line * 7}
+                    y2={bottom - line * 7}
                     stroke={colors.ink}
-                    strokeWidth={1.5}
                   />
+                ))}
+                {alter !== 0 ? (
+                  <SvgText x={x - 27} y={y + 6} fontSize={23} fill={colors.ink}>
+                    {accidentalSign(alter)}
+                  </SvgText>
                 ) : null}
                 <Ellipse
                   cx={x}
                   cy={y}
-                  rx="9"
-                  ry="6.5"
-                  rotation="-20"
+                  rx={9}
+                  ry={6.5}
+                  rotation={-20}
                   origin={`${x},${y}`}
-                  fill={active === i ? colors.green : colors.ink}
+                  fill={color}
                 />
-                <Line
-                  x1={x + 7}
-                  x2={x + 7}
-                  y1={y}
-                  y2={y - 38}
-                  stroke={active === i ? colors.green : colors.ink}
-                  strokeWidth={2}
-                />
+                <Line x1={x + 7} x2={x + 7} y1={y} y2={y - 38} stroke={color} strokeWidth={2} />
               </React.Fragment>
             );
           })}

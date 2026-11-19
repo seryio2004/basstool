@@ -1,3 +1,4 @@
+import { type Instrument, noteAt, positionsOf } from './instrument';
 // Spelled pitches for diagrams. A spelling keeps the written name (Do♯ vs Re♭),
 // which MIDI numbers alone lose. Format: letter + optional accidental + octave,
 // e.g. 'C4', 'F#4', 'Bb3', 'Ebb4'. Octave 4 contains middle C (MIDI 60).
@@ -87,4 +88,44 @@ export function signatureNotes(accidentals: number) {
   const sharps = ['Fa♯', 'Do♯', 'Sol♯', 'Re♯', 'La♯', 'Mi♯', 'Si♯'];
   const flats = ['Si♭', 'Mi♭', 'La♭', 'Re♭', 'Sol♭', 'Do♭', 'Fa♭'];
   return accidentals >= 0 ? sharps.slice(0, accidentals) : flats.slice(0, -accidentals);
+}
+
+/** Shared by staff and tablature. MIDI is sounding pitch; spelling preserves enharmony. */
+export type ScoreNote = {
+  midi: number;
+  spelling: string;
+  position?: import('./instrument').Position;
+};
+export type Clef = 'treble' | 'bass';
+
+/** Neutral chromatic spelling, using sharps when no key signature is supplied. */
+export function midiSpelling(midi: number): string {
+  const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  return `${names[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+}
+
+/** Written pitch: bottom line = 0, next space = 1; bass G2=0 and A3=8. */
+export function staffStep(spelling: string, clef: Clef = 'treble', octaveShift = 0): number {
+  return (
+    parsePitch(spelling).diatonic +
+    octaveShift * 7 -
+    parsePitch(clef === 'bass' ? 'G2' : 'E4').diatonic
+  );
+}
+export function ledgerSteps(step: number): number[] {
+  const result: number[] = [];
+  for (let line = -2; line >= step; line -= 2) result.push(line);
+  for (let line = 10; line <= step; line += 2) result.push(line);
+  return result;
+}
+
+/** Tab rows run from the highest string (row 0) to the lowest. */
+export function tabPositions(notes: readonly ScoreNote[], instrument: Instrument) {
+  return notes.map((note) => {
+    const position = note.position ?? positionsOf(instrument, note.midi)[0];
+    if (!position || noteAt(instrument, position.string, position.fret) !== note.midi) {
+      throw new RangeError('La posición de tablatura no corresponde a la nota.');
+    }
+    return { ...position, row: instrument.strings.length - 1 - position.string };
+  });
 }

@@ -83,6 +83,54 @@ test('Supabase migration isolates each bassist, keeps attempts immutable and del
     await assert.rejects(db.query('update public.attempts set score=100'), /permission denied/);
     await assert.rejects(db.query('delete from public.attempts'), /permission denied/);
 
+    await db.exec('reset role;');
+    await db.exec(
+      await readFile(
+        new URL('../supabase/migrations/202611190002_bass_exercises.sql', import.meta.url),
+        'utf8',
+      ),
+    );
+
+    await as(alice);
+    // Legacy configuration remains readable after applying the new validator.
+    assert.deepEqual(
+      (await db.query<{ config: unknown }>('select config from public.attempts')).rows[0]!.config,
+      config,
+    );
+    const snapshot = {
+      ...config,
+      modality: 'tab',
+      clef: 'bass',
+      nomenclature: 'english',
+      instrument: { name: 'Bajo', strings: [23, 28, 33, 38, 43, 48], frets: 24 },
+      register: { min: 23, max: 72 },
+    };
+    await db.query(
+      'insert into public.attempts(user_id,module,correct,total,score,duration,config) values ($1,$2,1,1,100,5,$3)',
+      [alice, 'reading', snapshot],
+    );
+    for (const override of [
+      { modality: 'guitar' },
+      { clef: null },
+      { clef: 'alto' },
+      { nomenclature: 'unknown' },
+      { instrument: null },
+      { instrument: { name: 'x', strings: [], frets: 24 } },
+      { instrument: { name: 'x', strings: [43, 23], frets: 24 } },
+      { instrument: { name: 'x', strings: [23], frets: -1 } },
+      { instrument: { name: 'x', strings: [120], frets: 24 } },
+      { register: { min: 72, max: 23 } },
+      { register: null },
+    ]) {
+      await assert.rejects(
+        db.query(
+          'insert into public.attempts(user_id,module,correct,total,score,duration,config) values ($1,$2,1,1,100,5,$3)',
+          [alice, 'notes', { ...snapshot, ...override }],
+        ),
+        /check constraint/,
+      );
+    }
+
     // Course progress keeps its validation.
     const answers = {
       'harmony-01-q1': 'Dos pulsos',

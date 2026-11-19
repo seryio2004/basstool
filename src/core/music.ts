@@ -16,14 +16,7 @@ export const naturals = [60, 62, 64, 65, 67, 69, 71, 72];
 export const frequency = (midi: number, reference = 440) => reference * 2 ** ((midi - 69) / 12);
 export const noteName = (midi: number) => noteNames[((midi % 12) + 12) % 12]!;
 export const octave = (midi: number) => Math.floor(midi / 12) - 1;
-export const intervals = [
-  { semitones: 2, name: '2.ª mayor' },
-  { semitones: 4, name: '3.ª mayor' },
-  { semitones: 5, name: '4.ª justa' },
-  { semitones: 7, name: '5.ª justa' },
-  { semitones: 9, name: '6.ª mayor' },
-  { semitones: 12, name: '8.ª justa' },
-];
+export { intervals, buildQuestion } from './exercises';
 /** Lowest supported fundamental. Web capture must contain at least two periods. */
 export const minTunerHz = 28;
 export const tunerWindowSize = 4096;
@@ -126,25 +119,4 @@ export function expectedHits(pattern: number[], bpm: number) {
   return pattern.flatMap((id, block) =>
     figurePool[id]!.notes.map((offset) => ({ t: ((block + offset) * 60) / bpm, block })),
   );
-}
-
-export function buildQuestion(module: 'notes' | 'intervals' | 'reading', random = Math.random) {
-  const root = naturals[Math.floor(random() * (module === 'intervals' ? 4 : naturals.length))]!;
-  if (module === 'intervals') {
-    const interval = intervals[Math.floor(random() * intervals.length)]!;
-    return {
-      notes: [root, root + interval.semitones],
-      answer: interval.name,
-      choices: intervals.map((i) => i.name),
-    };
-  }
-  const notes =
-    module === 'reading'
-      ? Array.from({ length: 4 }, () => naturals[Math.floor(random() * naturals.length)]!)
-      : [root];
-  return {
-    notes,
-    answer: noteName(notes[0]!),
-    choices: ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'],
-  };
 }
