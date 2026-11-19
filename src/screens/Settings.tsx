@@ -26,21 +26,25 @@ import {
 } from '../core/profile';
 import { useStore } from '../data/Store';
 import { PracticeSettings } from './PracticeSettings';
+import { FavoriteSongsPanel } from './FavoriteSongs';
+import type { Nomenclature } from '../core/notation';
 
 type InstrumentDraft = Pick<Profile, 'tuning' | 'scale' | 'level' | 'nomenclature' | 'leftHanded'>;
+type BassDraft = Pick<Profile, 'tuning' | 'scale' | 'leftHanded'>;
 
-/** Formulario compartido por la configuración inicial y los ajustes. */
-export function InstrumentForm({
+/** Afinación, escala y mano, con el bajo dibujado. Lo comparten la configuración inicial y Ajustes. */
+export function BassForm<T extends BassDraft>({
   value,
   onChange,
 }: {
-  value: InstrumentDraft;
-  onChange: (next: InstrumentDraft) => void;
+  value: T;
+  onChange: (next: T) => void;
 }) {
   return (
     <View style={{ gap: 24 }}>
       <Group title="Bajo y afinación">
         <Chips<TuningId>
+          label="Afinación"
           value={value.tuning}
           onChange={(tuning) => onChange({ ...value, tuning })}
           options={tuningIds.map((id) => ({ value: id, label: tunings[id].name }))}
@@ -61,28 +65,61 @@ export function InstrumentForm({
         onChange={(leftHanded) => onChange({ ...value, leftHanded })}
       />
       <BassPreview tuning={value.tuning} scale={value.scale} leftHanded={value.leftHanded} />
+    </View>
+  );
+}
+
+/** Do, Re, Mi o C, D, E. */
+export function NomenclatureChips({
+  value,
+  onChange,
+}: {
+  value: Nomenclature;
+  onChange: (next: Nomenclature) => void;
+}) {
+  return (
+    <Chips<Nomenclature>
+      label="Nombres de las notas"
+      value={value}
+      onChange={onChange}
+      options={[
+        { value: 'latin', label: 'Do, Re, Mi' },
+        { value: 'english', label: 'C, D, E' },
+      ]}
+    />
+  );
+}
+
+/** Formulario completo del bajo en Ajustes. */
+export function InstrumentForm({
+  value,
+  onChange,
+}: {
+  value: InstrumentDraft;
+  onChange: (next: InstrumentDraft) => void;
+}) {
+  return (
+    <View style={{ gap: 24 }}>
+      <BassForm value={value} onChange={onChange} />
       <Group title="Nivel">
         <Chips<Level>
+          label="Nivel"
           value={value.level}
           onChange={(level) => onChange({ ...value, level })}
           options={levels}
         />
       </Group>
       <Group title="Nombres de las notas">
-        <Chips
+        <NomenclatureChips
           value={value.nomenclature}
           onChange={(nomenclature) => onChange({ ...value, nomenclature })}
-          options={[
-            { value: 'latin', label: 'Do, Re, Mi' },
-            { value: 'english', label: 'C, D, E' },
-          ]}
         />
       </Group>
     </View>
   );
 }
 
-function Group({ title, children }: { title: string; children: React.ReactNode }) {
+export function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={{ gap: 10 }}>
       <Text style={styles.legend}>{title}</Text>
@@ -98,44 +135,6 @@ const draftOf = (p: Profile): InstrumentDraft => ({
   nomenclature: p.nomenclature,
   leftHanded: p.leftHanded,
 });
-
-export function Onboarding() {
-  const store = useStore(),
-    [draft, setDraft] = useState(draftOf(store.profile)),
-    [busy, setBusy] = useState(false);
-  const finish = (patch: Partial<Profile>) => {
-    setBusy(true);
-    void store
-      .updateProfile({ ...patch, configured: true })
-      .catch(() => {})
-      .finally(() => setBusy(false));
-  };
-  return (
-    <View style={{ gap: 24, maxWidth: 720, width: '100%', alignSelf: 'center' }}>
-      <View style={{ gap: 8 }}>
-        <Heading level={1} style={styles.title}>
-          Configura tu bajo
-        </Heading>
-        <Label muted>
-          El afinador, el mástil y los ejercicios se adaptan a estos ajustes. Puedes cambiarlos
-          después en Ajustes.
-        </Label>
-      </View>
-      <View style={styles.panel}>
-        <InstrumentForm value={draft} onChange={setDraft} />
-      </View>
-      <View style={styles.row}>
-        <Button busy={busy} onPress={() => finish(draft)}>
-          Empezar
-        </Button>
-        <Button variant="ghost" disabled={busy} onPress={() => finish({})}>
-          Omitir
-        </Button>
-      </View>
-      {store.error ? <Label style={{ color: colors.error }}>{store.error}</Label> : null}
-    </View>
-  );
-}
 
 export function Settings() {
   const store = useStore(),
@@ -174,6 +173,7 @@ export function Settings() {
         </Button>
       </View>
       <PracticeSettings key={store.profile.id} />
+      <FavoriteSongsPanel key={`songs-${store.profile.id}`} />
       <Appearance />
       {Platform.OS !== 'web' ? <Account /> : null}
       {store.mode === 'local' ? (

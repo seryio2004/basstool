@@ -12,6 +12,7 @@ import {
   overallPractice,
   planSession,
   practiceMinutes,
+  songOfTheDay,
   streakFor,
   weeklyPractice,
   type PracticeBlock,
@@ -20,7 +21,8 @@ import {
 } from '../core/dailyPractice';
 import { levels } from '../core/profile';
 /** Minutos:segundos sin décimas (la de Transcribir muestra décimas). */
-const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
+const formatTime = (s: number) =>
+  `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
 import { useStore } from '../data/Store';
 import { listSessions } from '../data/transcriptions';
 import { NoteEditor } from './PracticeNote';
@@ -32,9 +34,19 @@ type Props = {
   onSettings: () => void;
   finished?: string;
   onDismiss: () => void;
+  /** Recién terminada la configuración inicial. */
+  welcome?: boolean;
+  onDismissWelcome?: () => void;
 };
 
-export function Today({ onStart, onSettings, finished, onDismiss }: Props) {
+export function Today({
+  onStart,
+  onSettings,
+  finished,
+  onDismiss,
+  welcome = false,
+  onDismissWelcome,
+}: Props) {
   const { colors } = useTheme();
   const { daily, db, profile, error } = useStore();
   const [date, setDate] = useState(localDay);
@@ -93,12 +105,40 @@ export function Today({ onStart, onSettings, finished, onDismiss }: Props) {
     (s) => s.kind === 'plan' && s.level === level.value && s.completed && s.day === date,
   );
   const latest = sessions.find((s) => s.id === finished);
+  const favorite = songOfTheDay(date, settings.favoriteSongs);
 
   return (
     <View style={{ gap: 28, maxWidth: 820 }}>
       <Heading level={1} style={styles.title}>
         Hoy
       </Heading>
+      {welcome ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={[
+            styles.panel,
+            { backgroundColor: colors.accentSoft, borderColor: colors.accent, gap: 8 },
+          ]}
+        >
+          <View style={[styles.between, { alignItems: 'flex-start' }]}>
+            <Heading level={2} style={[styles.h2, { flex: 1 }]}>
+              Tu rutina de hoy está lista
+            </Heading>
+            <Button
+              variant="ghost"
+              accessibilityLabel="Cerrar aviso"
+              onPress={() => onDismissWelcome?.()}
+              style={{ marginTop: -10, marginRight: -12 }}
+            >
+              Cerrar
+            </Button>
+          </View>
+          <Label>
+            {settings.minutes} minutos para tu nivel y tus objetivos. Empieza por el reto del día o
+            ve directo a la rutina.
+          </Label>
+        </View>
+      ) : null}
       <View style={styles.panel}>
         <View style={styles.between}>
           <View style={{ gap: 4 }}>
@@ -181,7 +221,9 @@ export function Today({ onStart, onSettings, finished, onDismiss }: Props) {
                     <Label muted>
                       {recentSong
                         ? `Última sesión · ${recentSong}`
-                        : 'Importa una canción para practicar un fragmento.'}
+                        : favorite
+                          ? `Prueba con: ${favorite}`
+                          : 'Importa una canción para practicar un fragmento.'}
                     </Label>
                   ) : null}
                 </View>

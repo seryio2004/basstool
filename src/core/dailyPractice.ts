@@ -41,6 +41,8 @@ export type PracticeSettings = {
   days: number[];
   weeklyMinutes: number;
   restDay: boolean;
+  /** «Canción — artista» escritas por el usuario. Solo se guardan en el dispositivo. */
+  favoriteSongs: string[];
 };
 export const defaultPracticeSettings: PracticeSettings = {
   minutes: 10,
@@ -48,7 +50,34 @@ export const defaultPracticeSettings: PracticeSettings = {
   days: [1, 3, 5],
   weeklyMinutes: 30,
   restDay: true,
+  favoriteSongs: [],
 };
+export const favoriteSongLimit = 5;
+export const favoriteSongLength = 80;
+
+/** Lista tolerante: textos recortados, sin vacíos ni repetidos, como mucho cinco. */
+export function parseFavoriteSongs(value: unknown): string[] {
+  const seen = new Set<string>();
+  const songs: string[] = [];
+  for (const item of Array.isArray(value) ? value : []) {
+    if (typeof item !== 'string') continue;
+    const song = item.replace(/\s+/g, ' ').trim().slice(0, favoriteSongLength).trim();
+    const key = song.toLocaleLowerCase('es');
+    if (!song || seen.has(key)) continue;
+    seen.add(key);
+    songs.push(song);
+    if (songs.length === favoriteSongLimit) break;
+  }
+  return songs;
+}
+
+/** Una canción favorita por día local, rotando en orden. */
+export function songOfTheDay(day: string, songs: readonly string[]) {
+  if (songs.length === 0) return undefined;
+  const index = Math.round((+calendarDate(day) - Date.UTC(1970, 0, 1, 12)) / 86400000);
+  if (!Number.isFinite(index)) return songs[0];
+  return songs[((index % songs.length) + songs.length) % songs.length];
+}
 
 export type ScalePreset = {
   tonic: 'C' | 'A' | 'G' | 'D' | 'E';
@@ -463,6 +492,7 @@ export function parsePracticeSettings(value: unknown): PracticeSettings {
       ? data.weeklyMinutes
       : defaultPracticeSettings.weeklyMinutes,
     restDay: typeof data.restDay === 'boolean' ? data.restDay : defaultPracticeSettings.restDay,
+    favoriteSongs: parseFavoriteSongs(data.favoriteSongs),
   };
 }
 

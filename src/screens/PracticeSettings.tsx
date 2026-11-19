@@ -23,15 +23,15 @@ export function PracticeSettings() {
   const [error, setError] = useState('');
   const weeklyMinutes = Number(minutes);
   const valid = Number.isInteger(weeklyMinutes) && weeklyMinutes >= 5 && weeklyMinutes <= 600;
-  const changed =
-    JSON.stringify(parsePracticeSettings({ ...draft, weeklyMinutes })) !==
-    JSON.stringify(daily.settings);
+  // Las canciones favoritas tienen su propio panel: se conservan las guardadas.
+  const next = { ...draft, weeklyMinutes, favoriteSongs: daily.settings.favoriteSongs };
+  const changed = JSON.stringify(parsePracticeSettings(next)) !== JSON.stringify(daily.settings);
 
   async function save() {
     setBusy(true);
     setError('');
     try {
-      await updatePracticeSettings({ ...draft, weeklyMinutes });
+      await updatePracticeSettings(next);
     } catch (cause) {
       setError((cause as Error).message);
     } finally {

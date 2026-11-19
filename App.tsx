@@ -35,7 +35,8 @@ import { Today } from './src/screens/Today';
 import { FretboardTool } from './src/screens/FretboardTool';
 import { useGuidedPractice } from './src/screens/useGuidedPractice';
 import { Exercise } from './src/screens/Exercise';
-import { Onboarding, Settings } from './src/screens/Settings';
+import { Settings } from './src/screens/Settings';
+import { Onboarding } from './src/screens/Onboarding';
 import { Tool, Tools } from './src/screens/Tools';
 import { bootstrap } from './src/platform/bootstrap';
 import { audio } from './src/platform/audio';
@@ -78,6 +79,8 @@ function Shell() {
     [exercise, setExercise] = useState<Module | null>(null),
     [tool, setTool] = useState<Tool | null>(null);
   const [recovery, setRecovery] = useState(false);
+  // Aviso de bienvenida en Hoy tras la configuración inicial; se muestra una vez.
+  const [welcome, setWelcome] = useState(false);
   const guide = useGuidedPractice();
   const block = guide.block;
 
@@ -101,6 +104,7 @@ function Shell() {
   const navigate = async (id: Page) => {
     if (block && !(await guide.advance('exit'))) return;
     reset();
+    setWelcome(false);
     setExercise(null);
     setTool(null);
     setPage(id);
@@ -137,7 +141,14 @@ function Shell() {
 
   const pad = desktop ? 40 : 20;
   const content = !profile.configured ? (
-    <Onboarding />
+    <Onboarding
+      onDone={() => {
+        setExercise(null);
+        setTool(null);
+        setPage('today');
+        setWelcome(true);
+      }}
+    />
   ) : block ? (
     block.kind === 'song' ? (
       <Transcribe
@@ -172,10 +183,15 @@ function Shell() {
     <Exercise module={exercise} onBack={() => setExercise(null)} />
   ) : page === 'today' ? (
     <Today
-      onStart={(kind, blocks, planDay) => guide.start(kind, profile.level, blocks, planDay)}
+      onStart={(kind, blocks, planDay) => {
+        setWelcome(false);
+        guide.start(kind, profile.level, blocks, planDay);
+      }}
       onSettings={() => void navigate('settings')}
       finished={guide.finished}
       onDismiss={guide.clearFinished}
+      welcome={welcome}
+      onDismissWelcome={() => setWelcome(false)}
     />
   ) : page === 'tools' ? (
     <ToolsHome openTool={openTool} />
@@ -358,8 +374,9 @@ function Shell() {
           </View>
         ) : null}
         <View style={{ flex: 1 }}>
-          {profile.configured &&
-          (block?.kind === 'song' || (page === 'transcribe' && !tool && !exercise)) ? (
+          {!profile.configured ||
+          block?.kind === 'song' ||
+          (page === 'transcribe' && !tool && !exercise) ? (
             content
           ) : (
             <ScrollView
