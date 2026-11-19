@@ -398,6 +398,14 @@ Se guarda como intento y se usa en las rutinas diarias y en el reto diario.
 - Nueve ejercicios originales en `src/content/technique.ts` con tablatura por afinación, metrónomo y registro de BPM en el diario. El entrenador de velocidad guarda con qué ejercicio se practicó en web. Las rutinas de Hoy rotan el calentamiento cada semana por nivel.
 - El diccionario y el tono usan la voz de bajo web. En iOS y Android se muestran las posiciones y las cuerdas del perfil y se indica la disponibilidad del audio en web. El metrónomo de técnica reutiliza las muestras nativas de la app.
 
+**Entrega 13c en `codex/herr-grabadora` (pendiente de revisión e integración).**
+
+- Herramientas abre Grabadora en web. En iOS y Android muestra «Disponible en la versión web».
+- Permite escoger el micrófono o interfaz, recuerda la entrada en el navegador y muestra el pico y la saturación. Hay una cuenta atrás de un compás con el tempo y la métrica de la base. Se puede grabar sin base, con metrónomo, con batería por género o con una sesión de Transcribir.
+- La transcripción puede reproducir las notas guardadas, la canción o ambas. Para usar la canción se vuelve a elegir el archivo local. La base empieza desde el principio a velocidad original. La toma conserva una copia local de la base elegida para repetir la escucha sincronizada.
+- Cada toma se puede escuchar sola o con la base, renombrar, borrar y descargar como WAV PCM de 16 bits. La compensación de −200 a +200 ms se guarda con la toma. La calibración escucha cuatro clics del metrónomo y aplica el retardo que detecta de forma repetida.
+- Las tomas y sus bases se quedan en IndexedDB. Si falla el almacenamiento, los cambios se mantienen en memoria con un aviso. Falta probar la captura y la sincronización con un micrófono o interfaz real en navegador.
+
 ---
 
 ## Tarea 14: Imagen del bajo en la configuración (opción B: renders, sin 3D en tiempo real)

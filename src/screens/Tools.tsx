@@ -17,6 +17,7 @@ import { DrumMachineTool, SpeedTrainerTool } from './RhythmTools';
 import { ChordDictionary } from './ChordDictionary';
 import { ReferenceTone } from './ReferenceTone';
 import { TechniqueTool } from './TechniqueTool';
+import { Recorder } from './Recorder';
 
 export type Tool =
   | 'metronome'
@@ -27,7 +28,8 @@ export type Tool =
   | 'speed'
   | 'dictionary'
   | 'reference'
-  | 'technique';
+  | 'technique'
+  | 'recorder';
 export const toolNames: Record<Tool, string> = {
   metronome: 'Metrónomo',
   tuner: 'Afinador',
@@ -38,6 +40,7 @@ export const toolNames: Record<Tool, string> = {
   dictionary: 'Diccionario de acordes y arpegios',
   reference: 'Tono de referencia',
   technique: 'Ejercicios de técnica',
+  recorder: 'Grabadora',
 };
 
 export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
@@ -63,6 +66,8 @@ export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
         <ChordDictionary />
       ) : tool === 'reference' ? (
         <ReferenceTone />
+      ) : tool === 'recorder' ? (
+        <Recorder />
       ) : tool === 'technique' ? (
         <TechniqueTool />
       ) : (

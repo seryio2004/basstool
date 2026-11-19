@@ -13,6 +13,125 @@ import type { BassMode, Loop, PickedAudio, Player } from './playerTypes';
 /** Resolución de la envolvente: suficiente para zoom 32× en pantallas anchas. */
 const PEAKS = 16000;
 const ACCEPT = 'audio/mpeg,audio/mp4,audio/aac,audio/x-m4a,audio/wav,.mp3,.m4a,.aac,.wav';
+export function pickLocalAudio(onCancel: (cancel: (() => void) | null) => void) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = ACCEPT;
+  return new Promise<File | null>((resolve, reject) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = (file: File | null) => {
+      cleanup();
+      resolve(file);
+    };
+    const change = () => done(input.files?.[0] ?? null);
+    const cancel = () => done(null);
+    // Older browsers do not emit cancel. Focus returns before change on some engines.
+    const focus = () => {
+      timer = setTimeout(() => {
+        if (!input.files?.length) done(null);
+      }, 300);
+    };
+    const cleanup = () => {
+      clearTimeout(timer);
+      input.removeEventListener('change', change);
+      input.removeEventListener('cancel', cancel);
+      window.removeEventListener('focus', focus);
+      input.remove();
+      onCancel(null);
+    };
+    onCancel(cancel);
+    input.addEventListener('change', change);
+    input.addEventListener('cancel', cancel);
+    window.addEventListener('focus', focus);
+    try {
+      input.click();
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
+function applyBassFilter(filter: BiquadFilterNode, bass: BassMode) {
+  filter.type = bass === 'solo' ? 'lowpass' : 'peaking';
+  filter.frequency.value = bass === 'solo' ? 300 : 90;
+  filter.Q.value = bass === 'solo' ? 0.9 : 0.8;
+  filter.gain.value = bass === 'boost' ? 9 : 0;
+}
+
+function createScoreBus(context: AudioContext, output: AudioNode, level: number) {
+  const gain = context.createGain();
+  const limiter = createLimiter(context);
+  gain.connect(limiter).connect(output);
+  return { gain, limiter, instrument: createBassInstrument(context, gain, level) };
+}
+
+export type TranscriptionBacking = {
+  name: string;
+  song?: Blob;
+  tones: Tone[];
+  bass: BassMode;
+  attack: BassAttack;
+};
+
+/** One clock for backing and recorded PCM, at the original speed from the beginning. */
+export function scheduleTranscription(
+  context: AudioContext,
+  output: AudioNode,
+  start: number,
+  backing: TranscriptionBacking,
+  decoded: AudioBuffer | undefined,
+) {
+  const stops: (() => void)[] = [];
+  const mix = Boolean(decoded && backing.tones.length);
+  if (decoded) {
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const gain = context.createGain();
+    source.buffer = decoded;
+    applyBassFilter(filter, backing.bass);
+    gain.gain.value = mix ? 0.5 : 1;
+    source.connect(filter).connect(gain).connect(output);
+    source.start(start);
+    stops.push(() => {
+      source.stop();
+      source.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+    });
+  }
+  if (backing.tones.length) {
+    const { gain, limiter, instrument } = createScoreBus(context, output, 1);
+    gain.gain.value = mix ? 0.5 : 1;
+    const ends = toneEndIndex(backing.tones);
+    const voices = new Map<number, ReturnType<Instrument['play']>>();
+    let next = 0;
+    const schedule = () => {
+      const from = Math.max(next, context.currentTime - start, 0);
+      const to = context.currentTime - start + 0.18;
+      if (from >= to) return;
+      for (const note of scheduleTones(backing.tones, from, to, 1, start + from, Infinity, ends)) {
+        if (voices.has(note.id)) continue;
+        const voice = instrument.play({ ...note, attack: backing.attack }, () => {
+          if (voices.get(note.id) === voice) voices.delete(note.id);
+        });
+        voices.set(note.id, voice);
+      }
+      next = to;
+    };
+    schedule();
+    const timer = setInterval(schedule, 30);
+    stops.push(() => {
+      clearInterval(timer);
+      for (const voice of voices.values()) voice.stop();
+      instrument.disconnect();
+      gain.disconnect();
+      limiter.disconnect();
+    });
+  }
+  return () => stops.forEach((stop) => stop());
+}
+
 export function createPlayer(): Player {
   let audio: HTMLAudioElement | null = null;
   let context: AudioContext | null = null;
@@ -39,10 +158,10 @@ export function createPlayer(): Player {
   }
   function mix() {
     if (mode !== 'song' && context && !synth) {
-      synth = context.createGain();
-      limiter = createLimiter(context);
-      synth.connect(limiter).connect(context.destination);
-      instrument = createBassInstrument(context, synth, scoreGain);
+      const bus = createScoreBus(context, context.destination, scoreGain);
+      synth = bus.gain;
+      limiter = bus.limiter;
+      instrument = bus.instrument;
     }
     if (gain) gain.gain.value = volume * (mode === 'score' ? 0 : mode === 'both' ? 1 - balance : 1);
     if (synth) synth.gain.value = volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
@@ -108,11 +227,7 @@ export function createPlayer(): Player {
     if (audio && !audio.paused && !audio.ended) frame = requestAnimationFrame(tick);
   };
   const applyBass = () => {
-    if (!filter) return;
-    filter.type = bass === 'solo' ? 'lowpass' : 'peaking';
-    filter.frequency.value = bass === 'solo' ? 300 : 90;
-    filter.Q.value = bass === 'solo' ? 0.9 : 0.8;
-    filter.gain.value = bass === 'boost' ? 9 : 0;
+    if (filter) applyBassFilter(filter, bass);
   };
   const release = () => {
     clearInterval(timer);
@@ -152,41 +267,8 @@ export function createPlayer(): Player {
     async pick(): Promise<PickedAudio | null> {
       cancelPick?.();
       const token = ++generation;
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = ACCEPT;
-      const file = await new Promise<File | null>((resolve, reject) => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const done = (file: File | null) => {
-          cleanup();
-          resolve(file);
-        };
-        const change = () => done(input.files?.[0] ?? null);
-        const cancel = () => done(null);
-        // Older browsers do not emit cancel. Focus returns before change on some engines.
-        const focus = () => {
-          timer = setTimeout(() => {
-            if (!input.files?.length) done(null);
-          }, 300);
-        };
-        const cleanup = () => {
-          clearTimeout(timer);
-          input.removeEventListener('change', change);
-          input.removeEventListener('cancel', cancel);
-          window.removeEventListener('focus', focus);
-          input.remove();
-          if (cancelPick === cancel) cancelPick = null;
-        };
+      const file = await pickLocalAudio((cancel) => {
         cancelPick = cancel;
-        input.addEventListener('change', change);
-        input.addEventListener('cancel', cancel);
-        window.addEventListener('focus', focus);
-        try {
-          input.click();
-        } catch (error) {
-          cleanup();
-          reject(error);
-        }
       });
       if (!file || token !== generation) return null;
       const Ctor =

@@ -27,6 +27,7 @@ const items: { id: Tool; title: string; detail: string; icon: string }[] = [
     detail: 'Tablatura, metrónomo y registro de tempo.',
     icon: 'practice',
   },
+  { id: 'recorder', title: 'Grabadora', detail: 'Graba tomas con o sin base.', icon: 'wave' },
   { id: 'speed', title: 'Velocidad', detail: 'Practica con subidas de tempo.', icon: 'speed' },
   {
     id: 'fretboard',

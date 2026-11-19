@@ -7,11 +7,20 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - **Curso basado en Herrera retirado del repositorio** y del historial (reescrito con filter-branch antes del primer push). Copia privada fuera de git en `/home/sk/codes/clasRo-privado/`. `src/content/harmony/index.ts` es un stub vacío hasta el temario propio. No volver a añadir ese contenido al repo.
 - **Integrado hoy:** Escucha y repite v1, Práctica diaria v1 (pestaña «Hoy»: reto, racha, rutinas, plan de 21 días provisional, semana, diario), bajo dibujado en código que gira en Ajustes/configuración (`bassGeometry.ts`), limitador del bus de síntesis.
 - **Integrado en main:** `herr-ritmo` (13a, Batería y Velocidad). La entrega 13b reutiliza su entrenador.
-- **Entregado a Claude:** `herr-referencia` (13b) en `codex/herr-referencia`, con cambios sin commit. El siguiente encargo es `herr-grabadora` (13c, grabadora web con selección de entrada).
+- **Integrado en main:** `herr-referencia` (13b, diccionario, tono de referencia y técnica).
+- **Entregado a Claude:** `herr-grabadora` (13c) en `codex/herr-grabadora`, con cambios sin commit y pendiente de revisión e integración.
 - **Pendiente del usuario:** aprobar `expo-font` y `expo-print`; temario propio, rutinas avanzadas y validación del plan de 21 días con sus profesores; límites de la demo, precios y prueba.
 - **Pendiente técnico:** tarea 11 (separación de bajo con IA), 14 (renders), 6 (audio nativo, necesita Mac), onboarding, paywall, migraciones Supabase 0002–0006, pruebas con bajo/micrófono reales y en móvil.
 - **Onboarding (rama `claude/onboarding`, pendiente de integrar):** primera experiencia en 5 pasos (`src/screens/Onboarding.tsx`: bienvenida con el bajo giratorio, tu bajo, nivel en tarjetas + nomenclatura, objetivos (máx. 3)/tiempo/días/descanso, hasta 5 canciones favoritas), «Saltar» en cada paso, llegada a Hoy con el aviso «Tu rutina de hoy está lista». Nuevo `PracticeSettings.favoriteSongs` (parseo tolerante, perfiles antiguos → `[]`), `songOfTheDay` rota la sugerencia «Prueba con: …» del bloque «Tu canción» si no hay sesión de Transcribir; panel «Canciones favoritas» en Ajustes. Lógica pura en `src/core/onboarding.ts`, pruebas en `tests/onboarding.test.ts`. Falta probar en iOS/Android (foco accesible, área segura, teclado sobre el pie fijo).
 - Las secciones de abajo son el registro histórico de entregas; algunas «En curso» ya están integradas.
+
+### Grabadora web · tarea 13c
+
+- Grabadora selecciona la entrada de audio y recuerda su ID en el navegador. Captura por AudioWorklet, mide picos y avisa de saturación. El mismo reloj programa el primer compás de cuenta atrás, el inicio de la captura y la base. En nativo aparece el aviso de disponibilidad en web.
+- Las bases admiten metrónomo, batería por género y transcripciones guardadas. La síntesis usa las notas y el mapa de la partitura. La canción requiere elegir su archivo local y se reproduce desde el principio a velocidad original. La toma conserva la base para escucharla sincronizada con la compensación aplicada. El WAV de descarga contiene la entrada capturada. La calibración estima el retardo a partir de cuatro clics.
+- El navegador guarda tomas y bases en IndexedDB. Ante un fallo de almacenamiento quedan disponibles en memoria con aviso. Se pueden reproducir, renombrar, borrar y descargar en WAV.
+- Pasan `npm run typecheck`, `npm run build` y `git diff --check`. En `npm test` pasan 31 de 32 archivos. La prueba ya existente de coordinación recibe `spawnSync git EPERM` en el sandbox. Pasan los 32 al capturar en archivos temporales la salida de los subprocesos de esa prueba.
+- Verificados el procesamiento sintético del Worklet, el flujo en memoria y el render estático a 350 y 1200 px con ambos temas y el aviso nativo. La apertura en DevTools requirió aprobación y el sandbox bloqueó el servidor local y Chromium. Quedan pendientes la prueba interactiva, la persistencia tras recargar en un navegador y la calibración, grabación y sincronización con micrófono o interfaz real.
 
 ### Herramientas de referencia y técnica · tarea 13b
 
