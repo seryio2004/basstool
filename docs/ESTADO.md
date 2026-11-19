@@ -35,6 +35,21 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - La voz Web Audio separa el instrumento del transporte para admitir un sampler. Usa síntesis sustractiva, ADSR, armónicos, saturación suave, compresión y un ajuste de ganancia por RMS activo de la canción que conserva el balance. «Ataque del bajo» ofrece dedo, púa o prescindir del transitorio añadido. Las voces simultáneas mantienen sus duraciones y ligaduras. Las notas muertas usan ataques sin altura.
 - Pasan `npm run typecheck`, `npm run build`, la revisión estática de los componentes web en ambos tamaños y las pruebas de contraste, zoom, imán y programación musical. En `npm test` pasan 21 de 22 archivos, con `spawnSync git EPERM` en la prueba de coordinación. Los 22 pasan al capturar la salida de sus subprocesos en archivos temporales. Quedan por verificar los gestos y el cambio de tema en un navegador interactivo y la sonoridad con canciones y altavoces físicos. El reproductor nativo sigue en la tarea 6.
 
+### Beta web para profesores y conocidos
+
+- Entrega a Claude en `codex/beta-web`, con cambios en el worktree sin commit. `SHOW_HARMONY_COURSE` en `src/content/flags.json` desactiva el curso en Aprender y Progreso. Metro excluye el contenido de Armonía I del paquete de la beta. Los apuntes propios y el historial de práctica siguen disponibles.
+- La cabecera muestra «Beta» y el aviso inicial explica el almacenamiento en el navegador y el permiso de micrófono. «Entendido» guarda el acuse en el navegador. La beta web usa el perfil local aunque haya variables de Supabase configuradas. Claude confirmó que el envío de comentarios queda fuera de esta entrega.
+- La configuración inicial y Ajustes comparten la ilustración SVG provisional. La escala se guarda por dispositivo con 34″ por defecto para los perfiles antiguos. `assets/README.md` documenta los nombres y las dimensiones de los futuros WebP.
+- El afinador abre con la afinación del perfil. Se corrigieron el contraste de los controles de ChordLine, el estado accesible de los selectores, la acumulación de temporizadores del metrónomo y las reproducciones de ejemplo que podían arrancar después de salir.
+- Pasan `npm run typecheck` y `npm run build`. `npm test` pasa en 22 de 23 archivos. La prueba de coordinación da `spawnSync git EPERM` en el sandbox. Los 23 archivos pasan al capturar la salida de sus subprocesos en archivos temporales. Se comprobó el render estático a 350 y 1200 px de la configuración inicial, las cuatro herramientas, Transcribir en vacío y con una canción de prueba, las cinco prácticas, Aprender, Progreso y Ajustes. Se verificaron las 40 variantes de la ilustración por afinación, escala y mano.
+- En los archivos reservados, `player.web.ts` declara `canTranspose: false` y `Transcribe.tsx` oculta el cambio de tono. Por inspección, un fallo al construir el grafo Web Audio tras liberar la canción anterior puede dejar su ficha visible aunque el reproductor ya no la tenga. El coordinador tiene este hallazgo para la revisión de síntesis. Quedan por probar la reproducción y el micrófono reales.
+
+#### Publicación manual con Netlify Drop
+
+1. Tras integrar los cambios que deban entrar en la beta, ejecuta `npm run build` en la rama que se va a publicar. Expo genera `dist/`.
+2. Arrastra la carpeta `dist/` completa a [Netlify Drop](https://app.netlify.com/drop). Para una actualización, sube el nuevo `dist/` al sitio existente. El HTML, el favicon, las fuentes y el JavaScript conservan sus rutas relativas.
+3. Abre la URL HTTPS resultante. Comprueba el título «clasRo — beta», el aviso en un perfil limpio, el afinador con permiso de micrófono y Transcribir con un archivo local antes de compartir la URL.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).

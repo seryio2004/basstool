@@ -648,7 +648,9 @@ export function RhythmExercise({
             {phase}
           </Heading>
           <Badge
-            background={harmonic ? colors.white : reading ? undefined : palette.cream}
+            background={
+              harmonic ? harmonicColors.tonic.background : reading ? undefined : palette.cream
+            }
             color={reading ? undefined : exerciseInk}
           >
             {hitCount} golpes
@@ -763,8 +765,8 @@ export function RhythmExercise({
             borderRadius: 8,
             backgroundColor: harmonic
               ? pressed
-                ? harmonicColors.tonic.background
-                : colors.white
+                ? colors.accentSoft
+                : colors.raised
               : pressed
                 ? reading
                   ? colors.white
@@ -775,7 +777,11 @@ export function RhythmExercise({
           })}
         >
           <Text
-            style={{ color: reading ? colors.green : exerciseInk, fontSize: 17, fontWeight: '600' }}
+            style={{
+              color: harmonic ? colors.ink : reading ? colors.accentText : exerciseInk,
+              fontSize: 17,
+              fontWeight: '600',
+            }}
           >
             {input === 'mic' ? 'Entrada por micrófono' : 'Registrar golpe · Espacio'}
           </Text>

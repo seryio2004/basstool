@@ -10,8 +10,19 @@ import {
 } from 'react-native';
 import { StoreProvider, useStore } from './src/data/Store';
 import { Module, Page } from './src/core/types';
-import { Button, Field, Heading, Icon, Label, colors, fonts, styles } from './src/components/ui';
+import {
+  Badge,
+  Button,
+  Field,
+  Heading,
+  Icon,
+  Label,
+  colors,
+  fonts,
+  styles,
+} from './src/components/ui';
 import { ThemeProvider, useTheme } from './src/components/theme';
+import { BetaNotice } from './src/components/BetaNotice';
 import { ThemeButton } from './src/components/ThemeButton';
 import { ToolsHome } from './src/screens/ToolsHome';
 import { Transcribe } from './src/screens/Transcribe';
@@ -148,7 +159,7 @@ function Shell() {
         flexDirection: desktop ? 'row' : 'column',
       }}
     >
-      {desktop ? (
+      {desktop && profile.configured ? (
         <View
           style={{
             width: 240,
@@ -195,13 +206,14 @@ function Shell() {
             borderBottomColor: colors.line,
             flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: desktop ? 'flex-end' : 'space-between',
+            justifyContent: desktop && profile.configured ? 'flex-end' : 'space-between',
             gap: 12,
           }}
         >
-          {!desktop ? <Brand compact /> : null}
+          {!desktop || !profile.configured ? <Brand compact /> : null}
+          {desktop && profile.configured && Platform.OS === 'web' ? <BetaBadge /> : null}
           <View style={[styles.row, { gap: 4 }]}>
-            {!desktop ? (
+            {!desktop && profile.configured ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Abrir ajustes"
@@ -220,6 +232,7 @@ function Shell() {
             />
           </View>
         </View>
+        {Platform.OS === 'web' ? <BetaNotice padding={pad} /> : null}
         {store.message ? (
           <View
             accessibilityLiveRegion="polite"
@@ -297,10 +310,7 @@ function Shell() {
 function Brand({ compact = false }: { compact?: boolean }) {
   const lamp = compact ? 10 : 12;
   return (
-    <View
-      accessibilityLabel="clasRo"
-      style={[styles.row, { gap: 10, paddingHorizontal: compact ? 0 : 12 }]}
-    >
+    <View style={[styles.row, { gap: 10, paddingHorizontal: compact ? 0 : 12 }]}>
       <View
         style={{
           width: lamp + 8,
@@ -332,6 +342,17 @@ function Brand({ compact = false }: { compact?: boolean }) {
       >
         clasRo
       </Text>
+      {compact && Platform.OS === 'web' ? <BetaBadge /> : null}
+    </View>
+  );
+}
+
+function BetaBadge() {
+  return (
+    <View style={{ alignSelf: 'center' }}>
+      <Badge color={colors.accentText} background={colors.accentSoft}>
+        Beta
+      </Badge>
     </View>
   );
 }

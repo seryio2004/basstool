@@ -1,8 +1,6 @@
 import { fontFamilies, loadFonts } from './fonts';
 
 export function bootstrap() {
-  document.title = 'clasRo · Tu espacio de práctica';
-  document.documentElement.lang = 'es';
   loadFonts();
   if (document.getElementById('clasro-styles')) return;
   const style = document.createElement('style');

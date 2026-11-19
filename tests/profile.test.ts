@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tunings } from '../src/core/instrument';
-import { defaultProfile, parseProfile, tuningIds } from '../src/core/profile';
+import { bassScales, defaultProfile, parseProfile, tuningIds } from '../src/core/profile';
 
 test('a new local profile works without an account and starts unconfigured', () => {
   const p = defaultProfile('local-1');
@@ -34,6 +34,7 @@ test('stored profiles are normalised instead of breaking the app', () => {
     id: 'abc',
     email: 'bajista@example.com',
     tuning: 'standard5',
+    scale: 34,
     level: 'advanced',
     nomenclature: 'english',
     leftHanded: true,
@@ -57,4 +58,20 @@ test('theme preference defaults to dark and survives a round trip', () => {
   assert.equal(parseProfile({ id: 'a', theme: 'light' }, 'x').theme, 'light');
   assert.equal(parseProfile({ id: 'a', theme: 'system' }, 'x').theme, 'system');
   assert.equal(parseProfile({ id: 'a', theme: 'sepia' }, 'x').theme, 'dark');
+});
+
+test('bass scale defaults to 34 inches for new and legacy profiles', () => {
+  assert.equal(defaultProfile('x').scale, 34);
+  assert.equal(parseProfile({ id: 'a', configured: true }, 'x').scale, 34);
+  for (const scale of [28, 32.5, '32', null]) {
+    assert.equal(parseProfile({ id: 'a', scale }, 'x').scale, 34);
+  }
+});
+
+test('each supported bass scale survives a storage round trip', () => {
+  assert.deepEqual(bassScales, [30, 32, 34, 35]);
+  for (const scale of bassScales) {
+    const profile = { ...defaultProfile('x'), configured: true, scale };
+    assert.deepEqual(parseProfile(JSON.parse(JSON.stringify(profile)), 'x'), profile);
+  }
 });

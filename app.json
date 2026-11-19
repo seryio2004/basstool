@@ -10,12 +10,14 @@
     },
     "web": {
       "bundler": "metro",
-      "name": "clasRo",
+      "name": "clasRo — beta",
       "lang": "es",
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "description": "Versión de prueba de clasRo. Afina el bajo, practica y transcribe de oído."
     },
-    "plugins": [
-      "expo-audio"
-    ]
+    "plugins": ["expo-audio"],
+    "experiments": {
+      "baseUrl": "."
+    }
   }
 }

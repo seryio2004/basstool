@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AttemptInput, Database, scoreAttempt, uid } from '../core/types';
 import { Profile, defaultProfile, parseProfile } from '../core/profile';
 import { LessonProgress, validateLessonProgress } from '../core/course';
+import { SHOW_HARMONY_COURSE } from '../content/flags.json';
 import { harmonyLessons } from '../content/harmony';
 import { supabase } from './supabase';
 import { loadRemote, profileToRow } from './remote';
@@ -89,9 +90,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (err) throw err;
       if (data.session) {
         const remote = await loadRemote(data.session.user.id);
-        // El tema es del dispositivo: se conserva el del perfil local.
-        const theme = (await readLocal()).profile.theme;
-        apply({ ...remote, profile: { ...remote.profile, theme }, mode: 'remote' });
+        const { theme, scale } = (await readLocal()).profile;
+        apply({ ...remote, profile: { ...remote.profile, theme, scale }, mode: 'remote' });
         return;
       }
     }
@@ -166,13 +166,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     updateProfile: (patch) =>
       mutate(async (s) => {
         const profile = { ...s.profile, ...patch };
-        if (patch.theme && s.mode === 'remote') {
-          // El tema no tiene columna en el servidor: se guarda en el perfil local.
-          const local = await readLocal();
-          await writeLocal({ ...local, profile: { ...local.profile, theme: patch.theme } });
-          if (Object.keys(patch).length === 1) return { ...s, profile };
-        }
         if (s.mode === 'remote') {
+          // Se guardan con el perfil local y no requieren columnas nuevas en Supabase.
+          const { theme, scale, ...remotePatch } = patch;
+          if (theme !== undefined || scale !== undefined) {
+            const local = await readLocal();
+            await writeLocal({
+              ...local,
+              profile: {
+                ...local.profile,
+                theme: theme ?? local.profile.theme,
+                scale: scale ?? local.profile.scale,
+              },
+            });
+          }
+          if (Object.keys(remotePatch).length === 0) return { ...s, profile };
           const { error } = await supabase!
             .from('profiles')
             .update(profileToRow(profile))
@@ -222,14 +230,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       apply(await readLocal());
       setMessage('Cuenta eliminada. Los datos de este dispositivo se conservan.');
     },
-    clearLocalData: async () => {
-      await AsyncStorage.removeItem(KEY);
-      const next = await readLocal();
-      if (current.current.mode === 'local') apply(next);
-      setMessage('Datos de este dispositivo borrados.');
-    },
+    clearLocalData: () =>
+      mutate(async (s) => (s.mode === 'local' ? freshLocal() : s), 'Ajustes y progreso borrados.'),
     saveLessonProgress: (input) =>
       mutate(async (s) => {
+        if (!SHOW_HARMONY_COURSE) throw new Error('El curso no está disponible en esta versión.');
         const lesson = harmonyLessons.find((l) => l.id === input.lessonId);
         if (!lesson) throw new Error('No se reconoce este tema.');
         const next: LessonProgress = {

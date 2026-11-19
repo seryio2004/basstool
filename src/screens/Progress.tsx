@@ -5,6 +5,7 @@ import { useStore } from '../data/Store';
 import { modules } from '../core/types';
 import { Badge, Button, Chips, Empty, Label, colors, styles } from '../components/ui';
 import { harmonyCourse, harmonyLessons } from '../content/harmony';
+import { showHarmonyProgress } from '../content/visibility';
 import { lessonCompleted, quizScore } from '../core/course';
 export function Progress({ openCourse }: { openCourse: () => void }) {
   const { db, profile } = useStore(),
@@ -15,20 +16,6 @@ export function Progress({ openCourse }: { openCourse: () => void }) {
   const average = attempts.length
     ? Math.round(attempts.reduce((s, a) => s + a.score, 0) / attempts.length)
     : 0;
-  const courseProgress = (db.lessonProgress || []).filter(
-    (p) => p.userId === profile!.id && p.courseId === harmonyCourse.id,
-  );
-  const courseCompleted = harmonyLessons.filter((l) =>
-    lessonCompleted(
-      l,
-      courseProgress.find((p) => p.lessonId === l.id),
-    ),
-  ).length;
-  const quizzes = courseProgress.filter((p) => p.quizSubmitted);
-  const theoryCorrect = quizzes.reduce((sum, p) => {
-    const lesson = harmonyLessons.find((l) => l.id === p.lessonId);
-    return sum + (lesson ? quizScore(lesson, p.quizAnswers) : 0);
-  }, 0);
   return (
     <View style={{ gap: 25 }}>
       <View style={{ gap: 8 }}>
@@ -37,34 +24,7 @@ export function Progress({ openCourse }: { openCourse: () => void }) {
         </Heading>
         <Label muted>Resultados de tus sesiones guardadas. Cada intento cuenta por separado.</Label>
       </View>
-      <View style={styles.panel}>
-        <View style={styles.between}>
-          <Heading level={2} style={styles.h2}>
-            Curso Armonía I
-          </Heading>
-          <Badge>{courseCompleted} de 32 temas</Badge>
-        </View>
-        <Label muted>
-          {quizzes.length
-            ? `${theoryCorrect} respuestas correctas en ${quizzes.length * 3} preguntas corregidas. Las prácticas se registran por autoevaluación.`
-            : 'Empieza por la teoría y completa los cuestionarios y prácticas de cada tema.'}
-        </Label>
-        <Label muted>
-          {courseProgress.length}{' '}
-          {courseProgress.length === 1
-            ? 'tema con progreso guardado'
-            : 'temas con progreso guardado'}
-          . Completar no equivale a dominar: puedes repasar y reintentar.
-        </Label>
-        <Button
-          variant="secondary"
-          icon="library"
-          onPress={openCourse}
-          style={{ alignSelf: 'flex-start' }}
-        >
-          Abrir Armonía I
-        </Button>
-      </View>
+      {showHarmonyProgress() ? <CourseProgress openCourse={openCourse} /> : null}
       <View style={[styles.panel, { flexDirection: 'row', flexWrap: 'wrap', gap: 32 }]}>
         {[
           { name: 'Sesiones', value: String(attempts.length) },
@@ -131,6 +91,54 @@ export function Progress({ openCourse }: { openCourse: () => void }) {
         Los porcentajes describen cada sesión; no certifican dominio ni comparan dificultades
         diferentes.
       </Label>
+    </View>
+  );
+}
+
+function CourseProgress({ openCourse }: { openCourse: () => void }) {
+  const { db, profile } = useStore();
+  const courseProgress = (db.lessonProgress || []).filter(
+    (p) => p.userId === profile!.id && p.courseId === harmonyCourse.id,
+  );
+  const courseCompleted = harmonyLessons.filter((l) =>
+    lessonCompleted(
+      l,
+      courseProgress.find((p) => p.lessonId === l.id),
+    ),
+  ).length;
+  const quizzes = courseProgress.filter((p) => p.quizSubmitted);
+  const theoryCorrect = quizzes.reduce((sum, p) => {
+    const lesson = harmonyLessons.find((l) => l.id === p.lessonId);
+    return sum + (lesson ? quizScore(lesson, p.quizAnswers) : 0);
+  }, 0);
+  return (
+    <View style={styles.panel}>
+      <View style={styles.between}>
+        <Heading level={2} style={styles.h2}>
+          Curso Armonía I
+        </Heading>
+        <Badge>
+          {courseCompleted} de {harmonyLessons.length} temas
+        </Badge>
+      </View>
+      <Label muted>
+        {quizzes.length
+          ? `${theoryCorrect} respuestas correctas en ${quizzes.length * 3} preguntas corregidas. Las prácticas se registran por autoevaluación.`
+          : 'Empieza por la teoría y completa los cuestionarios y prácticas de cada tema.'}
+      </Label>
+      <Label muted>
+        {courseProgress.length}{' '}
+        {courseProgress.length === 1 ? 'tema con progreso guardado' : 'temas con progreso guardado'}
+        . Completar no equivale a dominar: puedes repasar y reintentar.
+      </Label>
+      <Button
+        variant="secondary"
+        icon="library"
+        onPress={openCourse}
+        style={{ alignSelf: 'flex-start' }}
+      >
+        Abrir Armonía I
+      </Button>
     </View>
   );
 }

@@ -2,6 +2,8 @@ import { tunings } from './instrument';
 import type { Nomenclature } from './notation';
 
 export type TuningId = keyof typeof tunings;
+export const bassScales = [30, 32, 34, 35] as const;
+export type BassScale = (typeof bassScales)[number];
 export type Level = 'beginner' | 'intermediate' | 'advanced';
 /** Tema de la interfaz. Preferencia del dispositivo: no se sincroniza con la cuenta. */
 export type ThemePreference = 'dark' | 'light' | 'system';
@@ -12,6 +14,7 @@ export type Profile = {
   /** Correo de la cuenta; null cuando se usa la app sin cuenta. */
   email: string | null;
   tuning: TuningId;
+  scale: BassScale;
   level: Level;
   nomenclature: Nomenclature;
   leftHanded: boolean;
@@ -40,6 +43,7 @@ export function defaultProfile(id: string): Profile {
     id,
     email: null,
     tuning: 'standard4',
+    scale: 34,
     level: 'beginner',
     nomenclature: 'latin',
     leftHanded: false,
@@ -60,6 +64,7 @@ export function parseProfile(value: unknown, fallbackId: string): Profile {
     id: typeof v.id === 'string' && v.id ? v.id : base.id,
     email: typeof v.email === 'string' ? v.email : null,
     tuning: tuningIds.includes(v.tuning as TuningId) ? (v.tuning as TuningId) : base.tuning,
+    scale: bassScales.find((scale) => scale === v.scale) ?? base.scale,
     level: levels.some((l) => l.value === v.level) ? (v.level as Level) : base.level,
     nomenclature: v.nomenclature === 'english' ? 'english' : 'latin',
     leftHanded: v.leftHanded === true,

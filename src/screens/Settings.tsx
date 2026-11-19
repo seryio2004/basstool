@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import {
   Badge,
   Button,
@@ -11,19 +11,22 @@ import {
   colors,
   styles,
 } from '../components/ui';
+import { BassPreview } from '../components/BassPreview';
 import { tunings } from '../core/instrument';
 import {
+  BassScale,
   Level,
   Profile,
   ThemePreference,
   TuningId,
+  bassScales,
   levels,
   themePreferences,
   tuningIds,
 } from '../core/profile';
 import { useStore } from '../data/Store';
 
-type InstrumentDraft = Pick<Profile, 'tuning' | 'level' | 'nomenclature' | 'leftHanded'>;
+type InstrumentDraft = Pick<Profile, 'tuning' | 'scale' | 'level' | 'nomenclature' | 'leftHanded'>;
 
 /** Formulario compartido por la configuración inicial y los ajustes. */
 export function InstrumentForm({
@@ -42,12 +45,21 @@ export function InstrumentForm({
           options={tuningIds.map((id) => ({ value: id, label: tunings[id].name }))}
         />
       </Group>
+      <Group title="Escala">
+        <Chips<BassScale>
+          label="Escala del bajo"
+          value={value.scale}
+          onChange={(scale) => onChange({ ...value, scale })}
+          options={bassScales.map((scale) => ({ value: scale, label: `${scale}″` }))}
+        />
+      </Group>
       <Toggle
         label="Zurdo"
-        detail="El clavijero del mástil pasa a la derecha."
+        detail="El clavijero pasa a la derecha en el dibujo y en el mástil interactivo."
         value={value.leftHanded}
         onChange={(leftHanded) => onChange({ ...value, leftHanded })}
       />
+      <BassPreview tuning={value.tuning} scale={value.scale} leftHanded={value.leftHanded} />
       <Group title="Nivel">
         <Chips<Level>
           value={value.level}
@@ -80,6 +92,7 @@ function Group({ title, children }: { title: string; children: React.ReactNode }
 
 const draftOf = (p: Profile): InstrumentDraft => ({
   tuning: p.tuning,
+  scale: p.scale,
   level: p.level,
   nomenclature: p.nomenclature,
   leftHanded: p.leftHanded,
@@ -91,7 +104,10 @@ export function Onboarding() {
     [busy, setBusy] = useState(false);
   const finish = (patch: Partial<Profile>) => {
     setBusy(true);
-    void store.updateProfile({ ...patch, configured: true }).finally(() => setBusy(false));
+    void store
+      .updateProfile({ ...patch, configured: true })
+      .catch(() => {})
+      .finally(() => setBusy(false));
   };
   return (
     <View style={{ gap: 24, maxWidth: 720, width: '100%', alignSelf: 'center' }}>
@@ -125,8 +141,12 @@ export function Settings() {
     [draft, setDraft] = useState(draftOf(store.profile)),
     [busy, setBusy] = useState(false),
     [confirmClear, setConfirmClear] = useState(false);
-  useEffect(() => setDraft(draftOf(store.profile)), [store.profile]);
-  const changed = JSON.stringify(draft) !== JSON.stringify(draftOf(store.profile));
+  const saved = draftOf(store.profile);
+  const { tuning, scale, level, nomenclature, leftHanded } = saved;
+  useEffect(() => {
+    setDraft({ tuning, scale, level, nomenclature, leftHanded });
+  }, [store.profile.id, tuning, scale, level, nomenclature, leftHanded]);
+  const changed = JSON.stringify(draft) !== JSON.stringify(saved);
   return (
     <View style={{ gap: 28, maxWidth: 820 }}>
       <Heading level={1} style={styles.title}>
@@ -153,14 +173,15 @@ export function Settings() {
         </Button>
       </View>
       <Appearance />
-      <Account />
+      {Platform.OS !== 'web' ? <Account /> : null}
       {store.mode === 'local' ? (
         <View style={styles.panel}>
           <Heading level={2} style={styles.h2}>
-            Datos de este dispositivo
+            {Platform.OS === 'web' ? 'Datos de este navegador' : 'Datos de este dispositivo'}
           </Heading>
           <Label muted>
-            Tus ajustes, resultados y progreso se guardan solo en este dispositivo.
+            Tus ajustes, resultados y progreso se guardan solo en
+            {Platform.OS === 'web' ? ' este navegador.' : ' este dispositivo.'}
           </Label>
           <View style={styles.row}>
             <Button
@@ -168,10 +189,10 @@ export function Settings() {
               onPress={() => {
                 if (!confirmClear) return setConfirmClear(true);
                 setConfirmClear(false);
-                void store.clearLocalData();
+                void store.clearLocalData().catch(() => {});
               }}
             >
-              {confirmClear ? 'Confirmar: borrar todo' : 'Borrar datos del dispositivo'}
+              {confirmClear ? 'Confirmar borrado' : 'Borrar ajustes y progreso'}
             </Button>
             {confirmClear ? (
               <Button variant="ghost" onPress={() => setConfirmClear(false)}>

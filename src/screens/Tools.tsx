@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, View, Text, TextInput, Platform } from 'react-native';
 import Svg, { Line, Path, Text as SvgText } from 'react-native-svg';
 import { Button, Chips, Field, Label, MoreMenu, colors, fonts, styles } from '../components/ui';
+import { useStore } from '../data/Store';
 import { Knob } from '../components/Knob';
 import { audio, startTuner, TuningValue } from '../platform/audio';
 import { naturals, noteName, tuning } from '../core/music';
@@ -51,7 +52,7 @@ function Metronome() {
     if (!running) return;
     const token = ++generation.current;
     let timer: ReturnType<typeof setInterval> | undefined;
-    const flashes: ReturnType<typeof setTimeout>[] = [];
+    const flashes = new Set<ReturnType<typeof setTimeout>>();
     (async () => {
       try {
         await audio.ready();
@@ -62,15 +63,21 @@ function Metronome() {
           while (next < audio.now() + 0.12) {
             audio.click(next, i % Number(meter) === 0);
             const current = i++ % Number(meter);
-            flashes.push(
-              setTimeout(() => setBeat(current), Math.max(0, (next - audio.now()) * 1000)),
+            const flash = setTimeout(
+              () => {
+                flashes.delete(flash);
+                setBeat(current);
+              },
+              Math.max(0, (next - audio.now()) * 1000),
             );
+            flashes.add(flash);
             next += 60 / Number(bpm);
           }
         };
         schedule();
         timer = setInterval(schedule, 25);
       } catch (e) {
+        if (token !== generation.current) return;
         setError((e as Error).message);
         setRunning(false);
       }
@@ -175,11 +182,12 @@ function Metronome() {
   );
 }
 function Tuner() {
+  const { profile } = useStore();
   const [active, setActive] = useState(false),
     [busy, setBusy] = useState(false),
     [pitch, setPitch] = useState<TuningValue | null>(null),
     [error, setError] = useState<TunerError | null>(null),
-    [preset, setPreset] = useState<keyof typeof tunings>('standard4'),
+    [preset, setPreset] = useState(profile.tuning),
     [referenceText, setReferenceText] = useState('440');
   const cleanup = useRef<(() => void) | null>(null),
     generation = useRef(0);
@@ -498,12 +506,21 @@ function Chords() {
     [progression, setProgression] = useState('0,4,5,3'),
     [error, setError] = useState('');
   const chords = majorTriads(60 + Number(root), progression);
-  useEffect(() => () => audio.stop(), []);
+  const generation = useRef(0);
+  useEffect(
+    () => () => {
+      generation.current++;
+      audio.stop();
+    },
+    [root, progression],
+  );
   async function play() {
+    const token = ++generation.current;
     try {
       setError('');
-      audio.stop();
       await audio.ready();
+      if (token !== generation.current) return;
+      audio.stop();
       const t = audio.now() + 0.1;
       chords.forEach(({ root, quality }, i) => {
         arpeggios[quality].tones.forEach(({ semitones }) =>
@@ -511,7 +528,7 @@ function Chords() {
         );
       });
     } catch (e) {
-      setError((e as Error).message);
+      if (token === generation.current) setError((e as Error).message);
     }
   }
   return (

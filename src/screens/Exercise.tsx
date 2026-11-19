@@ -212,18 +212,26 @@ function Quiz({
     [error, setError] = useState('');
   const started = useRef(Date.now()),
     total = module === 'reading' ? 12 : 8;
+  const audioGeneration = useRef(0);
   const currentNumber = module === 'reading' ? index * 4 + position : index;
   const rightAnswer = module === 'reading' ? question.answers[position]! : question.answer;
-  useEffect(() => () => audio.stop(), []);
-  async function listen() {
+  const stopAudio = () => {
+    audioGeneration.current++;
+    audio.stop();
+  };
+  useEffect(() => stopAudio, []);
+
+  async function listen(notes = question.notes) {
+    const token = ++audioGeneration.current;
     try {
       setError('');
       await audio.ready();
+      if (token !== audioGeneration.current) return;
       audio.stop();
       const t = audio.now() + 0.1;
-      question.notes.forEach((note, i) => audio.tone(note, t + i * 0.65, 0.5));
+      notes.forEach((note, i) => audio.tone(note, t + i * 0.65, 0.5));
     } catch (e) {
-      setError((e as Error).message);
+      if (token === audioGeneration.current) setError((e as Error).message);
     }
   }
   function choose(value: string) {
@@ -249,7 +257,7 @@ function Quiz({
       setQuestion(generate());
     }
     setAnswer(null);
-    audio.stop();
+    stopAudio();
   }
   return (
     <View style={styles.panel}>
@@ -288,7 +296,7 @@ function Quiz({
           setAnswer(null);
           setQuestion(generate(v));
           started.current = Date.now();
-          audio.stop();
+          stopAudio();
         }}
       />
       <View style={{ paddingVertical: 20, gap: 14 }}>
@@ -353,15 +361,7 @@ function Quiz({
           </Label>
         ) : null}
         {module === 'notes' && modality === 'ear' ? (
-          <Button
-            variant="ghost"
-            onPress={() => {
-              void audio
-                .ready()
-                .then(() => audio.tone(60, audio.now() + 0.05, 0.5))
-                .catch((e) => setError(e.message));
-            }}
-          >
+          <Button variant="ghost" onPress={() => void listen([60])}>
             Escuchar Do4 de referencia
           </Button>
         ) : null}

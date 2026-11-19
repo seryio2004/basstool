@@ -159,7 +159,7 @@ export function Field({
 }
 
 /** Selector de una opción. Seleccionado en ámbar; el resto, botones de placa. */
-export function Chips<T extends string>({
+export function Chips<T extends string | number>({
   options,
   value,
   onChange,
@@ -185,6 +185,7 @@ export function Chips<T extends string>({
             key={o.value}
             accessibilityRole="radio"
             accessibilityState={{ selected, checked: selected }}
+            aria-checked={selected}
             onPress={() => onChange(o.value)}
             style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
               minHeight,

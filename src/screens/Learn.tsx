@@ -14,6 +14,7 @@ import {
 } from '../components/ui';
 import { Module } from '../core/types';
 import { Note, notes } from '../content/notes';
+import { learnTabs } from '../content/visibility';
 import { HarmonyCourse } from './HarmonyCourse';
 
 export function Learn({
@@ -23,7 +24,9 @@ export function Learn({
   practice: (module: Module) => void;
   scrollToTop: () => void;
 }) {
-  const [tab, setTab] = useState<'course' | 'notes'>('course');
+  const tabs = learnTabs();
+  const [tab, setTab] = useState<'course' | 'notes'>(tabs[0]!.value);
+  if (tabs.length === 1) return <Notes />;
   return (
     <View style={{ gap: 24 }}>
       <Chips
@@ -32,10 +35,7 @@ export function Learn({
           setTab(value);
           requestAnimationFrame(scrollToTop);
         }}
-        options={[
-          { value: 'course', label: 'Curso de armonía' },
-          { value: 'notes', label: 'Apuntes' },
-        ]}
+        options={tabs}
       />
       {tab === 'course' ? (
         <HarmonyCourse practice={practice} scrollToTop={scrollToTop} />
@@ -97,7 +97,7 @@ function Notes() {
                 { paddingVertical: 18, borderBottomColor: colors.line, borderBottomWidth: 1 },
               ]}
             >
-              <View style={[styles.row, { flex: 1, minWidth: 200 }]}>
+              <View style={[styles.row, { flex: 1, minWidth: 0 }]}>
                 <Icon name="library" size={26} color={colors.accentText} />
                 <View style={{ flex: 1, gap: 5 }}>
                   <Text style={styles.h3}>{n.title}</Text>

@@ -38,5 +38,4 @@ export function loadFonts() {
     face('"IBM Plex Mono"', sources.monoSemiBold, '600'),
   ].join('');
   document.head.appendChild(style);
-  console.log('FONTDEBUG', JSON.stringify(sources));
 }
