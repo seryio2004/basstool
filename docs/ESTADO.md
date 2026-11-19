@@ -11,6 +11,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Integrado 2026-11-19: reproducción de la transcripción, flujo de compases guiado, acordes deducidos de las notas escritas, **selector de BPM** que recoloca los compases (commit 5f65c10).
 - **Pendiente: notas simultáneas (una por cuerda).** No empezado. Encargo listo en `.git/coord/encargos/notas-simultaneas.md`; lanzar con `scripts/sol.sh notas-simultaneas .git/coord/encargos/notas-simultaneas.md` (si Sol ya lo lanzó, ver su rama `codex/notas-simultaneas` y `.git/coord/sol/notas-simultaneas.md`).
 
+- **Pendiente: reconocimiento de acordes extendidos** (pedido por el usuario). Ampliar la deducción por notas escritas (`inferChord` en src/core/chroma.ts) y la detección por audio para novenas, oncenas y trecenas: Cmaj9, C9, Cm9, C7(♭9/♯9), Cadd9, C11, Cm11, C7(♯11), C13…, admitiendo la omisión de la quinta (y de la 11 en acordes dominantes) cuando hay 5 o más notas. Elegir la interpretación más simple ante ambigüedad (p. ej. preferir C6 a Am7/C según el bajo) y probar con casos concretos. Encargo para Sol aún no redactado.
+
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
 - Aprobar la librería de audio de la tarea 6 tras medir en un dispositivo.
