@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Text, View } from 'react-native';
 import Svg, { ClipPath, Defs, Line, Path, Rect } from 'react-native-svg';
 import { envelope, loopFromTimes, wavePath } from '../core/waveform';
+import type { TimedEvent } from '../core/scoreAudio';
 import type { Loop } from '../platform/playerTypes';
 import { Button, colors } from './ui';
 
@@ -16,6 +17,7 @@ const DRAG_PX = 5;
  *   canción y permite moverse por ella.
  */
 export function Waveform({
+  annotations,
   peaks,
   duration,
   position,
@@ -27,6 +29,7 @@ export function Waveform({
   onClearLoop,
   height = 120,
 }: {
+  annotations: { events: TimedEvent[]; bars: number[] };
   peaks: number[];
   duration: number;
   position: number;
@@ -72,6 +75,18 @@ export function Waveform({
   );
 
   const x = (t: number) => (span > 0 ? ((t - viewStart) / span) * width : 0);
+  const scoreMarks = useMemo(() => {
+    const px = (t: number) => ((t - viewStart) / span) * width;
+    const bars = annotations.bars
+      .filter((t) => t >= viewStart && t <= viewEnd)
+      .map((t) => `M${px(t)} 0v14`)
+      .join(' ');
+    const notes = annotations.events
+      .filter((e) => e.midi !== undefined && e.end > viewStart && e.start < viewEnd)
+      .map((e) => `M${px(e.start)} ${height - 6}h${Math.max(1, px(e.end) - px(e.start) - 2)}`)
+      .join(' ');
+    return { bars, notes };
+  }, [annotations, viewStart, viewEnd, span, width, height]);
   const timeAtX = (px: number) =>
     Math.max(
       0,
@@ -254,6 +269,8 @@ export function Waveform({
                 />
               </>
             ) : null}
+            <Path d={scoreMarks.bars} stroke={colors.ink} strokeWidth={2} />
+            <Path d={scoreMarks.notes} stroke={colors.green} strokeWidth={4} />
             {markers
               .filter((m) => m.time >= viewStart && m.time <= viewEnd)
               .map((m) => (

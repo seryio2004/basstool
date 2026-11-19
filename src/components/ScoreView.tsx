@@ -165,7 +165,7 @@ const NotationLine = memo(function NotationLine({
                   accessibilityRole="button"
                   accessibilityLabel={e.label}
                   onPress={(ev) => {
-                    const y = ev.nativeEvent.locationY;
+                    const y = ev.nativeEvent.locationY + (interactiveMeasures ? 24 : 0);
                     const hit = hitTest(layout, e.left + ev.nativeEvent.locationX, line.y + y);
                     onEvent({
                       measure: m.measure,
@@ -179,9 +179,9 @@ const NotationLine = memo(function NotationLine({
                   style={{
                     position: 'absolute',
                     left: e.left,
-                    top: 0,
+                    top: interactiveMeasures ? 24 : 0,
                     width: e.right - e.left,
-                    height: m.bottom + 6,
+                    height: m.bottom + 6 - (interactiveMeasures ? 24 : 0),
                   }}
                 />
               ))
@@ -245,7 +245,7 @@ export function ScoreView({
   onPressEvent?: (cursor: EditCursor) => void;
   onPressMeasure?: (measure: number) => void;
 }): JSX.Element {
-  const editable = !!onPressEvent;
+  const editable = !!cursor;
   const layout = useMemo(
     () => layoutScore(score, instrument, display, width, keyFifths, editable),
     [score, instrument, display, width, keyFifths, editable],
@@ -262,6 +262,16 @@ export function ScoreView({
   );
   const onMeasure = useCallback((m: number) => handlers.current.onPressMeasure?.(m), []);
   const head = playhead ? positionPoint(layout, playhead) : null;
+  const soundingMeasure =
+    playhead &&
+    layout.lines
+      .find((l) => l.measures.some((m) => m.measure === playhead.measure))
+      ?.measures.find((m) => m.measure === playhead.measure);
+  const sounding =
+    soundingMeasure &&
+    soundingMeasure.events.find(
+      (e) => e.source.note && e.beat <= playhead!.beat && e.endBeat > playhead!.beat,
+    );
   const edit = cursor ? cursorPoint(layout, cursor) : null;
   const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const scrollX = useRef(0);
@@ -338,6 +348,18 @@ export function ScoreView({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
+          {sounding && head ? (
+            <Rect
+              x={sounding.x - 10}
+              y={head.y}
+              width={20}
+              height={head.height}
+              rx={4}
+              fill={colors.green}
+              fillOpacity={0.23}
+              stroke={colors.green}
+            />
+          ) : null}
           {edit ? (
             <G>
               <Path d={`M ${edit.x - 5} ${edit.y - 9} h 10 l -5 5 Z`} fill={colors.green} />

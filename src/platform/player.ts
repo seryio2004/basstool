@@ -8,6 +8,11 @@ export function createPlayer(): Player {
         'La transcripción en el móvil llegará con el nuevo motor de audio (tarea 6). De momento, úsala en la web.',
       );
     },
+    setTones() {},
+    setMix() {},
+    suggestChord() {
+      return null;
+    },
     async play() {},
     pause() {},
     seek() {},

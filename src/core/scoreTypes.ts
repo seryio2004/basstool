@@ -13,13 +13,15 @@
 export type Fraction = { n: number; d: number };
 
 /** Denominador de la figura. Las fusas y semifusas se generan al dividir figuras. */
-export type BaseValue = 1 | 2 | 4 | 8 | 16 | 32 | 64;
+export type BaseValue = 1 | 2 | 4 | 8 | 16 | 32 | 64 | 256;
 
 export type Duration = {
   base: BaseValue;
   dots: 0 | 1;
   /** Tresillo: tres figuras en el tiempo de dos. */
   triplet?: boolean;
+  /** 15:8 solo para el residuo exacto al dividir ritmos mixtos. */
+  tuplet?: 3 | 5 | 15;
 };
 
 export type Technique = 'hammer' | 'pull' | 'slide' | 'dead' | 'staccato';
@@ -42,6 +44,7 @@ export type Measure = {
   id: string;
   /** Métrica de este compás; si falta, la del compás anterior o la de la partitura. */
   meter?: Meter;
+  chords?: { beat: number; symbol: string }[];
   events: ScoreEvent[];
 };
 

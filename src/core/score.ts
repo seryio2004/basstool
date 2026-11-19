@@ -37,17 +37,22 @@ export function compareF(a: Fraction, b: Fraction): -1 | 0 | 1 {
   const d = BigInt(a.n) * BigInt(b.d) - BigInt(b.n) * BigInt(a.d);
   return d < 0n ? -1 : d > 0n ? 1 : 0;
 }
+export const tupletCount = (d: Duration) => d.tuplet ?? (d.triplet ? 3 : 1);
 const validDuration = (d: Duration) =>
   !!d &&
   (d.triplet === undefined || typeof d.triplet === 'boolean') &&
+  (!d.triplet || !d.tuplet || d.tuplet === 3) &&
+  (d.tuplet === undefined || [3, 5, 15].includes(d.tuplet)) &&
+  (d.tuplet !== 15 || d.base === 256) &&
   (([1, 2, 4, 8, 16].includes(d.base) && [0, 1].includes(d.dots)) ||
     (d.base === 32 && d.dots === 0) ||
-    (d.base === 64 && d.dots === 0 && d.triplet === true));
+    (d.base === 64 && d.dots === 0 && tupletCount(d) === 3) ||
+    (d.base === 256 && d.dots === 0 && d.tuplet === 15));
 export function durationValue(d: Duration): Fraction {
   if (!validDuration(d)) throw new RangeError('Duración no válida.');
   return fraction(
-    (d.dots ? 3 : 1) * (d.triplet ? 2 : 1),
-    d.base * (d.dots ? 2 : 1) * (d.triplet ? 3 : 1),
+    (d.dots ? 3 : 1) * 2 ** Math.floor(Math.log2(tupletCount(d))),
+    d.base * (d.dots ? 2 : 1) * tupletCount(d),
   );
 }
 const validMeter = (m: Meter) =>
@@ -144,6 +149,13 @@ export function changeMeasureMeter(score: Score, cursor: EditCursor, meter: Mete
   measures[index] = { ...measures[index]!, meter: { ...meter } };
   let through = index;
   while (measures[through + 1] && !measures[through + 1]!.meter) through++;
+  // Shortening an inherited meter must keep every hand-written chord reachable.
+  if (
+    measures
+      .slice(index, through + 1)
+      .some((bar) => bar.chords?.some((ch) => ch.beat >= meter.beats))
+  )
+    return { score, cursor, notice: 'chordOutside' };
   const current = measures[index]!;
   const events = isMeasurePlaceholder(current) ? rests(meter, current.id) : current.events;
   const fitted = fitMeasures({ ...score, measures }, index, events, through);
@@ -176,7 +188,7 @@ export function setKey(score: Score, fifths: number): Score {
 export type Edit = {
   score: Score;
   cursor: EditCursor;
-  notice?: 'split' | 'reflow' | 'limit';
+  notice?: 'split' | 'reflow' | 'limit' | 'chordOutside';
 };
 function clampCursor(score: Score, cursor: EditCursor): EditCursor {
   const measure = Math.max(0, Math.min(score.measures.length - 1, Math.trunc(cursor.measure) || 0));
@@ -239,8 +251,8 @@ export function isMeasurePlaceholder(measure: Measure): boolean {
     measure.events.every((event, index) => !event.note && event.id === `${measure.id}-r${index}`)
   );
 }
-// Supported entry figures and bar capacities are all multiples of 1/96.
-const BAR_TICKS = 96;
+// Supported entry figures and bar capacities are all multiples of 1/480.
+const BAR_TICKS = 480;
 const ticks = (duration: Duration): number => {
   const value = durationValue(duration);
   return (value.n * BAR_TICKS) / value.d;
@@ -251,20 +263,39 @@ const fragments = (
       { base, dots: 0 },
       { base, dots: 1 },
       { base, dots: 0, triplet: true },
+      { base, dots: 0, tuplet: 5 },
     ]),
+    { base: 256, dots: 0, tuplet: 15 },
     { base: 32, dots: 0 },
     { base: 32, dots: 0, triplet: true },
+    { base: 32, dots: 0, tuplet: 5 },
     { base: 64, dots: 0, triplet: true },
   ] satisfies Duration[]
 )
   .map((duration) => ({ duration, ticks: ticks(duration) }))
   .sort((a, b) => b.ticks - a.ticks);
 
+// Prefer short, readable ties. A mixed-grid residual is only used when no
+// combination of ordinary, triplet and quintuplet figures fits exactly.
+const splitCosts = [0];
+const splitParts: typeof fragments = [];
 function decompose(length: number, original: Duration): Duration[] {
   if (length === ticks(original)) return [original];
+  for (let n = splitCosts.length; n <= length; n++) {
+    let best = Infinity;
+    for (const part of fragments) {
+      if (part.ticks > n) continue;
+      const cost = splitCosts[n - part.ticks]! + (part.duration.tuplet === 15 ? BAR_TICKS * 2 : 1);
+      if (cost < best) {
+        best = cost;
+        splitParts[n] = part;
+      }
+    }
+    splitCosts[n] = best;
+  }
   const durations: Duration[] = [];
   while (length > 0) {
-    const part = fragments.find((entry) => entry.ticks <= length)!;
+    const part = splitParts[length]!;
     durations.push(part.duration);
     length -= part.ticks;
   }
@@ -456,8 +487,12 @@ export function toggleDot(score: Score, cursor: EditCursor): Edit {
 }
 export function toggleTriplet(score: Score, cursor: EditCursor): Edit {
   const duration = score.measures[cursor.measure]?.events[cursor.event]?.duration;
-  if (!duration || duration.base === 64) return { score, cursor };
-  return setDuration(score, cursor, { ...duration, triplet: !duration.triplet });
+  if (!duration || duration.base >= 64) return { score, cursor };
+  return setDuration(score, cursor, {
+    ...duration,
+    tuplet: undefined,
+    triplet: tupletCount(duration) !== 3,
+  });
 }
 export function toggleTie(s: Score, c: EditCursor): Edit {
   const edit = replace(s, c, (e) => ({ ...e, tie: !e.tie }));
@@ -582,6 +617,20 @@ export function parseScore(value: unknown): Score | null {
         return {
           id: id(m.id),
           ...(m.meter ? { meter: { beats: m.meter.beats, unit: m.meter.unit } } : {}),
+          ...(m.chords === undefined
+            ? {}
+            : {
+                chords: m.chords.map(({ beat, symbol }) => {
+                  if (
+                    !Number.isFinite(beat) ||
+                    beat < 0 ||
+                    typeof symbol !== 'string' ||
+                    !symbol.trim()
+                  )
+                    throw new Error();
+                  return { beat, symbol };
+                }),
+              }),
           events: m.events.map((e) => {
             if (
               !e ||
@@ -607,6 +656,7 @@ export function parseScore(value: unknown): Score | null {
               duration: {
                 base: e.duration.base,
                 dots: e.duration.dots,
+                ...(e.duration.tuplet ? { tuplet: e.duration.tuplet } : {}),
                 ...(e.duration.triplet !== undefined ? { triplet: e.duration.triplet } : {}),
               },
               ...(e.note ? { note: { string: e.note.string, fret: e.note.fret } } : {}),

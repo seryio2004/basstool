@@ -34,6 +34,8 @@ import {
   setVolume,
 } from '../core/transcription';
 import { listSessions, loadSession, saveSession } from '../data/transcriptions';
+import type { TimedEvent } from '../core/scoreAudio';
+import type { MixMode } from '../platform/playerTypes';
 import { createPlayer } from '../platform/player';
 import type { BassMode, Loop, PickedAudio, Player } from '../platform/playerTypes';
 
@@ -42,6 +44,16 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   const wide = width >= 1100;
   const player = useRef<Player | null>(null);
   if (!player.current) player.current = createPlayer();
+  const [annotations, setAnnotations] = useState<{ events: TimedEvent[]; bars: number[] }>({
+    events: [],
+    bars: [],
+  });
+  const onTimeline = useCallback(
+    (events: TimedEvent[], bars: number[]) => setAnnotations({ events, bars }),
+    [],
+  );
+  const [mixMode, setMixMode] = useState<MixMode>('song'),
+    [balance, setBalance] = useState(0.5);
   const [audio, setAudio] = useState<PickedAudio | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [time, setTime] = useState(0);
@@ -361,6 +373,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
       <Waveform
         key={session.id}
         height={wide ? 120 : 88}
+        annotations={annotations}
         peaks={audio.peaks}
         duration={session.duration}
         position={time}
@@ -490,6 +503,40 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         </View>
       ) : openSection === 'Sonido' ? (
         <View style={{ gap: 8 }}>
+          <Label>Reproducir</Label>
+          <Chips<MixMode>
+            value={mixMode}
+            onChange={(v) => {
+              setMixMode(v);
+              p.setMix(v, balance);
+            }}
+            options={[
+              { value: 'song', label: 'Canción' },
+              { value: 'score', label: 'Transcripción' },
+              { value: 'both', label: 'Ambas' },
+            ]}
+          />
+          {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
+            <Label muted>Escribe notas y marca sus compases para escucharlas.</Label>
+          ) : null}
+          {mixMode === 'both' ? (
+            <Stepper
+              label="Balance de reproducción"
+              value={`Canción ${Math.round((1 - balance) * 100)} % · Bajo ${Math.round(balance * 100)} %`}
+              onMinus={() => {
+                const v = Math.max(0, balance - 0.1);
+                setBalance(v);
+                p.setMix(mixMode, v);
+              }}
+              onPlus={() => {
+                const v = Math.min(1, balance + 0.1);
+                setBalance(v);
+                p.setMix(mixMode, v);
+              }}
+              minusDisabled={balance <= 0}
+              plusDisabled={balance >= 1}
+            />
+          ) : null}
           <Text style={[styles.text, { fontWeight: '600' }]}>Velocidad</Text>
           <Stepper
             value={`${percent} %`}
@@ -592,6 +639,9 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
   return (
     <ScoreEditor
       key={session.id}
+      audio={audio}
+      player={p}
+      onTimeline={onTimeline}
       sessionId={session.id}
       duration={session.duration}
       time={time}
@@ -602,6 +652,10 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
       editing={editing}
       onEditingChange={setEditing}
       onSeek={seek}
+      onSeekNote={(t) => {
+        if (session.loop && (t < session.loop.a || t >= session.loop.b)) selectLoop(null);
+        seek(t);
+      }}
       onLoop={selectLoop}
       register={registerScore}
       onCursorFrame={revealCursor}

@@ -1,3 +1,6 @@
+import { analysisAudio, detectChord } from '../core/chroma';
+import { scheduleTones, type Tone } from '../core/scoreAudio';
+import type { MixMode } from './playerTypes';
 import { peaksFrom, RATE_MIN, RATE_MAX, MIN_LOOP } from '../core/transcription';
 import type { BassMode, Loop, PickedAudio, Player } from './playerTypes';
 
@@ -11,6 +14,67 @@ export function createPlayer(): Player {
   let source: MediaElementAudioSourceNode | null = null;
   let filter: BiquadFilterNode | null = null;
   let gain: GainNode | null = null;
+  let analysis: ReturnType<typeof analysisAudio> | null = null;
+  let tones: Tone[] = [];
+  let mode: MixMode = 'song',
+    balance = 0.5,
+    volume = 1;
+  let synth: GainNode | null = null;
+  let timer: ReturnType<typeof setInterval> | undefined;
+  const voices = new Map<number, OscillatorNode>();
+  function silence() {
+    for (const voice of voices.values()) voice.stop();
+    voices.clear();
+  }
+  function mix() {
+    if (mode !== 'song' && context && !synth) {
+      synth = context.createGain();
+      synth.connect(context.destination);
+    }
+    if (gain) gain.gain.value = volume * (mode === 'score' ? 0 : mode === 'both' ? 1 - balance : 1);
+    if (synth) synth.gain.value = volume * (mode === 'song' ? 0 : mode === 'both' ? balance : 1);
+  }
+  function schedule() {
+    if (
+      !audio ||
+      audio.paused ||
+      audio.ended ||
+      audio.seeking ||
+      audio.readyState < 3 ||
+      !context ||
+      !synth ||
+      mode === 'song'
+    )
+      return;
+    const from = audio.currentTime;
+    for (const note of scheduleTones(
+      tones,
+      from,
+      from + 0.12 * rate,
+      rate,
+      context.currentTime,
+      loop?.b ?? duration,
+    )) {
+      if (voices.has(note.id) || note.until <= note.when) continue;
+      const osc = context.createOscillator(),
+        env = context.createGain();
+      osc.type = 'triangle';
+      osc.frequency.value = 440 * 2 ** ((note.midi - 69) / 12);
+      env.gain.setValueAtTime(0, note.when);
+      env.gain.linearRampToValueAtTime(0.3, Math.min(note.until, note.when + 0.008));
+      env.gain.exponentialRampToValueAtTime(0.001, note.until);
+      osc.connect(env);
+      env.connect(synth);
+      voices.set(note.id, osc);
+      osc.onended = () => {
+        osc.disconnect();
+        env.disconnect();
+        if (voices.get(note.id) === osc) voices.delete(note.id);
+      };
+      osc.start(note.when);
+      osc.stop(note.until);
+    }
+  }
   let url: string | null = null;
   let duration = 0;
   let loop: Loop | null = null;
@@ -30,7 +94,10 @@ export function createPlayer(): Player {
     frame = null;
   };
   const checkLoop = () => {
-    if (audio && loop && !audio.paused && audio.currentTime >= loop.b) audio.currentTime = loop.a;
+    if (audio && loop && !audio.paused && audio.currentTime >= loop.b) {
+      silence();
+      audio.currentTime = loop.a;
+    }
   };
   const tick = () => {
     frame = null;
@@ -46,6 +113,12 @@ export function createPlayer(): Player {
     filter.gain.value = bass === 'boost' ? 9 : 0;
   };
   const release = () => {
+    clearInterval(timer);
+    silence();
+    synth?.disconnect();
+    synth = null;
+    analysis = null;
+    tones = [];
     stopFrame();
     detach?.();
     detach = null;
@@ -126,18 +199,26 @@ export function createPlayer(): Player {
           throw new Error('El archivo de audio está vacío.');
         // Preserve peaks from every channel, including stereo with opposite phases.
         const peaks = Array<number>(PEAKS).fill(0);
+        let strongest = 0,
+          channelIndex = 0;
         for (let c = 0; c < decoded.numberOfChannels; c++) {
           const samples = decoded.getChannelData(c);
           // peaksFrom normalizes per channel; restore channel amplitude before merging.
           let max = 0;
           for (const sample of samples) max = Math.max(max, Math.abs(sample));
+          if (max > strongest) {
+            strongest = max;
+            channelIndex = c;
+          }
           const channel = peaksFrom(samples, PEAKS);
           for (let b = 0; b < peaks.length; b++) peaks[b] = Math.max(peaks[b]!, channel[b]! * max);
         }
         const maximum = Math.max(...peaks);
         if (maximum) for (let b = 0; b < peaks.length; b++) peaks[b] = peaks[b]! / maximum;
+        const reduced = analysisAudio(decoded.getChannelData(channelIndex), decoded.sampleRate);
         decoded = null; // Only HTMLAudioElement retains the compressed file for playback.
         release();
+        analysis = reduced;
         context = ctx;
         ctx = null;
         duration = length;
@@ -155,21 +236,28 @@ export function createPlayer(): Player {
         gain = context.createGain();
         filter.connect(gain);
         gain.connect(context.destination);
+        mix();
         applyBass();
         const changed = () => {
           checkLoop();
           emit();
         };
         const playing = () => {
+          clearInterval(timer);
+          timer = setInterval(schedule, 40);
+          schedule();
           stopFrame();
           tick();
         };
         const paused = () => {
+          clearInterval(timer);
+          silence();
           stopFrame();
           emit();
         };
         const ended = () => {
           if (audio && loop) {
+            silence();
             audio.currentTime = loop.a;
             void audio.play().catch(() => {
               emit();
@@ -180,12 +268,16 @@ export function createPlayer(): Player {
         element.addEventListener('timeupdate', changed);
         element.addEventListener('seeked', changed);
         element.addEventListener('play', playing);
+        element.addEventListener('playing', playing);
+        element.addEventListener('waiting', paused);
         element.addEventListener('pause', paused);
         element.addEventListener('ended', ended);
         detach = () => {
           element.removeEventListener('timeupdate', changed);
           element.removeEventListener('seeked', changed);
           element.removeEventListener('play', playing);
+          element.removeEventListener('playing', playing);
+          element.removeEventListener('waiting', paused);
           element.removeEventListener('pause', paused);
           element.removeEventListener('ended', ended);
         };
@@ -227,12 +319,14 @@ export function createPlayer(): Player {
     },
     seek(value) {
       if (audio && Number.isFinite(value)) {
+        silence();
         audio.currentTime = time(value);
         emit();
       }
     },
     setRate(value) {
       if (!Number.isFinite(value)) return;
+      silence();
       rate = Math.round(Math.max(RATE_MIN, Math.min(RATE_MAX, value)) * 20) / 20;
       if (audio) {
         audio.preservesPitch = true;
@@ -241,9 +335,28 @@ export function createPlayer(): Player {
       emit();
     },
     setVolume(value) {
-      if (gain && Number.isFinite(value)) gain.gain.value = Math.max(0, Math.min(1, value));
+      if (Number.isFinite(value)) {
+        volume = Math.max(0, Math.min(1, value));
+        mix();
+      }
+    },
+    suggestChord(start, end) {
+      return analysis ? detectChord(analysis, start, end) : null;
+    },
+    setTones(value) {
+      silence();
+      tones = value;
+      schedule();
+    },
+    setMix(value, level) {
+      if (mode !== value) silence();
+      mode = value;
+      balance = Math.max(0, Math.min(1, level));
+      mix();
+      schedule();
     },
     setLoop(value) {
+      silence();
       if (value === null) loop = null;
       else if (Number.isFinite(value.a) && Number.isFinite(value.b)) {
         const a = time(value.a),

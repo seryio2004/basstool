@@ -111,12 +111,15 @@ export function timeAt(
   duration: number,
 ): number | null {
   const anchors = beatAnchors(map, score, position.measure, duration);
-  if (!anchors || !validTime(position.beat) || position.beat > anchors.at(-1)!.beat) return null;
-  const right = anchors.findIndex((a) => a.beat > position.beat);
+  return anchors ? timeAtBeat(anchors, position.beat) : null;
+}
+export function timeAtBeat(anchors: { beat: number; time: number }[], beat: number) {
+  if (!anchors.length || !validTime(beat) || beat > anchors.at(-1)!.beat) return null;
+  const right = anchors.findIndex((a) => a.beat > beat);
   if (right < 0) return anchors.at(-1)!.time;
   const a = anchors[right - 1]!,
     b = anchors[right]!;
-  return a.time + ((position.beat - a.beat) / (b.beat - a.beat)) * (b.time - a.time);
+  return a.time + ((beat - a.beat) / (b.beat - a.beat)) * (b.time - a.time);
 }
 const median = (values: number[]) => {
   const s = [...values].sort((a, b) => a - b);

@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
 import { Button, Chips, Heading, Icon, Label, colors, styles } from './ui';
+import { pianoPosition, scoreTimeline, synthTones, type TimedEvent } from '../core/scoreAudio';
+import type { Player, PickedAudio } from '../platform/playerTypes';
+import { printTab } from '../platform/printTab';
+import { PianoEntry, pianoKeys } from './PianoEntry';
+import { ChordEditor } from './ChordEditor';
 import { Fretboard } from './Fretboard';
 import { ScoreView } from './ScoreView';
 import type { Instrument } from '../core/instrument';
@@ -68,6 +73,8 @@ const techniques: { value: Technique | null; icon: string; label: string }[] = [
   { value: 'staccato', icon: '•', label: 'Staccato' },
 ];
 const notices = {
+  chordOutside:
+    'Mueve o quita el acorde que quedaría fuera del compás antes de cambiar la métrica.',
   split: 'La figura se dividió para respetar la métrica.',
   reflow: 'El sobrante pasó al compás siguiente.',
   limit: 'Se alcanzó el límite de compases.',
@@ -88,6 +95,10 @@ const meterKey = (m: Meter) => `${m.beats}/${m.unit}`;
  */
 export function ScoreEditor({
   sessionId,
+  audio,
+  onSeekNote,
+  player,
+  onTimeline,
   duration,
   time,
   instrument,
@@ -106,6 +117,10 @@ export function ScoreEditor({
   onTogglePlayback,
 }: {
   sessionId: string;
+  audio: PickedAudio;
+  onSeekNote: (time: number) => void;
+  player: Player;
+  onTimeline: (events: TimedEvent[], bars: number[]) => void;
   duration: number;
   time: number;
   instrument: Instrument;
@@ -128,8 +143,10 @@ export function ScoreEditor({
   const [display, setDisplay] = useState<ScoreDisplay>('both');
   const [entryDuration, setEntryDuration] = useState<Duration>({ base: 8, dots: 0 });
   const durationRef = useRef(entryDuration);
-  const [tools, setTools] = useState<'actions' | 'techniques' | 'keys' | null>(null);
-  const [allFrets, setAllFrets] = useState(false);
+  const [tools, setTools] = useState<'actions' | 'techniques' | 'keys' | 'chords' | null>(null);
+  const [input, setInput] = useState<'neck' | 'piano'>('neck');
+  const [pianoBase, setPianoBase] = useState(Math.floor(instrument.strings[0]! / 12) * 12);
+  const [preference, setPreference] = useState<'low' | 'high'>('low');
   const [lastNote, setLastNote] = useState<{ string: number; fret: number } | null>(null);
   const scoreRegion = useRef<React.ComponentRef<typeof View>>(null);
   const showCursor = useCallback(
@@ -138,15 +155,19 @@ export function ScoreEditor({
     },
     [onCursorFrame],
   );
-  const inputInstrument = useMemo(
-    () => (allFrets || instrument.frets <= 12 ? instrument : { ...instrument, frets: 12 }),
-    [allFrets, instrument],
-  );
   const [taps, setTaps] = useState<number[]>([]);
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const { score, cursor: position } = history.present;
+  const timeline = useMemo(
+    () => scoreTimeline(score, timeMap, duration, instrument),
+    [score, timeMap, duration, instrument],
+  );
+  useEffect(() => {
+    onTimeline(timeline, timeMap.measures);
+    player.setTones(synthTones(timeline));
+  }, [timeline, timeMap.measures, player, onTimeline, audio]);
   const cursor = { ...position, string: Math.min(position.string, instrument.strings.length - 1) };
   const bar = score.measures[cursor.measure]!;
   const event = isMeasurePlaceholder(bar) ? undefined : bar.events[cursor.event];
@@ -289,6 +310,14 @@ export function ScoreEditor({
     },
     [cursor.string, instrument, loaded, run],
   );
+  const writePitch = useCallback(
+    (midi: number) => {
+      const pos = pianoPosition(instrument, midi, preference);
+      if (pos) writeNote(pos.fret, pos.string);
+      else setError('Altura fuera del mástil.');
+    },
+    [instrument, preference, writeNote],
+  );
   const latestWrite = useRef(writeNote);
   latestWrite.current = writeNote;
   const flushFret = useCallback(() => {
@@ -351,7 +380,12 @@ export function ScoreEditor({
         return;
       }
       if (mod || e.altKey) return;
-      if (/^[0-9]$/.test(key)) {
+      if (input === 'piano' && pianoKeys.includes(lower) && lower.length === 1) {
+        e.preventDefault();
+        if (!e.repeat) writePitch(pianoBase + pianoKeys.indexOf(lower));
+        return;
+      }
+      if (input === 'neck' && /^[0-9]$/.test(key)) {
         e.preventDefault();
         const p = pendingFret.current;
         if (p.timer !== null) clearTimeout(p.timer);
@@ -375,7 +409,8 @@ export function ScoreEditor({
         changeFigure((d) => {
           if (base) return { ...d, base };
           if (key === '.') return { ...d, dots: d.dots ? 0 : 1 };
-          if (lower === 't') return { ...d, triplet: !d.triplet };
+          if (lower === 't')
+            return { ...d, tuplet: undefined, triplet: !(d.triplet || d.tuplet === 3) };
           return stepEntryDuration(d, key === '+' ? 'longer' : 'shorter');
         });
         if (editSelected) {
@@ -385,7 +420,9 @@ export function ScoreEditor({
             adjustEvent((s, c) => {
               const duration = s.measures[c.measure]!.events[c.event]!.duration;
               const next = stepEntryDuration(duration, key === '+' ? 'longer' : 'shorter');
-              return next === duration ? { score: s, cursor: c } : setDuration(s, c, next);
+              return next === duration
+                ? { score: s, cursor: c }
+                : setDuration(s, c, next.tuplet === 15 ? { base: next.base, dots: 0 } : next);
             });
         }
       } else if (lower === 'l') {
@@ -406,6 +443,9 @@ export function ScoreEditor({
     return () => document.removeEventListener('keydown', onKey);
   }, [
     editing,
+    input,
+    writePitch,
+    pianoBase,
     loaded,
     flushFret,
     takeFret,
@@ -417,6 +457,14 @@ export function ScoreEditor({
     onEditingChange,
   ]);
 
+  const span = useMemo(
+    () => measureSpan(timeMap, cursor.measure, duration),
+    [timeMap, cursor.measure, duration],
+  );
+  const suggest = useMemo(
+    () => (span ? () => player.suggestChord(span.start, span.end) : null),
+    [span, player, audio],
+  );
   const fill = entryMeasureFill(score, cursor.measure);
   const currentMeter = measureMeter(score, cursor.measure);
   const ratio = (fill.actual.n * fill.expected.d) / (fill.actual.d * fill.expected.n);
@@ -486,36 +534,66 @@ export function ScoreEditor({
               />
             </Svg>
           </EntryKey>
-          <EntryKey
-            label="Tresillo"
-            selected={!!entryDuration.triplet}
-            onPress={() => changeFigure((d) => ({ ...d, triplet: !d.triplet }))}
-          >
-            <Text
-              style={{
-                color: entryDuration.triplet ? colors.white : colors.green,
-                fontWeight: '700',
-              }}
-            >
-              3
-            </Text>
-          </EntryKey>
+          {([3, 5] as const).map((count) => {
+            const selected = (entryDuration.tuplet ?? (entryDuration.triplet ? 3 : 1)) === count;
+            return (
+              <EntryKey
+                key={count}
+                label={count === 3 ? 'Tresillo' : 'Quintillo'}
+                selected={selected}
+                onPress={() =>
+                  changeFigure((d) => ({
+                    ...d,
+                    triplet: undefined,
+                    tuplet: selected ? undefined : count,
+                  }))
+                }
+              >
+                <Text style={{ color: selected ? colors.white : colors.green, fontWeight: '700' }}>
+                  {count}
+                </Text>
+              </EntryKey>
+            );
+          })}
         </View>
-        <ScrollView nestedScrollEnabled style={{ flexGrow: 0, maxHeight: fretboardHeight }}>
-          <Fretboard
-            compact
-            instrument={inputInstrument}
+        <Chips
+          value={input}
+          onChange={(v) => {
+            takeFret();
+            setInput(v);
+          }}
+          options={[
+            { value: 'neck', label: 'Mástil' },
+            { value: 'piano', label: 'Piano' },
+          ]}
+        />
+        {input === 'piano' ? (
+          <PianoEntry
+            instrument={instrument}
+            base={pianoBase}
+            onBase={setPianoBase}
+            preference={preference}
+            onPreference={setPreference}
+            onPitch={writePitch}
             nomenclature={nomenclature}
-            leftHanded={leftHanded}
-            marks={[]}
-            activeString={cursor.string}
-            active={lastNote && lastNote.fret <= inputInstrument.frets ? lastNote : null}
-            onPress={(string, fret) => {
-              takeFret();
-              writeNote(fret, string);
-            }}
           />
-        </ScrollView>
+        ) : (
+          <ScrollView nestedScrollEnabled style={{ flexGrow: 0, maxHeight: fretboardHeight }}>
+            <Fretboard
+              compact
+              instrument={instrument}
+              nomenclature={nomenclature}
+              leftHanded={leftHanded}
+              marks={[]}
+              activeString={cursor.string}
+              active={lastNote}
+              onPress={(string, fret) => {
+                takeFret();
+                writeNote(fret, string);
+              }}
+            />
+          </ScrollView>
+        )}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
           <EntryKey label={playing ? 'Pausa' : 'Reproducir'} onPress={onTogglePlayback}>
             <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.green} />
@@ -526,15 +604,6 @@ export function ScoreEditor({
           <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={() => erase(!event)}>
             Borrar
           </Button>
-          {instrument.frets > 12 ? (
-            <Button
-              variant="ghost"
-              style={{ paddingHorizontal: 12 }}
-              onPress={() => setAllFrets(!allFrets)}
-            >
-              {allFrets ? 'Trastes 0–12' : `Trastes 13–${instrument.frets}`}
-            </Button>
-          ) : null}
         </View>
       </View>
     ) : null;
@@ -546,6 +615,19 @@ export function ScoreEditor({
           Partitura
         </Heading>
         <View style={[styles.row, { flexWrap: 'wrap', gap: 8, flexShrink: 1 }]}>
+          <Button
+            variant="ghost"
+            disabled={!loaded}
+            onPress={() => {
+              try {
+                printTab(audio.name, score, instrument);
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            Exportar PDF
+          </Button>
           <Chips<ScoreDisplay>
             minHeight={44}
             value={display}
@@ -638,6 +720,13 @@ export function ScoreEditor({
             >
               <Text style={{ color: colors.green }}>Acciones</Text>
             </EntryKey>
+            <EntryKey
+              label="Acordes del compás"
+              expanded={tools === 'chords'}
+              onPress={() => toggleTools('chords')}
+            >
+              <Text style={{ color: colors.green }}>Acordes</Text>
+            </EntryKey>
             {Platform.OS === 'web' ? (
               <EntryKey
                 label="Atajos de teclado"
@@ -648,11 +737,42 @@ export function ScoreEditor({
               </EntryKey>
             ) : null}
           </View>
+          {tools === 'chords' ? (
+            <ChordEditor
+              key={bar.id + '-' + currentMeter.beats + '-' + span?.start + '-' + span?.end}
+              bar={bar}
+              beats={currentMeter.beats}
+              suggest={suggest}
+              onSave={(beat, symbol) =>
+                run((s, c) => ({
+                  cursor: c,
+                  score: {
+                    ...s,
+                    measures: s.measures.map((m, i) =>
+                      i !== c.measure
+                        ? m
+                        : {
+                            ...m,
+                            chords: [
+                              ...(m.chords ?? []).filter((ch) => ch.beat !== beat),
+                              ...(symbol ? [{ beat, symbol }] : []),
+                            ].sort((a, b) => a.beat - b.beat),
+                          },
+                    ),
+                  },
+                }))
+              }
+            />
+          ) : null}
           {tools === 'keys' ? (
             <Label muted>
-              Números · traste. Flechas · cursor. +/− · figura. . · puntillo. T · tresillo. R ·
-              silencio. L · ligadura. Supr · borrar selección. Retroceso · borrar anterior. Ctrl+Z o
-              ⌘Z · deshacer (Mayús · rehacer). Esc · salir.
+              {input === 'piano'
+                ? 'Piano: A W S E D F T G Y H U J, desde Do hasta Si.'
+                : 'Números · traste.'}{' '}
+              Flechas · cursor. +/− · figura. . · puntillo.{' '}
+              {input === 'neck' ? 'T · tresillo. ' : ''} R · silencio. L · ligadura. Supr · borrar
+              selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer (Mayús · rehacer). Esc
+              · salir.
             </Label>
           ) : null}
           {tools === 'techniques' && event?.note ? (
@@ -752,14 +872,17 @@ export function ScoreEditor({
             playhead={playhead}
             cursor={editing ? cursor : null}
             onCursorFrame={editing ? showCursor : undefined}
-            onPressEvent={
-              editing
-                ? (c) => {
-                    flushFret();
-                    select(c);
-                  }
-                : undefined
-            }
+            onPressEvent={(c) => {
+              flushFret();
+              const e = score.measures[c.measure]?.events[c.event];
+              const timed = e && timeline.find((t) => t.id === e.id);
+              if (!editing && (!timed || !e?.note)) {
+                goToMeasure(c.measure);
+                return;
+              }
+              select(c);
+              if (timed) onSeekNote(timed.start);
+            }}
             selectedMeasures={!editing ? { from: cursor.measure, to: cursor.measure } : null}
             onPressMeasure={!editing ? goToMeasure : undefined}
           />

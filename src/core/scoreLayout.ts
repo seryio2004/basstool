@@ -4,6 +4,7 @@ import type { Instrument } from './instrument';
 import { noteAt } from './instrument';
 import {
   addF,
+  tupletCount,
   durationValue,
   fraction,
   isMeasurePlaceholder,
@@ -127,6 +128,7 @@ const durationNames: Record<number, string> = {
   8: 'corchea',
   16: 'semicorchea',
   32: 'fusa',
+  256: 'figura de subdivisión',
   64: 'semifusa',
 };
 const line = (
@@ -215,9 +217,14 @@ export function layoutScore(
     );
     const high = Math.max(8, ...pitches),
       low = Math.min(0, ...pitches);
-    const staffBottom = display === 'tab' ? undefined : 52 + high * 5;
+    const chordSpace = batch.some((b) => score.measures[b.index]!.chords?.length) ? 16 : 0;
+    const staffBottom = display === 'tab' ? undefined : chordSpace + 52 + high * 5;
     const tabTop =
-      display === 'staff' ? undefined : staffBottom === undefined ? 42 : staffBottom - low * 5 + 54;
+      display === 'staff'
+        ? undefined
+        : staffBottom === undefined
+          ? chordSpace + 42
+          : staffBottom - low * 5 + 54;
     const bottom =
       tabTop === undefined
         ? staffBottom! - low * 5 + 46
@@ -324,7 +331,7 @@ export function layoutScore(
             ? tabTop + (instrument.strings.length - 1 - e.note.string) * 14
             : undefined;
         const name = pitch?.name ?? 'Silencio';
-        const label = `Compás ${b.index + 1}, ${name}${e.note ? `, cuerda ${spellPitch(instrument.strings[e.note.string]!, 0).name} traste ${e.note.fret}` : ''}, ${durationNames[e.duration.base]}${e.duration.dots ? ' con puntillo' : ''}${e.duration.triplet ? ', tresillo' : ''}`;
+        const label = `Compás ${b.index + 1}, ${name}${e.note ? `, cuerda ${spellPitch(instrument.strings[e.note.string]!, 0).name} traste ${e.note.fret}` : ''}, ${durationNames[e.duration.base]}${e.duration.dots ? ' con puntillo' : ''}${tupletCount(e.duration) === 5 ? ', quintillo' : tupletCount(e.duration) === 3 ? ', tresillo' : ''}`;
         const geom: EventGeometry = {
           event,
           source: e,
@@ -491,10 +498,10 @@ export function layoutScore(
             ),
           );
       });
-      // Consecutive triplet values form independent groups of three; incomplete
-      // groups retain a bracket to make their meaning explicit while editing.
+      // Keep a partial tuplet bracket visible during entry.
       for (let i = 0; i < events.length;) {
-        if (!events[i]!.source.duration.triplet) {
+        const count = tupletCount(events[i]!.source.duration);
+        if (count === 1) {
           i++;
           continue;
         }
@@ -502,9 +509,9 @@ export function layoutScore(
         const base = events[i]!.source.duration.base;
         while (
           i < events.length &&
-          events[i]!.source.duration.triplet &&
+          tupletCount(events[i]!.source.duration) === count &&
           events[i]!.source.duration.base === base &&
-          group.length < 3
+          group.length < count
         )
           group.push(events[i++]!);
         const a = group[0]!,
@@ -512,13 +519,25 @@ export function layoutScore(
         const ty =
           staffBottom !== undefined
             ? Math.min(staffBottom - 50, ...group.map((e) => e.y - 38))
-            : 24;
+            : chordSpace + 24;
         shapes.push(
           line(a.x - 5, ty + 4, a.x - 5, ty),
           line(a.x - 5, ty, z.x + 6, ty),
           line(z.x + 6, ty, z.x + 6, ty + 4),
-          text((a.x + z.x) / 2, ty - 3, '3', 11),
+          text((a.x + z.x) / 2, ty - 3, String(count), 11),
         );
+      }
+      for (const chord of m.chords ?? []) {
+        if (chord.beat >= meter.beats) continue;
+        const event = events.find((e) => chord.beat >= e.beat && chord.beat < e.endBeat);
+        const last = events.at(-1);
+        const fromBeat = event?.beat ?? last?.endBeat ?? 0;
+        const fromX = event?.x ?? last?.endX ?? contentX;
+        const at =
+          fromX +
+          ((chord.beat - fromBeat) / ((event?.endBeat ?? meter.beats) - fromBeat)) *
+            ((event?.endX ?? endX) - fromX);
+        shapes.push(text(at, 15, chord.symbol, 13));
       }
       measures.push({
         measure: b.index,
