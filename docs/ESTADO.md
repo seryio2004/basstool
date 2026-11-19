@@ -19,7 +19,7 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).
 - Planes: premium desbloquea todo (mensual o anual); gratis = herramientas básicas + demo corta de Transcribir (REQUISITOS §10). Por decidir: límite exacto de la demo, precios, prueba gratuita.
 
-- **Parado por el usuario (gastaba demasiados tokens con Astra); trabajo parcial en la rama `codex/groovetrain` (WIP). Relanzar con gpt-6.2-sol: GrooveTrain original (paleta, tren, niveles, micrófono) + herramienta nueva de acordes por casilla.** Encargo: `.git/coord/encargos/groovetrain.md`.
+- **En curso (Sol 6.2): GrooveTrain original (paleta, tren, niveles, micrófono) + herramienta nueva de acordes por casilla.** Encargo: `.git/coord/encargos/groovetrain.md`.
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
