@@ -286,6 +286,6 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 4. Mástil interactivo | Claude (diseño y componente) | Hecha. |
 | 5. Clave de fa y tablatura | Sol 6.1 (notación y preguntas); Claude revisa la presentación | Hecha. El nivel del perfil limita los trastes (iniciación 0–5, intermedio 0–12). |
 | 6. Prueba de audio nativo | Sol 6.1 (adaptadores); el usuario mide en un dispositivo | Prototipo hecho; falta medir y aprobar la librería. |
-| 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Pendiente. La pantalla `src/screens/Transcribe.tsx` ya existe como marcador. |
+| 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |

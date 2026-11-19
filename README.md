@@ -22,8 +22,8 @@ La app funciona **sin cuenta**: la primera vez pide configurar el bajo (cuerdas 
 
 | Sección | Contenido |
 | --- | --- |
-| Herramientas | Afinador (web; nativo pendiente de [la prueba de audio](docs/POC_AUDIO.md)), metrónomo y progresiones. |
-| Transcribir | Sección preparada; el reproductor es la tarea 7. |
+| Herramientas | Afinador (web; nativo pendiente de [la prueba de audio](docs/POC_AUDIO.md)), metrónomo, mástil interactivo con escalas y arpegios, y progresiones. |
+| Transcribir | Reproductor en web: importar una canción propia, velocidad sin cambiar el tono, bucle A–B con ajuste fino, realce o solo graves, marcas y sesiones guardadas en el dispositivo. El audio no sale del navegador. Transporte de tono y versión móvil pendientes de la tarea 6. |
 | Aprender | Curso de armonía (32 temas, ver [docs/ARMONIA_I.md](docs/ARMONIA_I.md)) y apuntes para bajo pendientes de revisión musical. |
 | Practicar | GrooveTrain, notas, intervalos y lectura. La clave de fa y la tablatura son la tarea 5. |
 | Progreso | Historial de intentos y progreso del curso. |
