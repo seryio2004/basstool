@@ -327,4 +327,4 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
-| 10. Tablatura y partitura sincronizadas | Sol 6.1 (10a modelo, 10b maquetación); Claude (10c editor y vistas) | Pendiente. Claude fija primero el contrato `scoreTypes.ts`. |
+| 10. Tablatura y partitura sincronizadas | Sol (modelo, mapa de tiempo, maquetación, dibujo, integración); Claude (contrato, editor, revisión) | Hecha en web: marcas de compás y pulso al estilo de Transcribe!, editor con mástil y teclado, forma de onda con zoom y bucle por arrastre. P1 pendiente: sugerencia de notas, exportación, reproducción de lo anotado. |

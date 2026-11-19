@@ -358,7 +358,7 @@ export function ScoreEditor({
         <Heading level={2} style={styles.h2}>
           Partitura
         </Heading>
-        <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+        <View style={[styles.row, { flexWrap: 'wrap', gap: 8, flexShrink: 1 }]}>
           <Chips<ScoreDisplay>
             value={display}
             onChange={setDisplay}
