@@ -208,6 +208,12 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 | Premium personal | Confirmado | **Desbloquea todo** mediante suscripción mensual o bono anual (2026-11-19). |
 
 - Confirmado: suscripción mensual y bono anual. Pendiente: precios, periodo de prueba y límites exactos del plan gratuito.
+- **Paywall suave, no duro** (2026-11-19):
+  - **Tras la configuración inicial:** pantalla premium con prueba gratuita (7 o 14 días, pendiente) y la opción «Continuar gratis» visible.
+  - **En los momentos de valor:** al exportar, al superar la demo de Transcribir, en las rutinas personalizadas y en las estadísticas.
+  - **Hitos de la racha:** a los 7 y a los 21 días.
+  - **Bono anual** con descuento claro, destacado por defecto.
+  - Con usuarios reales, probar la pantalla inicial cerrable frente a la versión con prueba obligatoria, midiendo conversión y retención.
 - Las suscripciones digitales vendidas dentro de las apps de iOS y Android deben usar los pagos integrados de cada tienda. Stripe sirve para la web. Propuesta: usar un servicio que unifique los derechos de acceso entre tiendas y web.
 - El estado premium se valida en el servidor. No guardar datos de tarjeta ni claves secretas en el cliente. Los eventos de pago no se procesan dos veces.
 
