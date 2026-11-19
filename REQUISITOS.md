@@ -101,26 +101,40 @@ Se acceden desde la navegación principal y funcionan sin cuenta.
 
 Es el área que más distingue al producto de otras apps de bajo. Las grabaciones las aporta el usuario y se procesan en el dispositivo.
 
-### P0: reproductor de práctica
+**Decisión confirmada (2026-11-19):** la transcripción funciona como un reproductor de práctica al estilo de las herramientas de transcripción para músicos (referencia del usuario: Transcribe!) y **añade una sección para anotar la línea en tablatura y partitura**, sincronizada con el audio. La referencia es funcional: no se copian su interfaz, sus nombres ni su aspecto.
 
-- Importar un archivo de audio local (propuesta: MP3, M4A/AAC, WAV) desde el dispositivo o el navegador.
-- Cambiar la velocidad (propuesta: entre 25 % y 150 %) sin alterar el tono.
-- Transportar el tono en semitonos sin alterar la velocidad.
+### P0: reproductor de práctica — hecho en web (tarea 7)
+
+- Importar un archivo de audio local (MP3, M4A/AAC, WAV) desde el dispositivo o el navegador.
+- Cambiar la velocidad (25–150 %) sin alterar el tono.
+- Transportar el tono en semitonos sin alterar la velocidad (pendiente del motor de audio de la tarea 6).
 - Bucle A–B con ajuste fino y marcadores con nombre (estrofa, estribillo…).
 - Realce de graves: un filtro que destaca la franja de frecuencias del bajo.
 - Forma de onda navegable y avance o retroceso por pasos cortos.
 - Guardar por canción la posición, los bucles, los marcadores y los ajustes.
 
-### P1: asistencia y anotación
+### P0: anotación en tablatura y partitura (tarea 10)
+
+- Una transcripción por canción, guardada con su sesión en el dispositivo.
+- **Mapa de tiempo:** el usuario fija el tempo y el inicio del primer compás (con tap tempo sobre el audio y ajuste fino). Así cada compás corresponde a un tramo del audio.
+- **Sincronización:** el cursor de la partitura sigue la reproducción; tocar un compás salta a ese punto del audio y, si se quiere, crea el bucle de ese compás.
+- **Dos vistas del mismo contenido:** tablatura y partitura en clave de fa, juntas o por separado. Cada nota guarda cuerda y traste, y la partitura se deriva de ellos (escrita una octava por encima de lo que suena).
+- **Edición:** compás con métrica, figuras de redonda a semicorchea, puntillo, tresillo, silencio y ligadura. Las notas se introducen por cuerda y traste con el teclado o tocando el mástil interactivo de la tarea 4.
+- Técnicas básicas de bajo: ligado ascendente y descendente, slide, nota muerta y staccato. Propuesta: se amplía después.
+- Validación de que cada compás suma su duración, mostrada sin bloquear la edición.
+- Deshacer y rehacer.
+
+### P1: asistencia y salida
 
 - Sugerir las notas del fragmento seleccionado a partir del tono detectado (monofónico) y presentarlas como **sugerencia editable**, nunca como transcripción exacta.
-- Editor de tablatura sencillo, alineado con la línea de tiempo del audio, con exportación a texto y PDF como propuesta inicial.
+- Exportar a texto de tablatura, PDF y MusicXML.
+- Reproducir lo anotado (sonido sintetizado) junto al audio original, para compararlo.
 - Propuesta: tocar con el micrófono sobre el bucle y comparar la nota tocada con la anotada.
 
 ### P2: ampliaciones
 
 - Separación de fuentes para aislar o quitar el bajo de la mezcla. Es costosa en CPU y en tamaño de modelo; hay que decidir si se hace en el dispositivo o en un servidor y cómo afecta a la privacidad y al coste.
-- Exportar a MusicXML o a formatos que abre Guitar Pro.
+- Exportar a formatos que abre Guitar Pro e importar MusicXML.
 - Detectar los acordes de la canción.
 
 ### Límites de la transcripción
@@ -252,7 +266,7 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 ## 17. Fuera de alcance de esta etapa — P2
 
 - Separación de fuentes con IA, salvo que se priorice expresamente.
-- Editor de partituras completo y exportación nativa a Guitar Pro.
+- Editor de partitura general (varias voces, otros instrumentos, maquetación para imprimir) y exportación nativa a Guitar Pro. La anotación de bajo en tablatura y partitura sí entra (§6).
 - Calificación automática de interpretaciones completas.
 - Comunidad, chat o compartición pública de transcripciones.
 - Gamificación avanzada y recomendaciones con aprendizaje automático.

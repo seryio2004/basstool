@@ -274,6 +274,44 @@ Tareas para un agente de código. Hazlas de una en una y en el orden indicado sa
 
 ---
 
+## Tarea 10: Anotación en tablatura y partitura sincronizada con el audio
+
+**Depende de:** 7 (hecha). Ver `REQUISITOS.md` §6, «Anotación en tablatura y partitura».
+
+Se divide en tres partes. Las firmas exactas de 10a y 10b las fija Claude en `src/core/scoreTypes.ts` antes de empezar, como se hizo con `playerTypes.ts` en la tarea 7.
+
+**10a — Modelo y mapa de tiempo (Sol 6.1)**
+- `src/core/score.ts`, código puro:
+  - Partitura de bajo: compases con métrica, notas con cuerda, traste, figura, puntillo, tresillo y ligadura, silencios y técnicas (ligado ascendente y descendente, slide, nota muerta, staccato).
+  - Duraciones en fracciones exactas, nunca en coma flotante.
+  - Validación de la suma de cada compás.
+  - Operaciones inmutables: insertar, borrar, cambiar figura, mover el cursor y transportar a otra afinación. Historial para deshacer y rehacer.
+- Mapa de tiempo: tempo e inicio del primer compás, con conversión entre segundo del audio y compás/pulso, en los dos sentidos, y tap tempo.
+- Persistencia de la partitura junto a la sesión de transcripción.
+- Pruebas.
+
+**10b — Maquetación (Sol 6.1)**
+- `src/core/scoreLayout.ts`, sin React: a partir de la partitura y un ancho disponible, calcula la geometría de la tablatura y la partitura (clave de fa, armadura y métrica):
+  - posición de cada nota;
+  - plicas, corchetes y barras;
+  - silencios, puntillos, alteraciones y ligaduras;
+  - saltos de línea por compases.
+- Pruebas con casos de referencia.
+
+**10c — Editor y vistas (Claude)**
+- Componente que dibuja esa geometría en SVG, con la tablatura y la partitura alineadas y el cursor de reproducción.
+- Editor dentro de Transcribir:
+  - Paleta de figuras y técnicas.
+  - Entrada por teclado (números para el traste, flechas para cuerda y posición).
+  - Entrada tocando el mástil de la tarea 4.
+  - Tap tempo y ajuste del primer compás.
+  - Al tocar un compás, salta a ese punto del audio y crea el bucle de ese compás.
+- Diseño en móvil y escritorio.
+
+**Fuera de alcance:** sugerencia automática de notas, exportación y reproducción sintetizada de lo anotado (P1).
+
+---
+
 ## Estado
 
 Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integra; Sol 6.1 implementa la parte técnica.
@@ -289,3 +327,4 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 7. Reproductor de transcripción | Sol 6.1 (núcleo y reproductor); Claude (pantalla) | Hecha en web: velocidad sin cambiar el tono, bucle A–B, graves, marcas y sesiones guardadas. Pendiente: transporte de tono y versión nativa (dependen de la tarea 6). |
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
+| 10. Tablatura y partitura sincronizadas | Sol 6.1 (10a modelo, 10b maquetación); Claude (10c editor y vistas) | Pendiente. Claude fija primero el contrato `scoreTypes.ts`. |
