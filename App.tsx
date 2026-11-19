@@ -10,7 +10,18 @@ import {
 } from 'react-native';
 import { StoreProvider, useStore } from './src/data/Store';
 import { Module, Page } from './src/core/types';
-import { Button, Field, Heading, Icon, Label, colors, styles } from './src/components/ui';
+import {
+  Button,
+  Field,
+  Heading,
+  Icon,
+  Label,
+  colors,
+  fonts,
+  styles,
+  useTheme,
+} from './src/components/ui';
+import { ThemeProvider } from './src/components/theme';
 import { ToolsHome } from './src/screens/ToolsHome';
 import { Transcribe } from './src/screens/Transcribe';
 import { Learn } from './src/screens/Learn';
@@ -34,12 +45,22 @@ const navigation: { id: Page; label: string; icon: string }[] = [
 export default function App() {
   return (
     <StoreProvider>
-      <Shell />
+      <Themed />
     </StoreProvider>
   );
 }
 
+function Themed() {
+  const { profile } = useStore();
+  return (
+    <ThemeProvider preference={profile.theme}>
+      <Shell />
+    </ThemeProvider>
+  );
+}
+
 function Shell() {
+  const theme = useTheme();
   const contentScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const store = useStore(),
     { profile, mode, loading } = store;
@@ -98,13 +119,12 @@ function Shell() {
           gap: 18,
         }}
       >
-        <ActivityIndicator color={colors.green} />
+        <ActivityIndicator color={colors.accent} />
         <Label>Cargando…</Label>
       </View>
     );
 
-  const sectionLabel =
-    page === 'settings' ? 'Ajustes' : navigation.find((n) => n.id === page)?.label || '';
+  const pad = desktop ? 40 : 20;
   const content = !profile.configured ? (
     <Onboarding />
   ) : tool ? (
@@ -114,7 +134,7 @@ function Shell() {
   ) : page === 'tools' ? (
     <ToolsHome openTool={openTool} />
   ) : page === 'transcribe' ? (
-    <Transcribe pagePadding={desktop ? 36 : 20} />
+    <Transcribe pagePadding={pad} />
   ) : page === 'learn' ? (
     <Learn
       practice={practice}
@@ -140,18 +160,18 @@ function Shell() {
       {desktop ? (
         <View
           style={{
-            width: 232,
-            backgroundColor: '#F0F3EC',
+            width: 240,
+            backgroundColor: colors.chrome,
             borderRightWidth: 1,
             borderRightColor: colors.line,
-            paddingHorizontal: 20,
-            paddingTop: 31,
-            paddingBottom: 23,
-            gap: 32,
+            paddingHorizontal: 16,
+            paddingTop: 32,
+            paddingBottom: 24,
+            gap: 36,
           }}
         >
           <Brand />
-          <View style={{ gap: 6 }}>
+          <View style={{ gap: 4 }}>
             {navigation.map((n) => (
               <Nav
                 key={n.id}
@@ -163,6 +183,9 @@ function Shell() {
             ))}
           </View>
           <View style={{ flex: 1 }} />
+          <Text style={[styles.muted, { fontSize: 12, lineHeight: 17, paddingHorizontal: 12 }]}>
+            {mode === 'remote' ? profile.email : 'Sin cuenta · datos en este dispositivo'}
+          </Text>
           <Nav
             label="Ajustes"
             icon="settings"
@@ -172,93 +195,89 @@ function Shell() {
         </View>
       ) : null}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <View
-          style={{
-            minHeight: desktop ? 64 : 58,
-            paddingHorizontal: desktop ? 38 : 20,
-            backgroundColor: colors.white,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.line,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          {desktop ? (
-            <Text style={{ color: colors.muted, fontSize: 13 }}>{sectionLabel}</Text>
-          ) : (
+        {!desktop ? (
+          <View
+            style={{
+              minHeight: 56,
+              paddingHorizontal: pad,
+              backgroundColor: colors.chrome,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.line,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
             <Brand compact />
-          )}
-          <View style={styles.row}>
-            {width >= 650 ? (
-              <Text style={{ fontSize: 12, color: colors.muted }}>
-                {mode === 'remote' ? profile.email : 'Sin cuenta · datos en este dispositivo'}
-              </Text>
-            ) : null}
-            {!desktop ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Abrir ajustes"
-                onPress={() => navigate('settings')}
-                style={{ padding: 10 }}
-              >
-                <Icon
-                  name="settings"
-                  size={22}
-                  color={page === 'settings' ? colors.green : colors.muted}
-                />
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Abrir ajustes"
+              onPress={() => navigate('settings')}
+              style={{ padding: 10, marginRight: -10 }}
+            >
+              <Icon
+                name="settings"
+                size={22}
+                color={page === 'settings' ? colors.accentText : colors.muted}
+              />
+            </Pressable>
           </View>
-        </View>
+        ) : null}
         {store.message ? (
           <View
             accessibilityLiveRegion="polite"
             style={{
-              backgroundColor: '#E5EFDF',
-              paddingVertical: 10,
-              paddingHorizontal: desktop ? 38 : 20,
+              backgroundColor: colors.raised,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.line,
+              paddingVertical: 6,
+              paddingLeft: pad,
+              paddingRight: pad - 8,
               flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              gap: 10,
             }}
           >
-            <Text style={{ color: colors.green, fontSize: 13, flex: 1 }}>{store.message}</Text>
+            <Icon name="check" size={18} color={colors.success} />
+            <Text style={[styles.text, { fontSize: 14, flex: 1 }]}>{store.message}</Text>
             <Button variant="ghost" small onPress={store.clearMessage}>
               Cerrar
             </Button>
           </View>
         ) : null}
-        {profile.configured && page === 'transcribe' && !tool && !exercise ? (
-          content
-        ) : (
-          <ScrollView
-            ref={contentScroll}
-            key={`${page}-${tool || ''}-${exercise || ''}`}
-            contentContainerStyle={{
-              padding: desktop ? 36 : 20,
-              paddingBottom: 50,
-              maxWidth: 1400,
-              width: '100%',
-              alignSelf: 'center',
-            }}
-            keyboardShouldPersistTaps="handled"
-          >
-            {content}
-          </ScrollView>
-        )}
+        <View key={theme.name} style={{ flex: 1 }}>
+          {profile.configured && page === 'transcribe' && !tool && !exercise ? (
+            content
+          ) : (
+            <ScrollView
+              ref={contentScroll}
+              key={`${page}-${tool || ''}-${exercise || ''}`}
+              contentContainerStyle={{
+                padding: pad,
+                paddingTop: desktop ? 44 : 24,
+                paddingBottom: 56,
+                maxWidth: 1200,
+                width: '100%',
+                alignSelf: 'center',
+              }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {content}
+            </ScrollView>
+          )}
+        </View>
         {!desktop && profile.configured ? (
           <View
             accessibilityRole="tablist"
             style={{
               flexDirection: 'row',
-              backgroundColor: colors.white,
+              backgroundColor: colors.chrome,
               borderTopWidth: 1,
               borderTopColor: colors.line,
               paddingHorizontal: 4,
-              paddingTop: 6,
-              paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+              paddingTop: 4,
+              paddingBottom: Platform.OS === 'ios' ? 24 : 6,
             }}
           >
             {navigation.map((n) => (
@@ -278,16 +297,41 @@ function Shell() {
   );
 }
 
+/** Marca: piloto de ampli encendido y el nombre en la serif de títulos. */
 function Brand({ compact = false }: { compact?: boolean }) {
+  const lamp = compact ? 10 : 12;
   return (
-    <View style={[styles.row, { gap: 9, paddingHorizontal: compact ? 0 : 10 }]}>
-      <Icon name="practice" color={colors.green} size={compact ? 24 : 29} />
+    <View
+      accessibilityLabel="clasRo"
+      style={[styles.row, { gap: 10, paddingHorizontal: compact ? 0 : 12 }]}
+    >
+      <View
+        style={{
+          width: lamp + 8,
+          height: lamp + 8,
+          borderRadius: lamp,
+          backgroundColor: colors.accentSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          style={{
+            width: lamp,
+            height: lamp,
+            borderRadius: lamp / 2,
+            backgroundColor: colors.accent,
+          }}
+        />
+      </View>
       <Text
         style={{
-          fontSize: compact ? 21 : 28,
-          color: colors.green,
-          fontWeight: '700',
-          letterSpacing: -1,
+          fontSize: compact ? 23 : 28,
+          lineHeight: compact ? 28 : 34,
+          color: colors.ink,
+          fontFamily: fonts.display,
+          fontWeight: '600',
+          letterSpacing: -0.5,
         }}
       >
         clasRo
@@ -309,7 +353,7 @@ function PasswordRecovery({ onDone }: { onDone: () => void }) {
     else onDone();
   }
   return (
-    <View style={{ flex: 1, justifyContent: 'center', padding: 30, backgroundColor: colors.bg }}>
+    <View style={{ flex: 1, justifyContent: 'center', padding: 24, backgroundColor: colors.bg }}>
       <View style={[styles.panel, { maxWidth: 480, width: '100%', alignSelf: 'center' }]}>
         <Heading level={1} style={styles.title}>
           Nueva contraseña
@@ -342,6 +386,7 @@ function Nav({
   onPress: () => void;
   compact?: boolean;
 }) {
+  const tint = active ? colors.accentText : colors.muted;
   return (
     <Pressable
       accessibilityRole={compact ? 'tab' : 'button'}
@@ -352,21 +397,40 @@ function Nav({
         flexDirection: compact ? 'column' : 'row',
         alignItems: 'center',
         justifyContent: compact ? 'center' : 'flex-start',
-        gap: compact ? 4 : 12,
-        minHeight: compact ? 52 : 44,
+        gap: compact ? 3 : 12,
+        minHeight: compact ? 56 : 46,
         paddingVertical: compact ? 6 : 12,
         paddingHorizontal: compact ? 2 : 12,
         ...(compact ? { flex: 1 } : {}),
-        backgroundColor: active ? '#DDE8D5' : hovered ? '#E8EDE2' : 'transparent',
-        borderRadius: 8,
+        backgroundColor: compact
+          ? 'transparent'
+          : active
+            ? colors.accentSoft
+            : hovered
+              ? colors.raised
+              : 'transparent',
+        borderRadius: 10,
       })}
     >
-      <Icon name={icon} size={compact ? 20 : 19} color={active ? '#2D5738' : '#6C7866'} />
+      {compact ? (
+        // Piloto encendido sobre la pestaña activa.
+        <View
+          style={{
+            width: 18,
+            height: 3,
+            borderRadius: 2,
+            marginBottom: 3,
+            backgroundColor: active ? colors.accent : 'transparent',
+          }}
+        />
+      ) : null}
+      <Icon name={icon} size={compact ? 21 : 20} color={tint} />
       <Text
         numberOfLines={1}
         style={{
-          color: active ? '#2D5738' : '#5E6B59',
-          fontSize: compact ? 10.5 : 13,
+          color: active ? colors.accentText : compact ? colors.muted : colors.ink,
+          fontFamily: fonts.body,
+          fontSize: compact ? 11 : 15,
           fontWeight: active ? '600' : '400',
         }}
       >

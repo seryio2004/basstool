@@ -98,7 +98,7 @@ function Notes() {
               ]}
             >
               <View style={[styles.row, { flex: 1, minWidth: 200 }]}>
-                <Icon name="library" size={26} color={colors.green} />
+                <Icon name="library" size={26} color={colors.accentText} />
                 <View style={{ flex: 1, gap: 5 }}>
                   <Text style={styles.h3}>{n.title}</Text>
                   <Label muted>

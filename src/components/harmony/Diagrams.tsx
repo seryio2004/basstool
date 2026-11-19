@@ -12,27 +12,49 @@ import {
   stepName,
   SpelledPitch,
 } from '../../core/notation';
-import { colors } from '../ui';
+import { colors, fonts } from '../ui';
 import { Box, DiagramCanvas, Sweep } from './DiagramCanvas';
 
-// Diagram-local palette. Function colours reuse existing ink/background pairs
-// so text keeps its contrast; they always appear next to their written name.
+// Paleta de los diagramas: lee los tokens vivos del tema. Las funciones
+// armónicas siempre aparecen junto a su nombre escrito.
 export const tone = {
-  staff: '#A9B4A8',
-  soft: '#C8D1C7',
-  key: '#FFFFFF',
-  blackKey: '#2B3530',
-  context: '#D5E4D3',
-  contextBlack: '#557A63',
-  semitone: '#8A5A2E',
+  get staff() {
+    return colors.staff;
+  },
+  get soft() {
+    return colors.lineStrong;
+  },
+  get key() {
+    return colors.keyWhite;
+  },
+  get blackKey() {
+    return colors.keyBlack;
+  },
+  get context() {
+    return colors.keyContext;
+  },
+  get contextBlack() {
+    return colors.keyContextBlack;
+  },
+  get semitone() {
+    return colors.info;
+  },
 };
 export const functionTone: Record<HarmonicFunction | 'Dsec', { ink: string; bg: string }> = {
-  T: { ink: '#295E43', bg: '#E8EFE7' },
-  S: { ink: '#375B76', bg: '#E7EFF5' },
-  D: { ink: '#745437', bg: '#F3EBDF' },
-  Dsec: { ink: '#5B547E', bg: '#EDEAF5' },
+  get T() {
+    return colors.functions.T;
+  },
+  get S() {
+    return colors.functions.S;
+  },
+  get D() {
+    return colors.functions.D;
+  },
+  get Dsec() {
+    return colors.functions.Dsec;
+  },
 };
-const font = { fontFamily: 'System' } as const;
+const font = { fontFamily: fonts.body ?? 'System' } as const;
 
 type Props<K extends LessonDiagram['kind']> = {
   diagram: Extract<LessonDiagram, { kind: K }>;
@@ -231,7 +253,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
                   y1={a.y}
                   x2={b.x - (b.p.alter ? 26 : 10)}
                   y2={b.y}
-                  stroke={held ? colors.green : entering ? colors.ink : tone.soft}
+                  stroke={held ? colors.accent : entering ? colors.ink : tone.soft}
                   strokeWidth={entering ? 1.8 : 1.2}
                   strokeDasharray={held ? undefined : '4 3'}
                   opacity={entering || held ? 1 : 0.8}
@@ -251,7 +273,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
                 y1={a.y}
                 x2={b.x - 8}
                 y2={b.y}
-                stroke={k + 1 === step ? colors.green : tone.soft}
+                stroke={k + 1 === step ? colors.accent : tone.soft}
                 strokeWidth={k + 1 === step ? 2 : 1.4}
               />
             );
@@ -266,7 +288,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
             {notes.map(({ p, x, y, accidentalOffset }) => {
               const role = column.roles?.[p.spelling];
               const fill =
-                role === 'added' ? functionTone.D.ink : active ? colors.green : colors.ink;
+                role === 'added' ? functionTone.D.ink : active ? colors.accentText : colors.ink;
               const ax = xOf(i) - 17 - accidentalOffset * 10;
               const mark = column.marks?.[p.spelling];
               return (
@@ -284,7 +306,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
                     ry={4.7}
                     rotation={-20}
                     origin={`${x},${y}`}
-                    fill={role === 'passing' ? 'white' : fill}
+                    fill={role === 'passing' ? colors.surface : fill}
                     stroke={fill}
                     strokeWidth={role === 'passing' ? 1.8 : 0}
                   />
@@ -298,7 +320,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
                       y={y + 4}
                       fontSize={11}
                       fontWeight="700"
-                      fill={role === 'added' ? functionTone.D.ink : colors.green}
+                      fill={role === 'added' ? functionTone.D.ink : colors.accent}
                     >
                       {mark}
                     </SvgText>
@@ -312,7 +334,7 @@ function StaffDiagram({ diagram, step }: Props<'staff'>) {
               y={labelY}
               fontSize={13}
               fontWeight={active ? '700' : '500'}
-              fill={active ? colors.green : colors.ink}
+              fill={active ? colors.accent : colors.ink}
               textAnchor="middle"
             >
               {column.label}
@@ -358,7 +380,9 @@ function KeyboardDiagram({ diagram, step }: Props<'keyboard'>) {
         y={black ? top + keyH + 18 : top + keyH - 12}
         fontSize={12}
         fontWeight={on ? '700' : '500'}
-        fill={black ? (on ? colors.green : colors.ink) : on ? 'white' : colors.ink}
+        fill={
+          black ? (on ? colors.accentText : colors.ink) : on ? colors.onAccent : colors.keyBlack
+        }
         textAnchor="middle"
       >
         {pitchName(s)}
@@ -387,7 +411,7 @@ function KeyboardDiagram({ diagram, step }: Props<'keyboard'>) {
           width={keyW - 1}
           height={keyH}
           rx={4}
-          fill={active.has(m) ? colors.green : context.has(m) ? tone.context : tone.key}
+          fill={active.has(m) ? colors.accent : context.has(m) ? tone.context : tone.key}
           stroke={tone.staff}
           strokeWidth={1}
         />
@@ -404,7 +428,11 @@ function KeyboardDiagram({ diagram, step }: Props<'keyboard'>) {
               height={blackH}
               rx={3}
               fill={
-                active.has(m) ? colors.green : context.has(m) ? tone.contextBlack : tone.blackKey
+                active.has(m)
+                  ? colors.accentText
+                  : context.has(m)
+                    ? tone.contextBlack
+                    : tone.blackKey
               }
             />
             {label(m, true)}
@@ -418,7 +446,7 @@ function KeyboardDiagram({ diagram, step }: Props<'keyboard'>) {
               x2 = centerX(p.midi),
               mid = (x1 + x2) / 2;
             const entering = active.has(p.midi);
-            const ink = semis === 1 ? tone.semitone : entering ? colors.green : colors.muted;
+            const ink = semis === 1 ? tone.semitone : entering ? colors.accentText : colors.muted;
             return (
               <G key={`s${i}`}>
                 <Path
@@ -444,14 +472,14 @@ function KeyboardDiagram({ diagram, step }: Props<'keyboard'>) {
         : null}
       {counted.map((m, i) => (
         <G key={`n${m}`}>
-          <Circle cx={centerX(m)} cy={top - 16} r={9} fill={colors.pale} />
+          <Circle cx={centerX(m)} cy={top - 16} r={9} fill={colors.accentSoft} />
           <SvgText
             {...font}
             x={centerX(m)}
             y={top - 12}
             fontSize={11}
             fontWeight="700"
-            fill={colors.green}
+            fill={colors.accent}
             textAnchor="middle"
           >
             {i + 1}
@@ -487,11 +515,11 @@ function RhythmDiagram({ diagram, step, sweep }: Props<'rhythm'>) {
           y={y - 8}
           fontSize={13}
           fontWeight="600"
-          fill={r === active.row ? colors.green : colors.ink}
+          fill={r === active.row ? colors.accent : colors.ink}
         >
           {row.label}
         </SvgText>
-        <Rect x={left} y={y} width={row.beats * ppb} height={trackH} rx={6} fill="#F1F3EE" />
+        <Rect x={left} y={y} width={row.beats * ppb} height={trackH} rx={6} fill={colors.sunken} />
         {Array.from({ length: row.beats * 2 + 1 }, (_, h) => h / 2)
           .filter((b) => !pulses.includes(b) && b < row.beats)
           .map((b) => (
@@ -543,24 +571,31 @@ function RhythmDiagram({ diagram, step, sweep }: Props<'rhythm'>) {
             ey = y + trackH - 6 - h;
           if (on) boxes.push({ x: x - 4, y: y - 4, w: w + 8, h: trackH + 8 });
           const fill = on
-            ? colors.green
+            ? colors.accentText
             : e.tieFrom
               ? tone.soft
               : e.accent
                 ? colors.ink
-                : '#6F7F73';
+                : colors.muted;
           const prev = row.events[i - 1];
           return (
             <G key={i}>
               <Rect x={x} y={ey} width={w} height={h} rx={3} fill={fill} />
               {!e.tieFrom ? (
-                <Rect x={x} y={ey} width={3} height={h} rx={1} fill={on ? '#173E2D' : colors.ink} />
+                <Rect
+                  x={x}
+                  y={ey}
+                  width={3}
+                  height={h}
+                  rx={1}
+                  fill={on ? colors.onAccent : colors.ink}
+                />
               ) : null}
               {e.tieFrom && prev ? (
                 <Path
                   d={`M${x - 18} ${y + 4}Q${x} ${y - 8} ${x + 18} ${y + 4}`}
                   fill="none"
-                  stroke={on ? colors.green : colors.ink}
+                  stroke={on ? colors.accent : colors.ink}
                   strokeWidth={1.6}
                 />
               ) : null}
@@ -571,7 +606,7 @@ function RhythmDiagram({ diagram, step, sweep }: Props<'rhythm'>) {
                   y={ey + h / 2 + 4}
                   fontSize={11}
                   fontWeight="600"
-                  fill={on || e.accent ? 'white' : e.tieFrom ? colors.ink : 'white'}
+                  fill={on ? colors.onAccent : e.tieFrom ? colors.ink : colors.surface}
                 >
                   {w > 44 ? e.label : ''}
                 </SvgText>
@@ -643,7 +678,7 @@ function ProgressionDiagram({ diagram, step }: Props<'progression'>) {
               y={y - 9}
               fontSize={13}
               fontWeight="600"
-              fill={r === active.row ? colors.green : colors.ink}
+              fill={r === active.row ? colors.accent : colors.ink}
             >
               {row.label}
             </SvgText>
@@ -671,7 +706,7 @@ function ProgressionDiagram({ diagram, step }: Props<'progression'>) {
                     y={y + 24}
                     fontSize={16}
                     fontWeight="700"
-                    fill={on ? 'white' : t.ink}
+                    fill={on ? t.bg : t.ink}
                   >
                     {c.numeral}
                   </SvgText>
@@ -680,7 +715,7 @@ function ProgressionDiagram({ diagram, step }: Props<'progression'>) {
                     x={x + 10}
                     y={y + 44}
                     fontSize={12}
-                    fill={on ? 'white' : colors.ink}
+                    fill={on ? functionTone[c.func ?? 'T'].bg : colors.ink}
                   >
                     {c.label}
                   </SvgText>
@@ -741,7 +776,7 @@ function ActiveOutline({ box }: { box: Box }) {
       height={box.h + 6}
       rx={10}
       fill="none"
-      stroke={colors.green}
+      stroke={colors.accent}
       strokeWidth={2}
     />
   );
@@ -772,7 +807,7 @@ function FunctionsDiagram({ diagram, step }: Props<'functions'>) {
     ...(secondary ? (['Dsec'] as const) : []),
   ];
   const arrow = (from: string, to: string) => previous?.func === from && current.func === to;
-  const arrowInk = (from: string, to: string) => (arrow(from, to) ? colors.green : tone.soft);
+  const arrowInk = (from: string, to: string) => (arrow(from, to) ? colors.accentText : tone.soft);
   const midY = rowY + nodeH / 2;
   const chips = diagram.chords.map((c) => c.label);
   const chipW = Math.min(110, (vbW - 20) / chips.length - 8);
@@ -830,7 +865,7 @@ function FunctionsDiagram({ diagram, step }: Props<'functions'>) {
               y={n.y + 24}
               fontSize={13}
               fontWeight="600"
-              fill={isOn ? 'white' : t.ink}
+              fill={isOn ? t.bg : t.ink}
             >
               {k === 'Dsec' ? 'Dominante secundario' : functionNames[k]}
             </SvgText>
@@ -840,7 +875,7 @@ function FunctionsDiagram({ diagram, step }: Props<'functions'>) {
               y={n.y + 52}
               fontSize={17}
               fontWeight="700"
-              fill={isOn ? 'white' : colors.ink}
+              fill={isOn ? t.bg : colors.ink}
             >
               {isOn ? current.numeral : unique.join(' · ')}
             </SvgText>
@@ -859,7 +894,7 @@ function FunctionsDiagram({ diagram, step }: Props<'functions'>) {
               width={chipW}
               height={26}
               rx={6}
-              fill={active ? colors.green : '#F1F3EE'}
+              fill={active ? colors.accent : colors.sunken}
             />
             <SvgText
               {...font}
@@ -867,7 +902,7 @@ function FunctionsDiagram({ diagram, step }: Props<'functions'>) {
               y={y + 17}
               fontSize={12}
               fontWeight={active ? '700' : '500'}
-              fill={active ? 'white' : colors.ink}
+              fill={active ? colors.onAccent : colors.ink}
               textAnchor="middle"
             >
               {c}
@@ -953,13 +988,13 @@ function FifthsDiagram({ diagram, step, onStep }: Props<'fifths'>) {
           <G key={f.major} onPress={onStep ? () => onStep(i) : undefined}>
             <Path
               d={wedge(rMid, rOut, i)}
-              fill={on ? colors.green : 'white'}
+              fill={on ? colors.accent : colors.surface}
               stroke={tone.soft}
               strokeWidth={1}
             />
             <Path
               d={wedge(rIn, rMid, i)}
-              fill={on ? '#3F7258' : '#F1F3EE'}
+              fill={on ? colors.accentSoft : colors.sunken}
               stroke={tone.soft}
               strokeWidth={1}
             />
@@ -969,7 +1004,7 @@ function FifthsDiagram({ diagram, step, onStep }: Props<'fifths'>) {
               y={outer.y + 5}
               fontSize={14}
               fontWeight="700"
-              fill={on ? 'white' : colors.ink}
+              fill={on ? colors.onAccent : colors.ink}
               textAnchor="middle"
             >
               {f.name}
@@ -979,7 +1014,7 @@ function FifthsDiagram({ diagram, step, onStep }: Props<'fifths'>) {
               x={inner.x}
               y={inner.y + 4}
               fontSize={11}
-              fill={on ? 'white' : colors.muted}
+              fill={on ? colors.accentText : colors.muted}
               textAnchor="middle"
             >
               {`${f.minor}m`}
@@ -1017,7 +1052,7 @@ function FifthsDiagram({ diagram, step, onStep }: Props<'fifths'>) {
             y={c + 22}
             fontSize={11}
             fontWeight="600"
-            fill={colors.green}
+            fill={colors.accent}
             textAnchor="middle"
           >
             {signatureNotes(key.accidentals).join(' ')}
@@ -1084,7 +1119,7 @@ function FormDiagram({ diagram, step }: Props<'form'>) {
               y={y + h / 2 + 8}
               fontSize={22}
               fontWeight="700"
-              fill={on ? colors.green : colors.ink}
+              fill={on ? colors.accent : colors.ink}
               textAnchor="middle"
             >
               {s.name}
@@ -1143,7 +1178,7 @@ function FormDiagram({ diagram, step }: Props<'form'>) {
             {i > 0 ? (
               <Arrow
                 d={`M${x - gap + 4} ${cy}H${x - 6}`}
-                ink={done || on ? colors.green : tone.soft}
+                ink={done || on ? colors.accentText : tone.soft}
               />
             ) : null}
             <Rect
@@ -1152,7 +1187,7 @@ function FormDiagram({ diagram, step }: Props<'form'>) {
               width={w}
               height={30}
               rx={7}
-              fill={on ? colors.green : done ? colors.pale : '#F1F3EE'}
+              fill={on ? colors.accent : done ? colors.accentSoft : colors.sunken}
             />
             <SvgText
               {...font}
@@ -1160,7 +1195,7 @@ function FormDiagram({ diagram, step }: Props<'form'>) {
               y={cy + 5}
               fontSize={14}
               fontWeight="700"
-              fill={on ? 'white' : colors.ink}
+              fill={on ? colors.onAccent : colors.ink}
               textAnchor="middle"
             >
               {diagram.written[index]!.name}

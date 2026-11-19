@@ -9,11 +9,10 @@ import {
   pitchName,
   tabPositions,
 } from '../core/notation';
-import { colors } from './ui';
+import { colors, fonts } from './ui';
 
-/** En web, react-native-svg hereda la serif del navegador; en nativo usa la del sistema. */
-const FONT =
-  Platform.OS === 'web' ? 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' : undefined;
+/** En web, react-native-svg heredaría la serif del navegador: se fija la sans de la interfaz. */
+const FONT = Platform.OS === 'web' ? fonts.body : undefined;
 
 /** Highest string is the top line. Explicit positions preserve the chosen fingering. */
 export function Tab({
@@ -51,7 +50,7 @@ export function Tab({
                 y={y(position.string) - 10}
                 width={24}
                 height={20}
-                fill={colors.white}
+                fill={colors.surface}
               />
               <Text
                 x={x}
@@ -60,7 +59,7 @@ export function Tab({
                 fontFamily={FONT}
                 fontSize={18}
                 fontWeight={active === i ? '700' : '400'}
-                fill={active === i ? colors.green : colors.ink}
+                fill={active === i ? colors.accent : colors.ink}
               >
                 {position.fret}
               </Text>

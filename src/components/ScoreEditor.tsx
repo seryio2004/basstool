@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, Text, View, TextInput } from 'react-native';
 import Svg, { Circle, Ellipse, Line, Path } from 'react-native-svg';
-import { Button, Chips, Heading, Icon, Label, colors, styles } from './ui';
+import { Button, Chips, Heading, Icon, Label, MoreMenu, colors, styles } from './ui';
 import { pianoPosition, scoreTimeline, synthTones, type TimedEvent } from '../core/scoreAudio';
 import type { Player, PickedAudio } from '../platform/playerTypes';
 import { exportScore } from '../platform/exportScore';
@@ -544,7 +544,7 @@ export function ScoreEditor({
   const fill = entryMeasureFill(score, cursor.measure);
   const currentMeter = measureMeter(score, cursor.measure);
   const ratio = (fill.actual.n * fill.expected.d) / (fill.actual.d * fill.expected.n);
-  const fillColor = fill.status === 'over' ? colors.error : colors.green;
+  const fillColor = fill.status === 'over' ? colors.error : colors.accentText;
   const toggleTools = (next: typeof tools) => setTools(tools === next ? null : next);
   const technique = techniques.find((item) => item.value === (event?.technique ?? null))!;
   const entry =
@@ -562,7 +562,12 @@ export function ScoreEditor({
           accessibilityValue={{
             text: `${fillLabels[fill.status]}, ${Math.round(ratio * 100)} %`,
           }}
-          style={{ height: 6, borderRadius: 3, backgroundColor: colors.pale, overflow: 'hidden' }}
+          style={{
+            height: 6,
+            borderRadius: 3,
+            backgroundColor: colors.accentSoft,
+            overflow: 'hidden',
+          }}
         >
           <View
             style={{
@@ -592,7 +597,7 @@ export function ScoreEditor({
             >
               <Figure
                 base={base}
-                color={entryDuration.base === base ? colors.white : colors.green}
+                color={entryDuration.base === base ? colors.onAccent : colors.accentText}
               />
             </EntryKey>
           ))}
@@ -606,7 +611,7 @@ export function ScoreEditor({
                 cx={12}
                 cy={12}
                 r={2.5}
-                fill={entryDuration.dots ? colors.white : colors.green}
+                fill={entryDuration.dots ? colors.onAccent : colors.accent}
               />
             </Svg>
           </EntryKey>
@@ -625,7 +630,12 @@ export function ScoreEditor({
                   }))
                 }
               >
-                <Text style={{ color: selected ? colors.white : colors.green, fontWeight: '700' }}>
+                <Text
+                  style={{
+                    color: selected ? colors.onAccent : colors.accentText,
+                    fontWeight: '700',
+                  }}
+                >
                   {count}
                 </Text>
               </EntryKey>
@@ -679,10 +689,10 @@ export function ScoreEditor({
               setChordMode((v) => !v);
             }}
           >
-            <Text style={{ color: chordMode ? colors.white : colors.green }}>Acorde</Text>
+            <Text style={{ color: chordMode ? colors.onAccent : colors.accentText }}>Acorde</Text>
           </EntryKey>
           <EntryKey label={playing ? 'Pausa' : 'Reproducir'} onPress={onTogglePlayback}>
-            <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.green} />
+            <Icon name={playing ? 'pause' : 'play'} size={18} color={colors.accentText} />
           </EntryKey>
           <Button variant="ghost" style={{ paddingHorizontal: 12 }} onPress={writeRest}>
             Silencio
@@ -700,58 +710,67 @@ export function ScoreEditor({
         <Heading level={2} style={styles.h2}>
           Partitura
         </Heading>
-        <View style={[styles.row, { flexWrap: 'wrap', gap: 8, flexShrink: 1 }]}>
-          <Button
-            variant="ghost"
-            disabled={!loaded}
-            onPress={() => {
-              try {
-                printTab(audio.name, score, instrument);
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Exportar PDF
-          </Button>
-          {Platform.OS === 'web' &&
-            (['txt', 'musicxml'] as const).map((format) => (
-              <Button
-                key={format}
-                variant="ghost"
-                disabled={!loaded}
-                onPress={() => {
-                  try {
-                    exportScore(format, audio.name, score, instrument);
-                  } catch (error) {
-                    setError((error as Error).message);
-                  }
-                }}
-              >
-                {format === 'txt' ? 'Exportar TXT' : 'Exportar MusicXML'}
-              </Button>
-            ))}
+        <Chips
+          minHeight={44}
+          label="Modo"
+          value={editing ? 'write' : 'mark'}
+          onChange={(v) => onEditingChange(v === 'write')}
+          options={[
+            { value: 'mark', label: 'Marcar' },
+            { value: 'write', label: 'Escribir' },
+          ]}
+        />
+      </View>
+      {/* Vista y exportación: secundarias, plegadas tras «Más». */}
+      <MoreMenu label="Vista y exportar">
+        <View style={{ gap: 12, flex: 1 }}>
           <Chips<ScoreDisplay>
             minHeight={44}
+            label="Vista"
             value={display}
             onChange={setDisplay}
             options={[
-              { value: 'both', label: 'Ambas' },
+              { value: 'both', label: 'Pentagrama y tablatura' },
               { value: 'tab', label: 'Tablatura' },
               { value: 'staff', label: 'Pentagrama' },
             ]}
           />
-          <Chips
-            minHeight={44}
-            value={editing ? 'write' : 'mark'}
-            onChange={(v) => onEditingChange(v === 'write')}
-            options={[
-              { value: 'mark', label: 'Marcar' },
-              { value: 'write', label: 'Escribir' },
-            ]}
-          />
+          <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+            <Button
+              variant="secondary"
+              small
+              disabled={!loaded}
+              onPress={() => {
+                try {
+                  printTab(audio.name, score, instrument);
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              Exportar PDF
+            </Button>
+            {Platform.OS === 'web' &&
+              (['txt', 'musicxml'] as const).map((format) => (
+                <Button
+                  key={format}
+                  variant="secondary"
+                  small
+                  disabled={!loaded}
+                  onPress={() => {
+                    try {
+                      exportScore(format, audio.name, score, instrument);
+                    } catch (error) {
+                      setError((error as Error).message);
+                    }
+                  }}
+                >
+                  {format === 'txt' ? 'Exportar TXT' : 'Exportar MusicXML'}
+                </Button>
+              ))}
+          </View>
         </View>
-      </View>
+      </MoreMenu>
 
       {editing && loaded ? (
         <View style={{ gap: 8 }}>
@@ -762,8 +781,8 @@ export function ScoreEditor({
               disabled={!eventNotes(event).length}
               onPress={() => toggleTools('techniques')}
             >
-              <Icon name="note" size={16} color={colors.green} />
-              <Text style={{ color: colors.green }}>
+              <Icon name="note" size={16} color={colors.accentText} />
+              <Text style={{ color: colors.accentText }}>
                 {' '}
                 {technique.value ? technique.label : 'Técnica'}
               </Text>
@@ -773,14 +792,14 @@ export function ScoreEditor({
               expanded={tools === 'actions'}
               onPress={() => toggleTools('actions')}
             >
-              <Text style={{ color: colors.green }}>Acciones</Text>
+              <Text style={{ color: colors.accentText }}>Acciones</Text>
             </EntryKey>
             <EntryKey
               label="Acordes del compás"
               expanded={tools === 'chords'}
               onPress={() => toggleTools('chords')}
             >
-              <Text style={{ color: colors.green }}>Acordes</Text>
+              <Text style={{ color: colors.accentText }}>Acordes</Text>
             </EntryKey>
             {Platform.OS === 'web' ? (
               <EntryKey
@@ -788,7 +807,7 @@ export function ScoreEditor({
                 expanded={tools === 'keys'}
                 onPress={() => toggleTools('keys')}
               >
-                <Text style={{ color: colors.green }}>Teclado</Text>
+                <Text style={{ color: colors.accentText }}>Teclado</Text>
               </EntryKey>
             ) : null}
           </View>
@@ -843,7 +862,7 @@ export function ScoreEditor({
                     setTools(null);
                   }}
                 >
-                  <Text style={{ color: item === technique ? colors.white : colors.green }}>
+                  <Text style={{ color: item === technique ? colors.onAccent : colors.accentText }}>
                     {item.icon} {item.label}
                   </Text>
                 </EntryKey>
@@ -1093,7 +1112,7 @@ function EntryKey({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: selected ? colors.green : colors.pale,
+        backgroundColor: selected ? colors.accent : colors.accentSoft,
         opacity: disabled ? 0.45 : pressed ? 0.65 : 1,
       })}
     >

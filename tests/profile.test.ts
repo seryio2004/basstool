@@ -38,6 +38,7 @@ test('stored profiles are normalised instead of breaking the app', () => {
     nomenclature: 'english',
     leftHanded: true,
     configured: true,
+    theme: 'dark',
   });
   const unknown = parseProfile(
     { id: 'abc', tuning: 'guitar', level: 'pro', nomenclature: 'german', leftHanded: 'yes' },
@@ -47,4 +48,13 @@ test('stored profiles are normalised instead of breaking the app', () => {
   assert.equal(unknown.level, 'beginner');
   assert.equal(unknown.nomenclature, 'latin');
   assert.equal(unknown.leftHanded, false);
+});
+
+test('theme preference defaults to dark and survives a round trip', () => {
+  assert.equal(defaultProfile('x').theme, 'dark');
+  // Perfiles guardados antes de existir el campo.
+  assert.equal(parseProfile({ id: 'a', configured: true }, 'x').theme, 'dark');
+  assert.equal(parseProfile({ id: 'a', theme: 'light' }, 'x').theme, 'light');
+  assert.equal(parseProfile({ id: 'a', theme: 'system' }, 'x').theme, 'system');
+  assert.equal(parseProfile({ id: 'a', theme: 'sepia' }, 'x').theme, 'dark');
 });

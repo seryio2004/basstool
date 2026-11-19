@@ -1,288 +1,196 @@
 ---
 name: clasRo
-description: Sistema visual implementado de la aplicación de enseñanza y práctica musical.
+description: Sistema visual «vintage / analógico» de la app de estudio para bajistas. Oscuro por defecto, claro opcional.
+themes: [dark, light]
+source: src/theme/palette.ts
 colors:
-  green: "#295E43"
-  pale: "#E8EFE7"
-  ink: "#202E26"
-  muted: "#657168"
-  line: "#E2E7DF"
-  bg: "#F8F9F6"
-  white: "#FFFFFF"
-  error: "#A33131"
-  field-border: "#C8D1C7"
-  placeholder: "#727D73"
-  chip-bg: "#F1F3EE"
-  chip-hover: "#EDF1EA"
-  nav-bg: "#F0F3EC"
-  nav-selected: "#DDE8D5"
-  nav-hover: "#E8EDE2"
-  nav-active-ink: "#2D5738"
-  nav-ink: "#5E6B59"
-  groove-ink: "#191A1D"
-  groove-stage: "#F7DB16"
-  groove-cream: "#FFFDF3"
-  groove-paper: "#F6F4ED"
-  groove-green: "#80B586"
-  groove-sleeper: "#B69A2D"
-  groove-coral: "#E79C7B"
-  groove-blue: "#6D9CBF"
-  groove-mint: "#C1E6E0"
-  groove-amber: "#FFE3A5"
-  groove-gold: "#FFDF6B"
-  groove-rose: "#CE8296"
-  groove-tile-1: "#58A4B0"
-  groove-tile-2: "#689ACA"
-  groove-tile-3: "#CC7E91"
-  groove-tile-4: "#73A878"
-  groove-tile-5: "#E79C7B"
-  groove-tile-6: "#8EA7D2"
-  groove-tile-7: "#5E98CE"
-  groove-tile-8: "#D89886"
-  harmonic-ink: "#513344"
-  harmonic-stage: "#F5EDF2"
-  harmonic-border: "#CCB8C4"
-  harmonic-tonic: "#ECDCE6"
-  harmonic-subdominant-ink: "#2E554D"
-  harmonic-subdominant: "#DFEDE6"
-  harmonic-dominant-ink: "#6B4025"
-  harmonic-dominant: "#F5E4D4"
-  notes-ink: "#745437"
-  notes-bg: "#F3EBDF"
-  intervals-ink: "#5B547E"
-  intervals-bg: "#EDEAF5"
-  reading-ink: "#375B76"
-  reading-bg: "#E7EFF5"
+  dark:
+    bg: "#17120E"
+    surface: "#221A14"
+    raised: "#2C231B"
+    sunken: "#120E0B"
+    chrome: "#1B1511"
+    line: "#3A2F25"
+    line-strong: "#54453A"
+    sheen: "#4A3C2F"
+    ink: "#F1E6D2"
+    muted: "#B9A88E"
+    faint: "#9C8B72"
+    accent: "#E8A33D"
+    on-accent: "#1A120A"
+    accent-text: "#E8A33D"
+    accent-soft: "#3A2A16"
+    focus: "#F4C46B"
+    success: "#5FA58A"
+    warning: "#D4844A"
+    error: "#E06B5B"
+    info: "#8FB3C9"
+  light:
+    bg: "#F6EFE3"
+    surface: "#FFFBF4"
+    raised: "#FFFFFF"
+    sunken: "#EFE5D4"
+    chrome: "#EFE6D6"
+    line: "#E2D4BE"
+    line-strong: "#C9B79C"
+    sheen: "#FFFFFF"
+    ink: "#2A2119"
+    muted: "#6E5F4C"
+    faint: "#7D6D58"
+    accent: "#94580A"
+    on-accent: "#FFFBF4"
+    accent-text: "#8A520A"
+    accent-soft: "#F3E2C2"
+    focus: "#A8670F"
+    success: "#2F6E57"
+    warning: "#9A5420"
+    error: "#B23A2B"
+    info: "#3C6880"
 typography:
-  title:
-    fontSize: "29px"
-    fontWeight: 700
-    letterSpacing: "-0.6px"
-  headline:
-    fontSize: "19px"
-    fontWeight: 600
-    letterSpacing: "-0.25px"
-  item-title:
-    fontSize: "16px"
-    fontWeight: 600
-  body:
-    fontSize: "14px"
-    lineHeight: "22px"
-  muted:
-    fontSize: "13px"
-    lineHeight: "20px"
-  button:
-    fontSize: "13px"
-    fontWeight: 600
-  badge:
-    fontSize: "11px"
-    fontWeight: 600
-rounded:
-  badge: "5px"
-  selection: "7px"
-  control: "8px"
-  practice-card: "12px"
-  panel: "14px"
-spacing:
-  icon: "8px"
-  row: "12px"
-  panel-gap: "18px"
-  compact-page: "20px"
-  panel: "24px"
-  desktop-page: "36px"
-components:
-  button-primary:
-    backgroundColor: "{colors.green}"
-    textColor: "{colors.white}"
-    typography: "{typography.button}"
-    rounded: "{rounded.control}"
-    padding: "12px 18px"
-  button-secondary:
-    backgroundColor: "{colors.pale}"
-    textColor: "{colors.green}"
-    typography: "{typography.button}"
-    rounded: "{rounded.control}"
-    padding: "12px 18px"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.green}"
-    typography: "{typography.button}"
-    rounded: "{rounded.control}"
-    padding: "12px 18px"
-  button-danger:
-    backgroundColor: "transparent"
-    textColor: "{colors.error}"
-    typography: "{typography.button}"
-    rounded: "{rounded.control}"
-    padding: "12px 18px"
-  field:
-    backgroundColor: "{colors.white}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.control}"
-    padding: "12px"
-  panel:
-    backgroundColor: "{colors.white}"
-    rounded: "{rounded.panel}"
-    padding: "{spacing.panel}"
-  chip:
-    backgroundColor: "{colors.chip-bg}"
-    textColor: "{colors.muted}"
-    rounded: "{rounded.selection}"
-    padding: "9px 13px"
-  chip-selected:
-    backgroundColor: "{colors.green}"
-    textColor: "{colors.white}"
-    rounded: "{rounded.selection}"
-    padding: "9px 13px"
-  badge:
-    backgroundColor: "{colors.pale}"
-    textColor: "{colors.green}"
-    typography: "{typography.badge}"
-    rounded: "{rounded.badge}"
-    padding: "4px 9px"
-  nav-selected:
-    backgroundColor: "{colors.nav-selected}"
-    textColor: "{colors.nav-active-ink}"
-    rounded: "{rounded.selection}"
-    padding: "12px"
+  display: "Fraunces (OFL), 600"
+  body: "IBM Plex Sans (OFL)"
+  data: "IBM Plex Mono (OFL), cifras tabulares"
+  title: { fontFamily: display, fontSize: 32px, lineHeight: 38px, letterSpacing: -0.6px }
+  h2: { fontFamily: display, fontSize: 22px, lineHeight: 28px, letterSpacing: -0.3px }
+  h3: { fontFamily: body, fontSize: 16px, lineHeight: 22px, fontWeight: 600 }
+  text: { fontFamily: body, fontSize: 15px, lineHeight: 23px }
+  muted: { fontFamily: body, fontSize: 14px, lineHeight: 21px }
+  legend: { fontFamily: body, fontSize: 12px, fontWeight: 600, letterSpacing: 0.6px, textTransform: uppercase }
+  data: { fontFamily: data, fontWeight: 600, fontVariant: tabular-nums }
+rounded: { badge: 6px, chip: 8px, control: 10px, panel: 14px }
+spacing: { xs: 4px, s: 8px, m: 12px, l: 16px, xl: 24px, xxl: 32px, xxxl: 48px, page-compact: 20px, page-desktop: 40px }
 ---
 
-# Design System: clasRo
+# Sistema visual: clasRo
 
-## Overview
+Sustituye al sistema anterior (verde sobre blanco). Decisión del usuario del 2026-11-19: estética **vintage / analógica** —ampli de válvulas, madera, cromo y crema—, **oscuro por defecto** y claro opcional.
 
-Este documento describe el resultado implementado, no una nueva identidad aprobada. La única restricción de identidad confirmada es una interfaz simple, concisa y sin eslóganes. No se ha acordado una metáfora ni un nombre creativo para el sistema.
+## Principios
 
-Las superficies claras, la tinta oscura y el verde reúnen navegación, tareas y práctica. Los componentes compartidos de React Native mantienen las mismas formas y estados en las pantallas; las APIs de la plataforma resuelven las diferencias del dispositivo. La densidad se adapta mediante columnas, saltos de línea y navegación horizontal.
+- **El instrumento manda.** Materiales del mundo del bajista (placas de ampli, madera del diapasón, cromo de las cuerdas, pilotos ámbar) y ninguna textura genérica.
+- **Una acción principal por pantalla**, en ámbar. Las secundarias van en botones de placa, en «Más» o en secciones plegadas.
+- **Aire.** Grupos apretados, separación generosa entre bloques, más espacio encima de un título que debajo.
+- **Nada de colores sueltos.** Todo color sale de `src/theme/palette.ts` a través de `colors` (`src/components/theme.tsx`). Las pruebas (`tests/theme.test.ts`) comprueban el contraste AA de ambos temas.
 
-**Key Characteristics:**
+## Temas
 
-- Superficies planas delimitadas por trazos suaves.
-- Verde para acciones y selección; los pares de color identifican los módulos.
-- Jerarquía breve de texto y componentes reutilizados.
+- Preferencia en **Ajustes › Apariencia**: «Oscuro (por defecto)», «Claro» o «Sistema». Se guarda en el perfil local (`profile.theme`); con cuenta, sigue siendo una preferencia del dispositivo y no se sincroniza.
+- `ThemeProvider` resuelve la preferencia (con `useColorScheme` para «Sistema»), sustituye los tokens vivos (`colors`, `styles`, `grooveColors`) y vuelve a montar el contenido, de modo que los SVG (mástil, partitura, tablatura, forma de onda, diagramas, tren) se pintan con el tema nuevo. En web actualiza además las variables CSS de selección, cursor, foco, barras de desplazamiento y `color-scheme`; en nativo, el estilo de la barra de estado.
+- Alias heredados en `colors`: `green` = `accent`, `pale` = `accentSoft`, `white` = `surface` (no es el color blanco). Solo para el código que aún no usa los nombres semánticos.
 
-## Colors
+## Color
 
-El acento verde y los neutros claros se complementan con pares de color vinculados a módulos. Los valores normativos están en el frontmatter; los nombres describen su uso actual.
+| Token | Uso |
+| --- | --- |
+| `bg` | Fondo de la app: nogal casi negro / papel crema. |
+| `surface` | Placas: paneles, tarjetas, campos sobre la placa. |
+| `raised` | Botones secundarios, opciones sin seleccionar, menús «Más». |
+| `sunken` | Pozos: campos de texto, vúmetro, contador de cinta, pistas. |
+| `chrome` | Barra lateral, cabecera móvil y barra inferior. |
+| `line` / `lineStrong` | Divisores y bordes; `lineStrong` para campos y botones de placa. |
+| `sheen` | Filo de luz de 1 px en el borde superior de las placas. |
+| `ink` / `muted` / `faint` | Texto principal, secundario y de ayuda o marcador. |
+| `accent` + `onAccent` | Ámbar válvula: acción principal, selección, cursor, piloto activo. |
+| `accentText` | Ámbar como texto o icono sobre placas y fondo. |
+| `accentSoft` | Selección suave: navegación activa, zona del bucle, hover. |
+| `focus` | Anillo de foco (2 px, separación 3 px en web). |
+| `success` / `warning` / `error` / `info` (+ `Soft`) | Estados: afinado y acierto en jade, aviso cobre, error, información azul cromo. |
+| `modules.*` | Pares tinta/fondo: GrooveTrain ámbar, ChordLine (tren de acordes) jade, Notas cobre, Intervalos ciruela, Lectura azul petróleo. `moduleTone(id)` los devuelve. |
+| `functions.*` | Funciones armónicas T, S, D y dominante secundaria en los diagramas. |
+| `degrees[0..6]` + `onDegree` | Grados 1–7 del mástil. Rellenos medios con tinta oscura y el número del grado siempre escrito: el color refuerza, no informa solo. La tónica lleva además un aro. |
+| `wood` / `fret` / `string` / `inlay` | Mástil: palisandro (oscuro) o arce (claro), trastes de níquel, cuerdas de cromo, incrustaciones. |
+| `staff`, `keyWhite`, `keyBlack`, `keyContext*` | Pentagramas y pianos de los diagramas y del editor. |
+| `wave` / `waveDim` | Pantalla de la forma de onda y su trazo sin reproducir (lo reproducido va en `accent`). |
+| `groove.*` | Mundo propio de GrooveTrain (escenario, casillas, tren). En oscuro, `ink` es crema y `cream` es el resalte oscuro: los nombres se conservan por compatibilidad. |
 
-### Primary
+## Tipografía
 
-- **green / pale:** acción principal, variantes secundarias, badges y selección de ejercicios.
-- **nav-selected / nav-active-ink:** destino seleccionado en la navegación; **nav-hover** indica paso del puntero.
+- **Títulos:** Fraunces 600 (serif con carácter de rótulo antiguo). Solo `title` y `h2`, la marca y la nota del afinador.
+- **Interfaz:** IBM Plex Sans en todo lo demás.
+- **Datos:** IBM Plex Mono con cifras tabulares, solo para medidas: BPM, cents, tiempo, porcentajes, números de compás. Nunca como adorno.
+- **Rótulos de panel** (`legend`): versalitas de 12 px con espaciado, como la serigrafía de un ampli. Sustituyen a las etiquetas en negrita de los grupos de opciones.
+- Archivos OFL en `assets/fonts` con su licencia. En web se registran con `@font-face` desde `src/platform/fonts.web.ts` (y `[dir=auto]` hereda la sans). **En iOS y Android no se cargan todavía**: `expo-font` no está instalado y requiere aprobación; mientras tanto `src/platform/fonts.ts` usa Georgia/serif para títulos, la sans del sistema y Menlo/monospace para datos.
 
-### Secondary
+## Materiales y componentes
 
-- **groove-ink / groove-stage:** GrooveTrain.
-- **harmonic-ink / harmonic-stage:** ChordLine. **harmonic-border** delimita el tablero y los vagones.
-- **notes-ink / notes-bg:** reconocimiento de notas.
-- **intervals-ink / intervals-bg:** intervalos.
-- **reading-ink / reading-bg:** lectura musical.
+- **Placa** (`styles.panel`): `surface`, borde `line` de 1 px con filo superior `sheen`, radio 14, padding 24. Sin sombras.
+- **Botón** principal: `accent` con `onAccent`, alto 48 (pequeño 38), radio 10. Secundario: placa `raised` con borde `lineStrong` y texto `ink`. Fantasma: texto `accentText`. Peligro: texto `error`. Hover con `accentSoft`; pulsado 0,7; desactivado 0,45.
+- **Chips** (`role=radiogroup`): seleccionado en `accent`; el resto, `raised` con borde `line`.
+- **Interruptor de palanca** (`Toggle`, `role=switch`) para conmutadores binarios (p. ej. zurdo).
+- **«Más»** (`MoreMenu`): divulgación en el flujo, sin capas, para acciones secundarias (vista y exportación de la partitura, afinación y referencia del afinador, escribir el tempo).
+- **Mando giratorio** (`Knob`): tempo del metrónomo. Arrastre vertical u horizontal, rueda, flechas, Re Pág/Av Pág, Inicio/Fin; control ajustable para lectores de pantalla.
+- **Vúmetro** del afinador: escala de −50 a +50 cents en un pozo `sunken`, zona de afinado en jade y aguja con inercia de galvanómetro. Sin señal, la aguja reposa en el tope izquierdo.
+- **Contador de cinta** en Transcribir: cada cifra del tiempo en su ventanilla, en Plex Mono.
+- **Pilotos:** la marca es un piloto ámbar encendido; la pestaña activa de la barra inferior lleva un piloto encima; los pulsos del metrónomo se encienden como pilotos.
+- **Mástil:** madera, trastes, cuerdas de grosor creciente y casillas por grado. Toda la superficie táctil sigue siendo de 44 pt.
 
-### Neutral
+## Movimiento
 
-- **ink / muted:** texto principal y información de apoyo.
-- **bg / white / nav-bg:** fondo de aplicación, paneles y barra lateral.
-- **line / field-border:** divisores de contenido y borde de campos.
-- **placeholder:** pistas dentro de campos.
-- **chip-bg / chip-hover:** opciones sin seleccionar y su estado de puntero.
-- **nav-ink:** destino sin seleccionar.
+Un único movimiento con autoría: **la aguja del vúmetro** (muelle amortiguado). El tren de GrooveTrain avanza linealmente con el pulso. El resto son transiciones de 150 ms de color u opacidad en web. Con movimiento reducido, la aguja y el tren saltan sin animación.
 
-El color **error** identifica errores y acciones peligrosas. No existe una escala tonal de producto; los tonos locales no forman una escala continua.
+## Disposición
 
-**The Module Pair Rule.** El color de cada módulo acompaña a su nombre e icono en catálogo y tareas.
+- Barra lateral `chrome` de 240 px a partir de 1000 px; por debajo, cabecera de 56 px con la marca y Ajustes, y barra inferior con cinco destinos (activo en ámbar con piloto).
+- Contenido: máximo 1200 px, padding 20 (móvil) / 40 (escritorio), 24 / 44 arriba.
+- **Herramientas:** el afinador como placa principal con su dial; el resto como un rack de filas en una sola placa.
+- **Practicar:** cada módulo es una tarjeta pulsable con su par de color; no hay un botón ámbar por tarjeta.
+- **Transcribir:** transporte arriba; la mezcla («Qué suena») vive en la sección «Sonido»; la vista y la exportación de la partitura, en «Vista y exportar».
 
-## Typography
+## Contraste (WCAG 2.x AA)
 
-La aplicación no declara una familia tipográfica propia: usa los valores predeterminados de Text y TextInput de React Native y su resolución web. No se establece una fuente display de marca. Los tamaños del frontmatter corresponden a los números de StyleSheet; en web se traducen a píxeles CSS.
+Calculado con `contrastRatio` de `src/theme/palette.ts`; `tests/theme.test.ts` falla si algún par baja del mínimo. Texto normal ≥ 4,5; elementos no textuales ≥ 3 (foco, trazos) o el mínimo indicado.
 
-### Hierarchy
-
-- **title:** título de pantalla; Heading con nivel 1.
-- **headline:** encabezado de sección; Heading con nivel 2.
-- **item-title:** título de tarea, recurso o herramienta.
-- **body / muted:** texto de contenido e información auxiliar.
-- **button / badge:** acciones y metadatos compactos.
-
-El acceso usa un título local de mayor tamaño (45/52 en escritorio y 32/40 en compacto); el inicio usa un encabezado destacado de 25. Son tratamientos de esas superficies, no una escala display general. Las cifras grandes del afinador y ejercicios representan datos musicales.
-
-**The Semantic Heading Rule.** El nivel semántico se pasa a Heading; el tamaño visual se determina con el estilo correspondiente.
-
-## Layout
-
-La estructura principal pasa a barra lateral a partir de 1000 px. La barra mide 238 px; el encabezado tiene altura mínima de 77 px. El contenido usa ancho completo, máximo de 1510 px, centrado y padding según los tokens desktop-page o compact-page, con 50 px inferiores.
-
-Por debajo de ese umbral, la navegación principal se dispone horizontalmente con desplazamiento y cada destino compacto reserva al menos 68 px de ancho. Las tres herramientas se muestran en una segunda fila. Las filas compartidas admiten salto de línea cuando corresponde.
-
-El inicio dispone la columna auxiliar de 290 px junto al contenido a partir de 1200 px; por debajo ocupa el ancho completo. El catálogo muestra tarjetas al 48,5 % por encima de 1000 px. El acceso cambia a dos columnas por encima de 900 px. Estos umbrales describen cada superficie, no una cuadrícula global impuesta a otras vistas. El ritmo usa separaciones recurrentes de los tokens y ajustes locales.
-
-## Elevation & Depth
-
-Los componentes compartidos y la estructura no definen sombras. La profundidad procede de blanco sobre fondo claro, bordes finos y rellenos de selección. El foco web usa un contorno verde de 2 px con separación de 4 px. No hay elevación al pasar el puntero.
-
-**The Tonal Surface Rule.** Los paneles se separan del fondo mediante tono y borde, sin sombras añadidas.
-
-## Shapes
-
-Los controles tienen esquinas suaves; chips y navegación usan selection, campos y botones usan control y paneles usan panel. Los badges son más compactos. Los divisores y bordes habituales tienen 1 px. Las tarjetas de práctica usan practice-card; las imágenes de pentagrama y figuras rítmicas se dibujan mediante SVG, sin raster de producto.
-
-## Components
-
-### Buttons
-
-Primary usa green sobre blanco de texto; secondary invierte el énfasis mediante pale y texto verde. Ghost conserva el fondo transparente; danger usa texto error. La altura mínima es 44 px; small usa padding vertical de 8 px y horizontal de 12 px y altura mínima de 36 px. Los iconos de acción miden 16 px.
-
-Hover reduce la opacidad a 0,84; pressed a 0,65; disabled y busy a 0,45. Busy muestra un indicador y bloquea la acción. En web los cambios de fondo y opacidad duran 150 ms con ease solamente cuando no se solicita movimiento reducido.
-
-### Chips and Badges
-
-Chips permite opciones envueltas en varias líneas, con selección verde y texto blanco; la opción sin seleccionar cambia al tono chip-hover con el puntero. Badge es informativo y permite recibir el par de color de un módulo. El badge de demo usa un par local ocre para identificar el modo.
-
-### Cards / Containers
-
-Panel usa fondo blanco, borde line, padding panel y separación panel-gap. Las tarjetas interactivas de práctica cambian al fondo de su módulo al pasar el puntero. Las filas de tareas se separan con divisores y muestran icono, título, contexto y flecha.
-
-### Inputs / Fields
-
-Field mantiene etiqueta visible, pista y borde field-border. La altura mínima es 44 px; multiline reserva 110 px y alinea el texto arriba. Los mensajes de error aparecen como texto error junto al formulario; el componente no define un borde especial de error ni una apariencia disabled propia.
-
-### Navigation
-
-El destino activo cambia relleno, color y peso a 600; el inactivo usa peso 400. Escritorio dispone icono y etiqueta en fila; compacto los apila. La navegación mantiene el estado seleccionado accesible. El foco web comparte el contorno descrito en Elevation & Depth.
-
-### Musical notation and pulse
-
-Staff y RhythmFigure dibujan notación vectorial. El tablero de GrooveTrain usa el amarillo del original (`groove-stage`) y alterna sus ocho `groove-tile`. La casilla activa usa `groove-cream` con contorno `groove-ink`. Lectura rítmica conserva el verde y su barra de avance.
-
-La locomotora SVG usa `groove-coral`, `groove-blue`, `groove-mint`, `groove-amber`, `groove-gold`, `groove-rose` y `groove-green`. Se desplaza linealmente por los 16 pulsos según el reloj de audio. Con movimiento reducido queda fija y las traviesas siguen indicando el pulso activo y los recorridos con `groove-cream` y `groove-green`. Las pendientes usan `groove-sleeper`. El medidor de entrada usa `groove-paper`, `groove-blue` y `groove-green`.
-
-ChordLine agrupa los cuatro pulsos de cada compás en un vagón. El cifrado del compás se muestra a 24 puntos y la función se indica con texto y color. Tónica usa `harmonic-ink` sobre `harmonic-tonic`, subdominante usa `harmonic-subdominant-ink` sobre `harmonic-subdominant` y dominante usa `harmonic-dominant-ink` sobre `harmonic-dominant`. El cifrado introducido por pulso usa el fondo blanco. El pulso activo conserva un contorno visible y su relleno aparece con un fundido de 140 ms. Con movimiento reducido el cambio es inmediato. En el blues, el tablero avanza en grupos de cuatro compases.
-
-### Escritura en Transcribir
-
-La partitura se desplaza en su área de contenido y el panel de entrada permanece anclado encima de la navegación. Las figuras se dibujan en SVG en teclas de al menos 44 × 44 pt. El verde indica la figura y los modificadores activos. El mástil de entrada muestra los trastes 0–12 inicialmente, conserva casillas de 44 × 44 pt y distingue la cuerda del cursor y la última nota con relleno y contorno respectivamente.
-
-El compás seleccionado usa fondo `pale` y borde verde. Un indicador sobre la casilla señala el punto de inserción. La barra de llenado usa verde para el avance y `error` para el exceso, con el estado escrito junto a la métrica. El reproductor sitúa el volumen junto al transporte. Bucle, Sonido y Secciones despliegan sus controles bajo la partitura. Si una figura cruza la barra, el panel indica la división y la partitura dibuja las ligaduras. Los compases guardados con exceso muestran la acción «Corregir compás pasado».
-
-
-### Lesson diagrams
-
-Los diagramas del curso de armonía se dibujan con SVG sobre el panel blanco, con líneas de pentagrama `#A9B4A8`, tinta `ink` y verde para el paso activo. Las funciones tonales usan pares locales que reutilizan valores existentes y siempre acompañan a su nombre escrito: tónica `#295E43/#E8EFE7`, subdominante `#375B76/#E7EFF5`, dominante `#745437/#F3EBDF` y dominante secundario `#5B547E/#EDEAF5`. El semitono se distingue en ocre `#8A5A2E`.
-
-En los diagramas, el cursor de paso es un fondo `pale` que viaja 260 ms con `cubic-bezier(0.16, 1, 0.3, 1)` hasta el elemento que suena, y un cabezal lineal en los ritmos. Con movimiento reducido salta sin desplazarse. La escala mínima es 0,8 para que el texto del diagrama no baje de unos 10 px; por debajo, el diagrama se desplaza en horizontal.
-
-## Do's and Don'ts
-
-### Do:
-
-- Do reutilizar los componentes y estilos compartidos antes de introducir variantes locales.
-- Do mantener el foco visible y diferenciar selección, pulsación y deshabilitado.
-- Do usar los pares de color del módulo junto a su nombre e icono.
-- Do conservar encabezados con nivel semántico mediante Heading.
-
-### Don't:
-
-- Don't añadir eslóganes ni texto ornamental.
-- Don't convertir una composición particular del inicio en requisito de todas las pantallas.
-- Don't presentar los valores extraídos como aprobación de una nueva identidad o como certificación completa de accesibilidad.
-
-Documentado a partir de App.tsx, src/components/ui.tsx, Heading y Heading.web, bootstrap.web, src/core/types.ts y una muestra de src/screens. Las capturas desktop.png y mobile.png verifican visualmente el inicio; el dictamen ship posterior a la corrección de niveles de encabezado tiene ese alcance y no certifica todos los estados ni navegadores. Los tratamientos locales de acceso, cifras y textos auxiliares no se canonizan como reglas de identidad.
+| Par | Oscuro | Ratio | Claro | Ratio | Mínimo |
+| --- | --- | --- | --- | --- | --- |
+| Texto sobre fondo | `#F1E6D2` / `#17120E` | 15,04 | `#2A2119` / `#F6EFE3` | 13,82 | 4,5 |
+| Texto sobre placa | `#F1E6D2` / `#221A14` | 13,86 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
+| Texto sobre elevada | `#F1E6D2` / `#2C231B` | 12,46 | `#2A2119` / `#FFFFFF` | 15,79 | 4,5 |
+| Secundario sobre fondo | `#B9A88E` / `#17120E` | 8,02 | `#6E5F4C` / `#F6EFE3` | 5,40 | 4,5 |
+| Secundario sobre placa | `#B9A88E` / `#221A14` | 7,39 | `#6E5F4C` / `#FFFBF4` | 5,98 | 4,5 |
+| Marcador sobre campo | `#9C8B72` / `#221A14` | 5,18 | `#7D6D58` / `#FFFBF4` | 4,85 | 4,5 |
+| Texto sobre botón principal | `#1A120A` / `#E8A33D` | 8,58 | `#FFFBF4` / `#94580A` | 5,56 | 4,5 |
+| Ámbar como texto sobre placa | `#E8A33D` / `#221A14` | 7,94 | `#8A520A` / `#FFFBF4` | 6,18 | 4,5 |
+| Ámbar como texto sobre fondo | `#E8A33D` / `#17120E` | 8,62 | `#8A520A` / `#F6EFE3` | 5,58 | 4,5 |
+| Ámbar sobre selección suave | `#E8A33D` / `#3A2A16` | 6,39 | `#8A520A` / `#F3E2C2` | 5,00 | 4,5 |
+| Texto sobre selección suave | `#F1E6D2` / `#3A2A16` | 11,16 | `#2A2119` / `#F3E2C2` | 12,38 | 4,5 |
+| Éxito sobre placa | `#5FA58A` / `#221A14` | 5,90 | `#2F6E57` / `#FFFBF4` | 5,83 | 4,5 |
+| Éxito sobre su fondo | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
+| Aviso sobre placa | `#D4844A` / `#221A14` | 5,87 | `#9A5420` / `#FFFBF4` | 5,56 | 4,5 |
+| Aviso sobre su fondo | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
+| Error sobre placa | `#E06B5B` / `#221A14` | 5,24 | `#B23A2B` / `#FFFBF4` | 5,76 | 4,5 |
+| Error sobre su fondo | `#E06B5B` / `#3A1F1A` | 4,62 | `#B23A2B` / `#F8E1DC` | 4,75 | 4,5 |
+| Información sobre placa | `#8FB3C9` / `#221A14` | 7,72 | `#3C6880` / `#FFFBF4` | 5,84 | 4,5 |
+| Información sobre su fondo | `#8FB3C9` / `#1D2830` | 6,76 | `#3C6880` / `#E1ECF2` | 5,02 | 4,5 |
+| Módulo groove | `#E8A33D` / `#3A2A16` | 6,39 | `#8A520A` / `#F3E2C2` | 5,00 | 4,5 |
+| Módulo chord | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
+| Módulo notes | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
+| Módulo intervals | `#B497C6` / `#2D2233` | 5,89 | `#7A5690` / `#EEE5F3` | 4,81 | 4,5 |
+| Módulo reading | `#6FAAB9` / `#1B2A2E` | 5,73 | `#33707F` / `#E0EEF1` | 4,69 | 4,5 |
+| Función T | `#5FA58A` / `#1C2A23` | 5,15 | `#2F6E57` / `#E2EFE8` | 5,09 | 4,5 |
+| Función S | `#8FB3C9` / `#1D2830` | 6,76 | `#3C6880` / `#E1ECF2` | 5,02 | 4,5 |
+| Función D | `#D4844A` / `#33231A` | 5,16 | `#9A5420` / `#F6E5D6` | 4,67 | 4,5 |
+| Función Dsec | `#B497C6` / `#2D2233` | 5,89 | `#7A5690` / `#EEE5F3` | 4,81 | 4,5 |
+| Grado 1 | `#1A120A` / `#E8A33D` | 8,58 | `#1A120A` / `#E8A33D` | 8,58 | 4,5 |
+| Grado 2 | `#1A120A` / `#8FB3C9` | 8,34 | `#1A120A` / `#8FB3C9` | 8,34 | 4,5 |
+| Grado 3 | `#1A120A` / `#6CC3A0` | 8,77 | `#1A120A` / `#6CC3A0` | 8,77 | 4,5 |
+| Grado 4 | `#1A120A` / `#E9D66B` | 12,60 | `#1A120A` / `#E9D66B` | 12,60 | 4,5 |
+| Grado 5 | `#1A120A` / `#E07B5F` | 6,32 | `#1A120A` / `#E07B5F` | 6,32 | 4,5 |
+| Grado 6 | `#1A120A` / `#C19AD6` | 7,81 | `#1A120A` / `#C19AD6` | 7,81 | 4,5 |
+| Grado 7 | `#1A120A` / `#A9C46A` | 9,51 | `#1A120A` / `#A9C46A` | 9,51 | 4,5 |
+| Foco sobre placa (no texto) | `#F4C46B` / `#221A14` | 10,57 | `#A8670F` / `#FFFBF4` | 4,41 | 3 |
+| Borde de campo sobre placa (no texto) | `#54453A` / `#17120E` | 2,03 | `#C9B79C` / `#F6EFE3` | 1,71 | 1,5 |
+| Trazo de onda sobre pantalla | `#E8A33D` / `#120E0B` | 8,91 | `#94580A` / `#EFE5D4` | 4,60 | 3 |
+| Nombre sobre tecla blanca | `#120E0B` / `#E9DCC4` | 14,18 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
+| Nombre sobre tecla de contexto | `#120E0B` / `#D9B97A` | 10,22 | `#2A2119` / `#F3E2C2` | 12,38 | 4,5 |
+| Cuerdas sobre madera | `#B8AE9E` / `#2A1D14` | 7,46 | `#6E5F4C` / `#E9DCC6` | 4,56 | 3 |
+| GrooveTrain: texto sobre escenario | `#F1E6D2` / `#2E2112` | 12,66 | `#2A2119` / `#F0C877` | 9,95 | 4,5 |
+| GrooveTrain: texto sobre resalte | `#F1E6D2` / `#17120E` | 15,04 | `#2A2119` / `#FFFBF4` | 15,31 | 4,5 |
+| GrooveTrain: texto sobre pulsado | `#F1E6D2` / `#2F5E4C` | 6,01 | `#2A2119` / `#7FB89E` | 6,96 | 4,5 |
+| GrooveTrain: casilla 1 | `#F1E6D2` / `#5A3F1E` | 7,85 | `#2A2119` / `#E9B95E` | 8,70 | 4,5 |
+| GrooveTrain: casilla 2 | `#F1E6D2` / `#2F4A3F` | 7,82 | `#2A2119` / `#9FCDB8` | 8,95 | 4,5 |
+| GrooveTrain: casilla 3 | `#F1E6D2` / `#5A3A2A` | 8,19 | `#2A2119` / `#E5A989` | 7,80 | 4,5 |
+| GrooveTrain: casilla 4 | `#F1E6D2` / `#43344F` | 9,22 | `#2A2119` / `#C9B3DA` | 8,23 | 4,5 |
+| GrooveTrain: casilla 5 | `#F1E6D2` / `#2C4750` | 8,00 | `#2A2119` / `#9FC6D1` | 8,63 | 4,5 |
+| GrooveTrain: casilla 6 | `#F1E6D2` / `#4A3A22` | 8,85 | `#2A2119` / `#EBCB8B` | 10,11 | 4,5 |
+| GrooveTrain: casilla 7 | `#F1E6D2` / `#3B4A2E` | 7,71 | `#2A2119` / `#B9CF9A` | 9,36 | 4,5 |
+| GrooveTrain: casilla 8 | `#F1E6D2` / `#503040` | 9,24 | `#2A2119` / `#DDA9B5` | 7,83 | 4,5 |

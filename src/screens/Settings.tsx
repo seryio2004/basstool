@@ -1,8 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
-import { Badge, Button, Chips, Field, Heading, Label, colors, styles } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Chips,
+  Field,
+  Heading,
+  Label,
+  Toggle,
+  colors,
+  styles,
+} from '../components/ui';
 import { tunings } from '../core/instrument';
-import { Level, Profile, TuningId, levels, tuningIds } from '../core/profile';
+import {
+  Level,
+  Profile,
+  ThemePreference,
+  TuningId,
+  levels,
+  themePreferences,
+  tuningIds,
+} from '../core/profile';
 import { useStore } from '../data/Store';
 
 type InstrumentDraft = Pick<Profile, 'tuning' | 'level' | 'nomenclature' | 'leftHanded'>;
@@ -16,7 +34,7 @@ export function InstrumentForm({
   onChange: (next: InstrumentDraft) => void;
 }) {
   return (
-    <View style={{ gap: 20 }}>
+    <View style={{ gap: 24 }}>
       <Group title="Bajo y afinación">
         <Chips<TuningId>
           value={value.tuning}
@@ -24,16 +42,12 @@ export function InstrumentForm({
           options={tuningIds.map((id) => ({ value: id, label: tunings[id].name }))}
         />
       </Group>
-      <Group title="Mano con la que pulsas">
-        <Chips
-          value={value.leftHanded ? 'left' : 'right'}
-          onChange={(v) => onChange({ ...value, leftHanded: v === 'left' })}
-          options={[
-            { value: 'right', label: 'Diestro' },
-            { value: 'left', label: 'Zurdo' },
-          ]}
-        />
-      </Group>
+      <Toggle
+        label="Zurdo"
+        detail="El clavijero del mástil pasa a la derecha."
+        value={value.leftHanded}
+        onChange={(leftHanded) => onChange({ ...value, leftHanded })}
+      />
       <Group title="Nivel">
         <Chips<Level>
           value={value.level}
@@ -57,8 +71,8 @@ export function InstrumentForm({
 
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <View style={{ gap: 9 }}>
-      <Text style={[styles.text, { fontWeight: '600' }]}>{title}</Text>
+    <View style={{ gap: 10 }}>
+      <Text style={styles.legend}>{title}</Text>
       {children}
     </View>
   );
@@ -114,7 +128,7 @@ export function Settings() {
   useEffect(() => setDraft(draftOf(store.profile)), [store.profile]);
   const changed = JSON.stringify(draft) !== JSON.stringify(draftOf(store.profile));
   return (
-    <View style={{ gap: 25 }}>
+    <View style={{ gap: 28, maxWidth: 820 }}>
       <Heading level={1} style={styles.title}>
         Ajustes
       </Heading>
@@ -138,6 +152,7 @@ export function Settings() {
           Guardar ajustes
         </Button>
       </View>
+      <Appearance />
       <Account />
       {store.mode === 'local' ? (
         <View style={styles.panel}>
@@ -167,6 +182,31 @@ export function Settings() {
         </View>
       ) : null}
       {store.error ? <Label style={{ color: colors.error }}>{store.error}</Label> : null}
+    </View>
+  );
+}
+
+/** Tema de la interfaz: se aplica al momento y se guarda en el perfil local. */
+function Appearance() {
+  const store = useStore();
+  return (
+    <View style={styles.panel}>
+      <Heading level={2} style={styles.h2}>
+        Apariencia
+      </Heading>
+      <Chips<ThemePreference>
+        label="Tema"
+        minHeight={44}
+        value={store.profile.theme}
+        onChange={(theme) => void store.updateProfile({ theme }).catch(() => {})}
+        options={themePreferences.map((t) => ({
+          value: t.value,
+          label: t.value === 'dark' ? `${t.label} (por defecto)` : t.label,
+        }))}
+      />
+      <Label muted>
+        «Sistema» sigue el modo claro u oscuro del dispositivo. Se guarda solo en este dispositivo.
+      </Label>
     </View>
   );
 }

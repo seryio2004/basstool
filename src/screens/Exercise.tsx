@@ -9,7 +9,17 @@ import { Fretboard } from '../components/Fretboard';
 import { type ExerciseModality, maxFretFor, registerFor } from '../core/exercises';
 import { Tab } from '../components/Tab';
 import { audio } from '../platform/audio';
-import { Badge, Button, Chips, Icon, Label, Staff, colors, styles } from '../components/ui';
+import {
+  Badge,
+  Button,
+  Chips,
+  Icon,
+  Label,
+  Staff,
+  colors,
+  moduleTone,
+  styles,
+} from '../components/ui';
 import { useStore } from '../data/Store';
 
 type Result = RhythmResult;
@@ -86,17 +96,17 @@ export function Exercise({
           </Heading>
           <Label muted>{description.subtitle}</Label>
         </View>
-        <Badge background={description.background} color={description.color}>
+        <Badge background={moduleTone(module).bg} color={moduleTone(module).ink}>
           {description.category}
         </Badge>
       </View>
       {result ? (
         <View style={[styles.panel, { alignItems: 'center', paddingVertical: 42, gap: 20 }]}>
-          <Icon name="check" size={36} color={colors.green} />
+          <Icon name="check" size={36} color={colors.accentText} />
           <Heading level={2} style={styles.h2}>
             Sesión completada
           </Heading>
-          <Text style={{ fontSize: 70, fontWeight: '600', color: colors.green }}>
+          <Text style={[styles.data, { fontSize: 70, lineHeight: 80, color: colors.accentText }]}>
             {Math.round((result.correct / result.total) * 100)}
             <Text style={{ fontSize: 30 }}>%</Text>
           </Text>
@@ -251,13 +261,13 @@ function Quiz({
         </Text>
         <Label muted>{correct} aciertos</Label>
       </View>
-      <View style={{ height: 5, borderRadius: 5, backgroundColor: '#EEF1EB' }}>
+      <View style={{ height: 5, borderRadius: 5, backgroundColor: colors.sunken }}>
         <View
           style={{
             height: 5,
             borderRadius: 5,
             width: `${(currentNumber / total) * 100}%`,
-            backgroundColor: colors.green,
+            backgroundColor: colors.accent,
           }}
         />
       </View>
@@ -326,7 +336,7 @@ function Quiz({
           />
         ) : (
           <View style={{ alignItems: 'center', padding: 30 }}>
-            <Icon name="ear" size={60} color={colors.green} />
+            <Icon name="ear" size={60} color={colors.accentText} />
           </View>
         )}
         <Button
@@ -372,14 +382,14 @@ function Quiz({
                 minHeight: 58,
                 borderRadius: 9,
                 borderWidth: 1,
-                borderColor: right ? colors.green : wrong ? '#B44F45' : colors.line,
+                borderColor: right ? colors.success : wrong ? colors.error : colors.line,
                 backgroundColor: right
-                  ? colors.pale
+                  ? colors.successSoft
                   : wrong
-                    ? '#F9EBE8'
+                    ? colors.errorSoft
                     : hovered
-                      ? '#F2F5EF'
-                      : colors.white,
+                      ? colors.accentSoft
+                      : colors.raised,
                 alignItems: 'center',
                 justifyContent: 'center',
               })}
@@ -399,7 +409,7 @@ function Quiz({
       </View>
       {answer !== null ? (
         <View style={styles.between}>
-          <Label style={{ color: answer === rightAnswer ? colors.green : colors.error }}>
+          <Label style={{ color: answer === rightAnswer ? colors.accentText : colors.error }}>
             {answer === rightAnswer ? 'Correcto.' : `La respuesta es ${rightAnswer}.`}
           </Label>
           <Button onPress={next} icon="arrow">

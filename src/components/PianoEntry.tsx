@@ -49,16 +49,16 @@ export function PianoEntry({
           justifyContent: 'flex-end',
           paddingBottom: 5,
           borderWidth: 1,
-          borderColor: colors.muted,
+          borderColor: colors.lineStrong,
           borderRadius: 4,
-          backgroundColor: pressed ? colors.green : dark ? colors.ink : colors.white,
+          backgroundColor: pressed ? colors.accent : dark ? colors.keyBlack : colors.keyWhite,
         })}
         onPress={() => onPitch(midi)}
       >
         <Text
           style={{
             fontSize: 12,
-            color: dark ? colors.white : colors.ink,
+            color: dark ? colors.keyWhite : colors.keyBlack,
             opacity: disabled ? 0.4 : 1,
           }}
         >

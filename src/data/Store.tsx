@@ -89,7 +89,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (err) throw err;
       if (data.session) {
         const remote = await loadRemote(data.session.user.id);
-        apply({ ...remote, mode: 'remote' });
+        // El tema es del dispositivo: se conserva el del perfil local.
+        const theme = (await readLocal()).profile.theme;
+        apply({ ...remote, profile: { ...remote.profile, theme }, mode: 'remote' });
         return;
       }
     }
@@ -164,6 +166,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     updateProfile: (patch) =>
       mutate(async (s) => {
         const profile = { ...s.profile, ...patch };
+        if (patch.theme && s.mode === 'remote') {
+          // El tema no tiene columna en el servidor: se guarda en el perfil local.
+          const local = await readLocal();
+          await writeLocal({ ...local, profile: { ...local.profile, theme: patch.theme } });
+          if (Object.keys(patch).length === 1) return { ...s, profile };
+        }
         if (s.mode === 'remote') {
           const { error } = await supabase!
             .from('profiles')

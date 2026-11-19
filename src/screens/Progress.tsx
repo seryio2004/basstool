@@ -65,7 +65,7 @@ export function Progress({ openCourse }: { openCourse: () => void }) {
           Abrir Armonía I
         </Button>
       </View>
-      <View style={[styles.panel, { flexDirection: 'row', flexWrap: 'wrap', gap: 35 }]}>
+      <View style={[styles.panel, { flexDirection: 'row', flexWrap: 'wrap', gap: 32 }]}>
         {[
           { name: 'Sesiones', value: String(attempts.length) },
           {
@@ -74,9 +74,9 @@ export function Progress({ openCourse }: { openCourse: () => void }) {
           },
           { name: 'Resultado medio', value: attempts.length ? `${average}%` : '—' },
         ].map((s) => (
-          <View key={s.name} style={{ gap: 7, minWidth: 130 }}>
-            <Text style={{ fontSize: 29, color: colors.ink, fontWeight: '600' }}>{s.value}</Text>
-            <Label muted>{s.name}</Label>
+          <View key={s.name} style={{ gap: 4, minWidth: 120 }}>
+            <Text style={styles.legend}>{s.name}</Text>
+            <Text style={[styles.data, { fontSize: 28, lineHeight: 34 }]}>{s.value}</Text>
           </View>
         ))}
       </View>

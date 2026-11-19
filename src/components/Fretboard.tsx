@@ -3,7 +3,7 @@ import { Platform, Pressable, ScrollView, View } from 'react-native';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { Instrument } from '../core/instrument';
 import type { Nomenclature } from '../core/notation';
-import { colors } from './ui';
+import { colors, fonts } from './theme';
 
 /**
  * Mástil del bajo en vista de intérprete: cuerda más aguda arriba, como en la
@@ -17,6 +17,8 @@ export type FretMark = {
   fret: number;
   label: string;
   root?: boolean;
+  /** Grado de 1 a 7: colorea la casilla con la paleta de grados del tema. */
+  degree?: number;
   /** Texto para lectores de pantalla, p. ej. «Do, grado 1». */
   description?: string;
 };
@@ -29,9 +31,8 @@ const PAD_BOTTOM = 30;
 const DOT_R = 16;
 const SINGLE_INLAYS = [3, 5, 7, 9, 15, 17, 19, 21];
 const DOUBLE_INLAYS = [12, 24];
-/** En web, react-native-svg hereda la serif del navegador; en nativo usa la del sistema. */
-const FONT =
-  Platform.OS === 'web' ? 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' : undefined;
+/** En web, react-native-svg heredaría la serif del navegador: se fija la sans de la interfaz. */
+const FONT = Platform.OS === 'web' ? fonts.body : undefined;
 
 const flatNames: Record<Nomenclature, string[]> = {
   latin: ['Do', 'Re♭', 'Re', 'Mi♭', 'Mi', 'Fa', 'Sol♭', 'Sol', 'La♭', 'La', 'Si♭', 'Si'],
@@ -117,7 +118,7 @@ export function Fretboard({
             width={width - openWidth - 6}
             height={boardBottom - boardTop + 20}
             rx={6}
-            fill="#F3F1EA"
+            fill={colors.wood}
           />
           {activeString !== undefined && activeString >= 0 && activeString < strings ? (
             <Rect
@@ -126,16 +127,16 @@ export function Fretboard({
               width={width}
               height={40}
               rx={6}
-              fill={colors.pale}
+              fill={colors.accentSoft}
             />
           ) : null}
           {SINGLE_INLAYS.filter((f) => f <= instrument.frets).map((f) => (
-            <Circle key={f} cx={xOf(f)} cy={singleY} r={5} fill="#D9D3C4" />
+            <Circle key={f} cx={xOf(f)} cy={singleY} r={5} fill={colors.inlay} />
           ))}
           {DOUBLE_INLAYS.filter((f) => f <= instrument.frets).map((f) => (
             <G key={f}>
-              <Circle cx={xOf(f)} cy={doubleY[0]} r={5} fill="#D9D3C4" />
-              <Circle cx={xOf(f)} cy={doubleY[1]} r={5} fill="#D9D3C4" />
+              <Circle cx={xOf(f)} cy={doubleY[0]} r={5} fill={colors.inlay} />
+              <Circle cx={xOf(f)} cy={doubleY[1]} r={5} fill={colors.inlay} />
             </G>
           ))}
           {Array.from({ length: instrument.frets + 1 }, (_, f) => (
@@ -145,7 +146,7 @@ export function Fretboard({
               x2={fretX(f)}
               y1={boardTop - 10}
               y2={boardBottom + 10}
-              stroke={f === 0 ? colors.ink : '#B9C2B8'}
+              stroke={f === 0 ? colors.keyWhite : colors.fret}
               strokeWidth={f === 0 ? 5 : 1.5}
             />
           ))}
@@ -156,7 +157,7 @@ export function Fretboard({
               x2={leftHanded ? width - openWidth : width - 6}
               y1={yOf(s)}
               y2={yOf(s)}
-              stroke="#6F7A70"
+              stroke={colors.string}
               // Las cuerdas graves son más gruesas, como en el instrumento.
               strokeWidth={1.2 + ((strings - 1 - s) / Math.max(1, strings - 1)) * 1.8}
             />
@@ -196,6 +197,13 @@ export function Fretboard({
           )}
           {marks.map((m) => {
             const isActive = active?.string === m.string && active.fret === m.fret;
+            const degreeColor = m.degree ? colors.degrees[(m.degree - 1) % 7] : undefined;
+            const fill = degreeColor ?? (m.root ? colors.accent : colors.raised);
+            const text = degreeColor
+              ? colors.onDegree
+              : m.root
+                ? colors.onAccent
+                : colors.accentText;
             return (
               <G key={`${m.string}:${m.fret}`}>
                 {isActive ? (
@@ -204,7 +212,7 @@ export function Fretboard({
                     cy={yOf(m.string)}
                     r={DOT_R + 4}
                     fill="none"
-                    stroke={colors.green}
+                    stroke={colors.ink}
                     strokeWidth={2}
                   />
                 ) : null}
@@ -212,9 +220,9 @@ export function Fretboard({
                   cx={xOf(m.fret)}
                   cy={yOf(m.string)}
                   r={DOT_R}
-                  fill={m.root ? colors.green : '#E1ECDF'}
-                  stroke={colors.green}
-                  strokeWidth={m.root ? 0 : 1.5}
+                  fill={fill}
+                  stroke={m.root ? colors.ink : m.degree ? colors.wood : colors.accent}
+                  strokeWidth={m.root ? 2 : 1.5}
                 />
                 {m.label ? (
                   <SvgText
@@ -223,7 +231,7 @@ export function Fretboard({
                     fontSize={m.label.length > 2 ? 10.5 : 12}
                     fontFamily={FONT}
                     fontWeight="600"
-                    fill={m.root ? colors.white : colors.green}
+                    fill={text}
                     textAnchor="middle"
                   >
                     {m.label}
@@ -238,7 +246,7 @@ export function Fretboard({
               cy={yOf(active.string)}
               r={DOT_R - 2}
               fill="none"
-              stroke={colors.green}
+              stroke={colors.ink}
               strokeWidth={2}
             />
           ) : null}
@@ -268,7 +276,9 @@ export function Fretboard({
                   width: cellW,
                   height: STRING_GAP,
                   borderRadius: 8,
-                  backgroundColor: hovered ? 'rgba(41, 94, 67, 0.08)' : 'transparent',
+                  backgroundColor: 'transparent',
+                  borderWidth: hovered ? 1 : 0,
+                  borderColor: colors.focus,
                 })}
               />
             );

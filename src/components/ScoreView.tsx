@@ -12,9 +12,30 @@ import {
   type ScoreLine,
 } from '../core/scoreLayout';
 import type { EditCursor, MusicalPosition, Score, ScoreDisplay } from '../core/scoreTypes';
-import { colors } from './ui';
-const FONT =
-  Platform.OS === 'web' ? 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' : undefined;
+import { colors, fonts } from './ui';
+const FONT = Platform.OS === 'web' ? fonts.body : undefined;
+/**
+ * `scoreLayout` (lógica pura) marca algunos trazos con colores con nombre
+ * propio. Aquí se traducen a los tokens del tema activo.
+ */
+const themed = (color: string | undefined) => {
+  switch (color?.toUpperCase()) {
+    case undefined:
+      return colors.ink;
+    case '#A9B4A8':
+      return colors.staff;
+    case '#A33131':
+      return colors.error;
+    case '#202E26':
+      return colors.ink;
+    case '#8A5A2E':
+      return colors.muted;
+    case '#FFFFFF':
+      return colors.surface;
+    default:
+      return color!;
+  }
+};
 function Shape({ shape: s }: { shape: Primitive }) {
   switch (s.kind) {
     case 'line':
@@ -24,7 +45,7 @@ function Shape({ shape: s }: { shape: Primitive }) {
           y1={s.y1}
           x2={s.x2}
           y2={s.y2}
-          stroke={s.color ?? colors.ink}
+          stroke={themed(s.color)}
           strokeWidth={s.width ?? 1}
         />
       );
@@ -36,7 +57,7 @@ function Shape({ shape: s }: { shape: Primitive }) {
           fontSize={s.size}
           fontFamily={FONT}
           textAnchor={s.anchor ?? 'middle'}
-          fill={s.color ?? colors.ink}
+          fill={themed(s.color)}
         >
           {s.text}
         </SvgText>
@@ -48,15 +69,13 @@ function Shape({ shape: s }: { shape: Primitive }) {
           cy={s.y}
           rx={s.rx}
           ry={s.ry}
-          fill={s.hollow ? colors.white : colors.ink}
+          fill={s.hollow ? colors.surface : colors.ink}
           stroke={colors.ink}
           strokeWidth={1.2}
         />
       );
     case 'rect':
-      return (
-        <Rect x={s.x} y={s.y} width={s.width} height={s.height} fill={s.color ?? colors.ink} />
-      );
+      return <Rect x={s.x} y={s.y} width={s.width} height={s.height} fill={themed(s.color)} />;
     case 'path':
       return (
         <Path
@@ -299,7 +318,7 @@ export function ScoreView({
       scrollEventThrottle={16}
       contentContainerStyle={{ width: layout.width, height: layout.height }}
     >
-      <View style={{ width: layout.width, height: layout.height, backgroundColor: colors.white }}>
+      <View style={{ width: layout.width, height: layout.height, backgroundColor: colors.surface }}>
         <Svg
           width={layout.width}
           height={layout.height}
@@ -326,8 +345,8 @@ export function ScoreView({
                       width={m.width}
                       height={m.bottom - (m.measure === activeMeasure ? 0 : 18)}
                       rx={6}
-                      fill={colors.pale}
-                      stroke={m.measure === activeMeasure ? colors.green : undefined}
+                      fill={colors.accentSoft}
+                      stroke={m.measure === activeMeasure ? colors.accent : undefined}
                       strokeWidth={m.measure === activeMeasure ? 1 : 0}
                     />
                   )),
@@ -356,14 +375,14 @@ export function ScoreView({
               width={20}
               height={head.height}
               rx={4}
-              fill={colors.green}
+              fill={colors.accent}
               fillOpacity={0.23}
-              stroke={colors.green}
+              stroke={colors.accent}
             />
           ) : null}
           {edit ? (
             <G>
-              <Path d={`M ${edit.x - 5} ${edit.y - 9} h 10 l -5 5 Z`} fill={colors.green} />
+              <Path d={`M ${edit.x - 5} ${edit.y - 9} h 10 l -5 5 Z`} fill={colors.accent} />
               <Rect
                 x={edit.x - 11}
                 y={edit.y - 2}
@@ -371,7 +390,7 @@ export function ScoreView({
                 height={edit.height + 4}
                 rx={3}
                 fill="none"
-                stroke={colors.green}
+                stroke={colors.accent}
                 strokeWidth={2}
               />
             </G>

@@ -1,7 +1,9 @@
 import { Heading } from '../components/ui';
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, TextInput, Platform } from 'react-native';
-import { Button, Chips, Field, Icon, Label, colors, styles } from '../components/ui';
+import { AccessibilityInfo, Animated, View, Text, TextInput, Platform } from 'react-native';
+import Svg, { Line, Path, Text as SvgText } from 'react-native-svg';
+import { Button, Chips, Field, Label, MoreMenu, colors, fonts, styles } from '../components/ui';
+import { Knob } from '../components/Knob';
 import { audio, startTuner, TuningValue } from '../platform/audio';
 import { naturals, noteName, tuning } from '../core/music';
 import { arpeggios, majorProgressions, majorTriads } from '../core/theory';
@@ -82,54 +84,62 @@ function Metronome() {
     };
   }, [running, bpm, meter]);
   const valid = Number(bpm) >= 30 && Number(bpm) <= 240;
+  const setTempo = (v: number) => setBpm(String(Math.max(30, Math.min(240, v))));
   return (
-    <View style={[styles.panel, { alignItems: 'center', paddingVertical: 40 }]}>
-      <Icon name="metronome" size={38} color={colors.green} />
-      <Text
-        style={{
-          fontSize: 76,
-          fontWeight: '600',
-          color: colors.ink,
-          fontVariant: ['tabular-nums'],
-        }}
+    <View style={[styles.panel, { alignItems: 'center', paddingVertical: 36, gap: 24 }]}>
+      <View style={{ alignItems: 'center' }}>
+        <Text
+          accessibilityLabel={`${bpm || 'Sin'} pulsos por minuto`}
+          style={[styles.data, { fontSize: 72, lineHeight: 80 }]}
+        >
+          {bpm || '—'}
+        </Text>
+        <Text style={styles.legend}>Pulsos por minuto</Text>
+      </View>
+      <View
+        accessibilityElementsHidden
+        style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}
       >
-        {bpm || '—'}
-      </Text>
-      <Label muted>Pulsos por minuto</Label>
-      <View style={{ flexDirection: 'row', gap: 14 }}>
         {Array.from({ length: Number(meter) }, (_, i) => (
           <View
             key={i}
             style={{
-              width: i === 0 ? 23 : 18,
-              height: i === 0 ? 23 : 18,
-              marginTop: i === 0 ? 0 : 2.5,
-              borderRadius: 20,
-              backgroundColor: beat === i ? colors.green : '#E4E9E1',
+              width: i === 0 ? 22 : 16,
+              height: i === 0 ? 22 : 16,
+              borderRadius: 11,
+              borderWidth: 1,
+              borderColor: beat === i ? colors.accent : colors.lineStrong,
+              backgroundColor: beat === i ? colors.accent : colors.sunken,
             }}
           />
         ))}
       </View>
-      <View style={[styles.row, { flexWrap: 'wrap', justifyContent: 'center' }]}>
-        <Button variant="secondary" onPress={() => setBpm(String(Math.max(30, Number(bpm) - 5)))}>
+      <View style={[styles.row, { gap: 20 }]}>
+        <Button
+          variant="secondary"
+          accessibilityLabel="Bajar 5 BPM"
+          onPress={() => setTempo(Number(bpm) - 5)}
+        >
           −5
         </Button>
-        <View style={{ width: 110 }}>
-          <Field
-            label="Tempo (30–240)"
-            value={bpm}
-            onChangeText={(v) => {
-              setRunning(false);
-              setBpm(v.replace(/\D/g, '').slice(0, 3));
-            }}
-            keyboardType="numeric"
-          />
-        </View>
-        <Button variant="secondary" onPress={() => setBpm(String(Math.min(240, Number(bpm) + 5)))}>
+        <Knob
+          label="Tempo"
+          value={valid ? Number(bpm) : 90}
+          min={30}
+          max={240}
+          onChange={(v) => setBpm(String(v))}
+          format={(v) => `${v} BPM`}
+        />
+        <Button
+          variant="secondary"
+          accessibilityLabel="Subir 5 BPM"
+          onPress={() => setTempo(Number(bpm) + 5)}
+        >
           +5
         </Button>
       </View>
       <Chips
+        label="Pulsos por compás"
         options={['2', '3', '4', '6'].map((v) => ({ value: v, label: `${v} pulsos` }))}
         value={meter}
         onChange={setMeter}
@@ -144,6 +154,19 @@ function Metronome() {
       >
         {running ? 'Detener' : 'Iniciar metrónomo'}
       </Button>
+      <MoreMenu label="Escribir el tempo" align="center">
+        <View style={{ width: 160 }}>
+          <Field
+            label="Tempo (30–240)"
+            value={bpm}
+            onChangeText={(v) => {
+              setRunning(false);
+              setBpm(v.replace(/\D/g, '').slice(0, 3));
+            }}
+            keyboardType="numeric"
+          />
+        </View>
+      </MoreMenu>
       {!valid ? (
         <Label style={{ color: colors.error }}>El tempo debe estar entre 30 y 240 BPM.</Label>
       ) : null}
@@ -223,118 +246,58 @@ function Tuner() {
           ? 'Navegador no compatible'
           : 'Afinador nativo pendiente'
         : 'Micrófono no disponible';
+  const status = error
+    ? errorTitle
+    : busy
+      ? 'Esperando permiso del micrófono…'
+      : !validReference
+        ? 'Revisa la referencia de La4'
+        : centered
+          ? 'Afinado'
+          : target
+            ? target.cents < 0
+              ? 'Sube la afinación'
+              : 'Baja la afinación'
+            : active
+              ? 'Sin señal'
+              : 'Micrófono desactivado';
   return (
-    <View style={[styles.panel, { gap: 24 }]}>
-      <View style={{ gap: 10 }}>
-        <Label style={{ fontWeight: '600', fontSize: 16 }}>Afinación</Label>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {(Object.keys(tunings) as (keyof typeof tunings)[]).map((key) => (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityLabel={`Afinación: ${tunings[key].name}`}
-              accessibilityState={{ selected: preset === key }}
-              aria-pressed={preset === key}
-              onPress={() => setPreset(key)}
-              style={({ pressed }) => ({
-                minHeight: 44,
-                justifyContent: 'center',
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                borderRadius: 8,
-                backgroundColor: preset === key ? colors.green : colors.pale,
-                opacity: pressed ? 0.65 : 1,
-              })}
-            >
-              <Text style={{ fontSize: 16, color: preset === key ? colors.white : colors.green }}>
-                {tunings[key].name}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-      </View>
-      <View style={{ gap: 8, maxWidth: 280 }}>
-        <Label style={{ fontSize: 16 }}>Referencia de La4 (Hz)</Label>
-        <TextInput
-          accessibilityLabel="Referencia de La4 en Hz, entre 415 y 466"
-          keyboardType="numeric"
-          value={referenceText}
-          onChangeText={setReferenceText}
-          style={[styles.field, { fontSize: 16 }]}
-        />
-        <Label muted>Entre 415 y 466 Hz. Habitual: 440 Hz.</Label>
-        {!validReference ? (
-          <Text accessibilityRole="alert" style={{ color: colors.error, fontSize: 14 }}>
-            Introduce una referencia entre 415 y 466 Hz.
+    <View style={{ gap: 20 }}>
+      <View style={[styles.panel, { alignItems: 'center', gap: 16, paddingVertical: 32 }]}>
+        <VuMeter cents={target ? target.cents : null} centered={centered} />
+        <View style={{ alignItems: 'center' }}>
+          <Text
+            style={[
+              styles.title,
+              {
+                fontSize: 64,
+                lineHeight: 72,
+                color: centered ? colors.success : target ? colors.ink : colors.faint,
+              },
+            ]}
+          >
+            {target ? `${target.name}${target.octave}` : '—'}
           </Text>
-        ) : null}
-      </View>
-      <View style={{ alignItems: 'center', gap: 12, paddingVertical: 12 }}>
-        <Icon name="tuner" size={35} color={colors.green} />
-        <Label style={{ fontSize: 16 }}>
-          {target
-            ? `Cuerda ${instrument.strings.length - target.string} · objetivo`
-            : 'Cuerda objetivo'}
-        </Label>
-        <Text
-          style={{ fontSize: 72, color: centered ? colors.green : colors.ink, fontWeight: '600' }}
-        >
-          {target ? `${target.name}${target.octave}` : '—'}
-        </Text>
-        <Label style={{ fontSize: 18 }}>
-          {target ? `${cents > 0 ? '+' : ''}${cents} cents` : '— cents'}
-        </Label>
+          <Text style={[styles.data, { fontSize: 20, color: colors.muted }]}>
+            {target ? `${cents > 0 ? '+' : ''}${cents} cents` : '— cents'}
+          </Text>
+        </View>
         <Label muted style={{ textAlign: 'center' }}>
-          {detected
-            ? `Detectado: ${detected.name}${detected.octave} · ${detected.hz.toFixed(1)} Hz`
+          {target
+            ? `Cuerda ${instrument.strings.length - target.string} · ${detected ? `${detected.name}${detected.octave} · ${detected.hz.toFixed(1)} Hz` : ''}`
             : 'Cuerdas numeradas desde la más aguda (1).'}
         </Label>
-        <View
-          accessible={false}
-          style={{ width: '100%', maxWidth: 400, height: 46, justifyContent: 'center' }}
-        >
-          <View style={{ height: 5, backgroundColor: colors.line, borderRadius: 5 }} />
-          <View
-            style={{
-              position: 'absolute',
-              width: 3,
-              height: 28,
-              left: '50%',
-              backgroundColor: colors.green,
-            }}
-          />
-          {target ? (
-            <View
-              style={{
-                position: 'absolute',
-                width: 10,
-                height: 20,
-                borderRadius: 4,
-                left: `${50 + Math.max(-45, Math.min(45, target.cents))}%`,
-                backgroundColor: centered ? colors.green : colors.ink,
-              }}
-            />
-          ) : null}
-        </View>
         <View accessibilityLiveRegion="polite" style={{ gap: 6, alignItems: 'center' }}>
           <Text
-            style={[styles.h3, { textAlign: 'center', color: error ? colors.error : colors.ink }]}
+            style={[
+              styles.h3,
+              {
+                textAlign: 'center',
+                color: error ? colors.error : centered ? colors.success : colors.ink,
+              },
+            ]}
           >
-            {error
-              ? errorTitle
-              : busy
-                ? 'Esperando permiso del micrófono…'
-                : !validReference
-                  ? 'Revisa la referencia de La4'
-                  : centered
-                    ? 'Afinado'
-                    : target
-                      ? target.cents < 0
-                        ? 'Sube la afinación'
-                        : 'Baja la afinación'
-                      : active
-                        ? 'Sin señal'
-                        : 'Micrófono desactivado'}
+            {status}
           </Text>
           <Label muted style={{ textAlign: 'center' }}>
             {error
@@ -344,10 +307,189 @@ function Tuner() {
                 : 'El audio se analiza en este dispositivo.'}
           </Label>
         </View>
-        <Button disabled={!validReference && !active && !busy} onPress={() => void toggle()}>
+        <Button
+          icon={active || busy ? 'pause' : 'tuner'}
+          disabled={!validReference && !active && !busy}
+          onPress={() => void toggle()}
+        >
           {busy ? 'Cancelar activación' : active ? 'Desactivar micrófono' : 'Activar micrófono'}
         </Button>
       </View>
+      <MoreMenu label={`Afinación: ${instrument.name} · La4 ${referenceText} Hz`}>
+        <View style={{ gap: 20, padding: 6, flex: 1 }}>
+          <Chips
+            label="Afinación"
+            value={preset}
+            onChange={setPreset}
+            minHeight={44}
+            options={(Object.keys(tunings) as (keyof typeof tunings)[]).map((key) => ({
+              value: key,
+              label: tunings[key].name,
+            }))}
+          />
+          <View style={{ gap: 8, maxWidth: 280 }}>
+            <Label style={{ fontWeight: '500' }}>Referencia de La4 (Hz)</Label>
+            <TextInput
+              accessibilityLabel="Referencia de La4 en Hz, entre 415 y 466"
+              keyboardType="numeric"
+              value={referenceText}
+              onChangeText={setReferenceText}
+              style={[styles.field, styles.data, { fontSize: 16 }]}
+            />
+            <Label muted>Entre 415 y 466 Hz. Habitual: 440 Hz.</Label>
+          </View>
+        </View>
+      </MoreMenu>
+      {!validReference ? (
+        <Text accessibilityRole="alert" style={[styles.text, { color: colors.error }]}>
+          Introduce una referencia de La4 entre 415 y 466 Hz.
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Vúmetro del afinador: escala de −50 a +50 cents y aguja con inercia de
+ * galvanómetro. Es el único movimiento con autoría de la app; con movimiento
+ * reducido la aguja salta sin animación.
+ */
+function VuMeter({ cents, centered }: { cents: number | null; centered: boolean }) {
+  const W = 300,
+    H = 150,
+    R = 128,
+    cx = W / 2,
+    cy = H - 8;
+  const angle = useRef(new Animated.Value(-58)).current;
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((v) => alive && setReduced(v))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // Sin señal, la aguja descansa en el tope izquierdo, fuera de la escala.
+  const target = cents === null ? -58 : Math.max(-50, Math.min(50, cents));
+  useEffect(() => {
+    if (reduced) {
+      angle.setValue(target);
+      return;
+    }
+    const spring = Animated.spring(angle, {
+      toValue: target,
+      friction: 7,
+      tension: 60,
+      useNativeDriver: Platform.OS !== 'web',
+    });
+    spring.start();
+    return () => spring.stop();
+  }, [target, reduced, angle]);
+  const point = (deg: number, r: number) => {
+    const a = ((deg - 90) * Math.PI) / 180;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  };
+  const ticks = Array.from({ length: 21 }, (_, i) => -50 + i * 5);
+  const zone = [point(-5, R + 2), point(5, R + 2)];
+  return (
+    <View
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Desviación en cents"
+      accessibilityValue={{ min: -50, max: 50, now: cents === null ? 0 : Math.round(cents) }}
+      style={{
+        width: W,
+        maxWidth: '100%',
+        height: H,
+        borderRadius: 12,
+        backgroundColor: colors.sunken,
+        borderWidth: 1,
+        borderColor: colors.line,
+        overflow: 'hidden',
+      }}
+    >
+      <Svg width={W} height={H} accessibilityElementsHidden>
+        <Path
+          d={`M${zone[0]!.x} ${zone[0]!.y}A${R + 2} ${R + 2} 0 0 1 ${zone[1]!.x} ${zone[1]!.y}`}
+          stroke={centered ? colors.success : colors.accentSoft}
+          strokeWidth={10}
+          fill="none"
+        />
+        {ticks.map((t) => {
+          const major = t % 25 === 0;
+          const a = point(t, R - 4),
+            b = point(t, R - (major ? 20 : 11));
+          return (
+            <Line
+              key={t}
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={t === 0 ? colors.accent : colors.faint}
+              strokeWidth={major ? 2 : 1}
+            />
+          );
+        })}
+        {[-50, -25, 0, 25, 50].map((t) => {
+          const p = point(t, R - 34);
+          return (
+            <SvgText
+              key={t}
+              x={p.x}
+              y={p.y + 4}
+              fontSize={11}
+              fontFamily={fonts.mono}
+              fill={colors.muted}
+              textAnchor="middle"
+            >
+              {t > 0 ? `+${t}` : t}
+            </SvgText>
+          );
+        })}
+      </Svg>
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: cx - 1.5,
+          top: cy - (R - 6),
+          width: 3,
+          height: (R - 6) * 2,
+          transform: [
+            {
+              rotate: angle.interpolate({
+                inputRange: [-60, 60],
+                outputRange: ['-60deg', '60deg'],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            height: R - 6,
+            borderRadius: 2,
+            backgroundColor:
+              cents === null ? colors.faint : centered ? colors.success : colors.accent,
+          }}
+        />
+      </Animated.View>
+      <View
+        style={{
+          position: 'absolute',
+          left: cx - 9,
+          top: cy - 9,
+          width: 18,
+          height: 18,
+          borderRadius: 9,
+          backgroundColor: colors.raised,
+          borderWidth: 1,
+          borderColor: colors.lineStrong,
+        }}
+      />
     </View>
   );
 }
@@ -393,14 +535,16 @@ function Chords() {
             style={{
               flex: 1,
               minWidth: 100,
-              backgroundColor: '#F0F4EC',
+              backgroundColor: colors.raised,
+              borderWidth: 1,
+              borderColor: colors.line,
               borderRadius: 10,
               padding: 22,
               alignItems: 'center',
               gap: 10,
             }}
           >
-            <Text style={{ color: colors.green, fontSize: 30, fontWeight: '600' }}>
+            <Text style={[styles.h2, { color: colors.accentText, fontSize: 30, lineHeight: 36 }]}>
               {noteName(root)}
               {quality === 'minor' ? 'm' : quality === 'diminished' ? '°' : ''}
             </Text>

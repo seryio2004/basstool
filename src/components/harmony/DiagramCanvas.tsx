@@ -124,7 +124,7 @@ function Cursor({ box, scale, reduced }: { box: Box; scale: number; reduced: boo
         width: box.w * scale,
         height: box.h * scale,
         borderRadius: 8,
-        backgroundColor: colors.pale,
+        backgroundColor: colors.accentSoft,
         transform: position.getTranslateTransform(),
       }}
     />
@@ -154,7 +154,7 @@ function Playhead({ sweep, scale }: { sweep: Sweep; scale: number }) {
         width: 2,
         height: sweep.h * scale,
         borderRadius: 1,
-        backgroundColor: colors.green,
+        backgroundColor: colors.accent,
         transform: [{ translateX: x }],
       }}
     />

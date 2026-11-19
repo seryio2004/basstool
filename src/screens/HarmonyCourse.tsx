@@ -90,11 +90,11 @@ export function HarmonyCourse({ practice, scrollToTop }: Props) {
             {completed} de {harmonyLessons.length} temas completados
           </Badge>
         </View>
-        <View style={{ height: 6, backgroundColor: '#E4E9E1', borderRadius: 5 }}>
+        <View style={{ height: 6, backgroundColor: colors.sunken, borderRadius: 5 }}>
           <View
             style={{
               height: 6,
-              backgroundColor: colors.green,
+              backgroundColor: colors.accent,
               width: `${(completed / harmonyLessons.length) * 100}%`,
               borderRadius: 5,
             }}
@@ -156,7 +156,7 @@ export function HarmonyCourse({ practice, scrollToTop }: Props) {
               >
                 <View style={{ width: 35, alignItems: 'center' }}>
                   {done ? (
-                    <Icon name="check" color={colors.green} />
+                    <Icon name="check" color={colors.accentText} />
                   ) : (
                     <Text style={{ fontSize: 17, fontWeight: '600', color: colors.muted }}>
                       {l.number}
@@ -449,7 +449,7 @@ function LessonReader({
   if (!hydrated)
     return (
       <View style={{ padding: 40, gap: 16, alignItems: 'center' }}>
-        <ActivityIndicator color={colors.green} />
+        <ActivityIndicator color={colors.accentText} />
         <Label muted>Recuperando el tema y tu borrador…</Label>
       </View>
     );
@@ -582,9 +582,13 @@ function LessonReader({
                     gap: 11,
                     padding: 13,
                     borderRadius: 8,
-                    backgroundColor: isCorrect ? colors.pale : selected ? '#F1F3EE' : 'white',
+                    backgroundColor: isCorrect
+                      ? colors.accentSoft
+                      : selected
+                        ? colors.raised
+                        : colors.surface,
                     borderWidth: 1,
-                    borderColor: selected || isCorrect ? colors.green : colors.line,
+                    borderColor: selected || isCorrect ? colors.accent : colors.line,
                     opacity: pressed ? 0.7 : 1,
                   })}
                 >
@@ -594,11 +598,11 @@ function LessonReader({
                       height: 18,
                       borderRadius: 20,
                       borderWidth: 1,
-                      borderColor: selected ? colors.green : '#84917E',
-                      backgroundColor: selected ? colors.green : 'transparent',
+                      borderColor: selected ? colors.accent : colors.lineStrong,
+                      backgroundColor: selected ? colors.accent : 'transparent',
                     }}
                   >
-                    {selected ? <Icon name="check" color="white" size={16} /> : null}
+                    {selected ? <Icon name="check" color={colors.onAccent} size={16} /> : null}
                   </View>
                   <Text style={[styles.text, { flex: 1 }]}>{option}</Text>
                 </Pressable>
@@ -610,7 +614,7 @@ function LessonReader({
                   style={{
                     color:
                       draft.quizAnswers[question.id] === question.answer
-                        ? colors.green
+                        ? colors.accentText
                         : colors.error,
                   }}
                 >
@@ -750,13 +754,13 @@ function LessonReader({
                       width: 20,
                       height: 20,
                       borderWidth: 1,
-                      borderColor: checked ? colors.green : '#84917E',
+                      borderColor: checked ? colors.accent : colors.lineStrong,
                       borderRadius: 4,
-                      backgroundColor: checked ? colors.green : 'white',
+                      backgroundColor: checked ? colors.accent : colors.sunken,
                       marginTop: 1,
                     }}
                   >
-                    {checked ? <Icon name="check" size={18} color="white" /> : null}
+                    {checked ? <Icon name="check" size={18} color={colors.onAccent} /> : null}
                   </View>
                   <Text style={[styles.text, { flex: 1 }]}>{criterion}</Text>
                 </Pressable>

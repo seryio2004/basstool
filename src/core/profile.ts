@@ -3,6 +3,8 @@ import type { Nomenclature } from './notation';
 
 export type TuningId = keyof typeof tunings;
 export type Level = 'beginner' | 'intermediate' | 'advanced';
+/** Tema de la interfaz. Preferencia del dispositivo: no se sincroniza con la cuenta. */
+export type ThemePreference = 'dark' | 'light' | 'system';
 
 /** Ajustes personales del bajista. No hay roles: cada perfil es una persona que estudia. */
 export type Profile = {
@@ -15,12 +17,20 @@ export type Profile = {
   leftHanded: boolean;
   /** false hasta completar u omitir la configuración inicial. */
   configured: boolean;
+  /** Oscuro por defecto. Los perfiles guardados antes de existir el campo lo reciben así. */
+  theme: ThemePreference;
 };
 
 export const levels: { value: Level; label: string }[] = [
   { value: 'beginner', label: 'Iniciación' },
   { value: 'intermediate', label: 'Intermedio' },
   { value: 'advanced', label: 'Avanzado' },
+];
+
+export const themePreferences: { value: ThemePreference; label: string }[] = [
+  { value: 'dark', label: 'Oscuro' },
+  { value: 'light', label: 'Claro' },
+  { value: 'system', label: 'Sistema' },
 ];
 
 export const tuningIds = Object.keys(tunings) as TuningId[];
@@ -34,6 +44,7 @@ export function defaultProfile(id: string): Profile {
     nomenclature: 'latin',
     leftHanded: false,
     configured: false,
+    theme: 'dark',
   };
 }
 
@@ -53,5 +64,8 @@ export function parseProfile(value: unknown, fallbackId: string): Profile {
     nomenclature: v.nomenclature === 'english' ? 'english' : 'latin',
     leftHanded: v.leftHanded === true,
     configured: v.configured === true,
+    theme: themePreferences.some((t) => t.value === v.theme)
+      ? (v.theme as ThemePreference)
+      : base.theme,
   };
 }

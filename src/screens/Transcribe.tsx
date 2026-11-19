@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { Button, Chips, Heading, Icon, Label, colors, styles } from '../components/ui';
+import { Button, Chips, Heading, Icon, Label, colors, fonts, styles } from '../components/ui';
 import { Waveform } from '../components/Waveform';
 import { ScoreEditor } from '../components/ScoreEditor';
 import { tunings } from '../core/instrument';
@@ -118,7 +118,11 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
       </ScrollView>
       {entry ? (
         <View
-          style={{ backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line }}
+          style={{
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: colors.line,
+          }}
         >
           <View
             style={{
@@ -389,22 +393,15 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         onMoveMeasure={onMoveMeasure}
       />
       <View style={[styles.between, { gap: 8 }]}>
-        <View style={[styles.row, { gap: 6 }]}>
-          <Text
-            style={{
-              color: colors.ink,
-              fontSize: 20,
-              fontWeight: '600',
-              fontVariant: ['tabular-nums'],
-            }}
-          >
-            {formatTime(time)}
-          </Text>
-          <Label muted style={{ fontVariant: ['tabular-nums'] }}>
+        <View style={[styles.row, { gap: 10 }]}>
+          <TapeCounter value={formatTime(time)} />
+          <Label muted style={{ fontFamily: fonts.mono, fontVariant: ['tabular-nums'] }}>
             / {formatTime(session.duration)}
           </Label>
         </View>
-        <Label muted>{percent} %</Label>
+        <Label muted style={{ fontFamily: fonts.mono }}>
+          {percent} %
+        </Label>
       </View>
       <View
         style={{
@@ -433,22 +430,6 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
           onMute={() => changeVolume(session.volume > 0 ? 0 : resumeVolume.current)}
         />
       </View>
-      <Chips<MixMode>
-        minHeight={44}
-        value={mixMode}
-        onChange={(mode) => {
-          setMixMode(mode);
-          p.setMix(mode, balance);
-        }}
-        options={[
-          { value: 'song', label: 'Canción' },
-          { value: 'score', label: 'Transcripción' },
-          { value: 'both', label: 'Ambas' },
-        ]}
-      />
-      {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
-        <Label muted>Escribe notas para escuchar la transcripción.</Label>
-      ) : null}
       {alignment}
       {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
     </View>
@@ -524,6 +505,23 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         </View>
       ) : openSection === 'Sonido' ? (
         <View style={{ gap: 8 }}>
+          <Text style={[styles.text, { fontWeight: '600' }]}>Qué suena</Text>
+          <Chips<MixMode>
+            minHeight={44}
+            value={mixMode}
+            onChange={(mode) => {
+              setMixMode(mode);
+              p.setMix(mode, balance);
+            }}
+            options={[
+              { value: 'song', label: 'Canción' },
+              { value: 'score', label: 'Transcripción' },
+              { value: 'both', label: 'Ambas' },
+            ]}
+          />
+          {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
+            <Label muted>Escribe notas para escuchar la transcripción.</Label>
+          ) : null}
           {mixMode === 'both' ? (
             <Stepper
               label="Balance de reproducción"
@@ -695,6 +693,54 @@ function Intro() {
   );
 }
 
+/**
+ * Contador de cinta: cada cifra en su ventanilla, como en un magnetófono.
+ * Se lee como un único texto.
+ */
+function TapeCounter({ value }: { value: string }) {
+  return (
+    <View
+      accessible
+      accessibilityLabel={`Posición ${value}`}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+        paddingHorizontal: 6,
+        paddingVertical: 4,
+        borderRadius: 8,
+        backgroundColor: colors.sunken,
+        borderWidth: 1,
+        borderColor: colors.line,
+      }}
+    >
+      {value.split('').map((ch, i) =>
+        /\d/.test(ch) ? (
+          <View
+            key={i}
+            style={{
+              width: 20,
+              height: 30,
+              borderRadius: 3,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: colors.raised,
+              borderTopWidth: 1,
+              borderTopColor: colors.sheen,
+            }}
+          >
+            <Text style={[styles.data, { fontSize: 18, lineHeight: 22 }]}>{ch}</Text>
+          </View>
+        ) : (
+          <Text key={i} style={[styles.data, { fontSize: 18, color: colors.muted }]}>
+            {ch}
+          </Text>
+        ),
+      )}
+    </View>
+  );
+}
+
 function MarkerRow({
   time,
   name,
@@ -725,10 +771,10 @@ function MarkerRow({
           justifyContent: 'center',
           paddingHorizontal: 9,
           borderRadius: 7,
-          backgroundColor: colors.pale,
+          backgroundColor: colors.accentSoft,
         }}
       >
-        <Text style={{ color: colors.green, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
+        <Text style={[styles.data, { color: colors.accentText, fontSize: 14 }]}>
           {formatTime(time)}
         </Text>
       </Pressable>
@@ -779,14 +825,19 @@ function Round({
         borderRadius: size / 2,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: primary ? colors.green : colors.pale,
+        backgroundColor: primary ? colors.accent : colors.raised,
+        borderWidth: primary ? 0 : 1,
+        borderColor: colors.line,
+        borderTopColor: colors.sheen,
         opacity: pressed ? 0.7 : hovered ? 0.86 : 1,
       })}
     >
       {icon ? (
-        <Icon name={icon} size={26} color={primary ? colors.white : colors.green} />
+        <Icon name={icon} size={26} color={primary ? colors.onAccent : colors.accentText} />
       ) : (
-        <Text style={{ color: colors.green, fontWeight: '600', fontSize: 13 }}>{label}</Text>
+        <Text style={[styles.text, { color: colors.accentText, fontSize: 13, fontWeight: '600' }]}>
+          {label}
+        </Text>
       )}
     </Pressable>
   );
@@ -819,14 +870,7 @@ function Stepper({
       </Button>
       <Text
         accessibilityLabel={`${label}: ${value}`}
-        style={{
-          minWidth: 72,
-          textAlign: 'center',
-          color: colors.ink,
-          fontWeight: '600',
-          fontSize: 16,
-          fontVariant: ['tabular-nums'],
-        }}
+        style={[styles.data, { minWidth: 72, textAlign: 'center', fontSize: 16 }]}
       >
         {value}
       </Text>
@@ -867,20 +911,13 @@ function VolumeControl({
             max={100}
             value={percent}
             onChange={(e) => onChange(e.currentTarget.valueAsNumber / 100)}
-            style={{ width: '100%', height: 44, margin: 0, accentColor: colors.green }}
+            style={{ width: '100%', height: 44, margin: 0, accentColor: colors.accentText }}
           />
         ) : (
           <NativeVolumeSlider volume={volume} onChange={onChange} />
         )}
       </View>
-      <Text
-        style={{
-          color: colors.ink,
-          minWidth: 46,
-          textAlign: 'right',
-          fontVariant: ['tabular-nums'],
-        }}
-      >
+      <Text style={[styles.data, { minWidth: 46, textAlign: 'right', fontWeight: '400' }]}>
         {percent} %
       </Text>
     </View>
@@ -928,14 +965,14 @@ function NativeVolumeSlider({
       >
         <View
           pointerEvents="none"
-          style={{ height: 6, borderRadius: 3, backgroundColor: colors.pale }}
+          style={{ height: 6, borderRadius: 3, backgroundColor: colors.accentSoft }}
         >
           <View
             style={{
               width: `${volume * 100}%`,
               height: 6,
               borderRadius: 3,
-              backgroundColor: colors.green,
+              backgroundColor: colors.accent,
             }}
           />
         </View>

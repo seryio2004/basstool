@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Chips, Label, colors, styles } from '../components/ui';
+import { Chips, Label, colors, fonts, styles } from '../components/ui';
 import { FretMark, Fretboard, plainName } from '../components/Fretboard';
 import { tunings } from '../core/instrument';
 import { parsePitch, pitchName } from '../core/notation';
@@ -72,6 +72,7 @@ export function FretboardTool() {
     string: p.string,
     fret: p.fret,
     root: p.isRoot,
+    degree: p.degree,
     label: labelMode === 'note' ? p.name : labelMode === 'degree' ? p.degreeLabel : '',
     description: `${p.name}, grado ${p.degreeLabel}`,
   }));
@@ -81,7 +82,7 @@ export function FretboardTool() {
     const p = result.positions?.find(
       (x) => (((x.midi - tonicClass) % 12) + 12) % 12 === tone.semitones,
     );
-    return p ? [{ name: p.name, degree: p.degreeLabel }] : [];
+    return p ? [{ name: p.name, degree: p.degreeLabel, step: p.degree }] : [];
   });
 
   async function play(string: number, fret: number, midi: number) {
@@ -156,16 +157,17 @@ export function FretboardTool() {
                   key={n.degree}
                   style={{
                     paddingVertical: 5,
-                    paddingHorizontal: 9,
+                    paddingHorizontal: 10,
                     borderRadius: 6,
-                    backgroundColor: n.degree === '1' ? colors.green : colors.pale,
+                    backgroundColor: colors.degrees[(n.step - 1) % 7],
                   }}
                 >
                   <Text
                     style={{
-                      fontSize: 13,
+                      fontFamily: fonts.body,
+                      fontSize: 14,
                       fontWeight: '600',
-                      color: n.degree === '1' ? colors.white : colors.green,
+                      color: colors.onDegree,
                     }}
                   >
                     {n.name}

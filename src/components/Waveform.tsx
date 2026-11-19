@@ -4,7 +4,7 @@ import Svg, { ClipPath, Defs, Line, Path, Rect, Text as SvgText } from 'react-na
 import { envelope, loopFromTimes, wavePath } from '../core/waveform';
 import type { TimedEvent } from '../core/scoreAudio';
 import type { Loop } from '../platform/playerTypes';
-import { Button, colors } from './ui';
+import { Button, colors, fonts } from './ui';
 
 const ZOOMS = [1, 2, 4, 8, 16, 32] as const;
 const DOUBLE_TAP_MS = 320;
@@ -290,7 +290,14 @@ export function Waveform({
             ),
           )
         }
-        style={{ height, borderRadius: 10, backgroundColor: '#F3F1EA', overflow: 'hidden' }}
+        style={{
+          height,
+          borderRadius: 10,
+          backgroundColor: colors.wave,
+          borderWidth: 1,
+          borderColor: colors.line,
+          overflow: 'hidden',
+        }}
         {...responder.panHandlers}
       >
         {width > 0 ? (
@@ -306,7 +313,8 @@ export function Waveform({
                 y={0}
                 width={Math.max(2, x(shown.b) - x(shown.a))}
                 height={height}
-                fill={drag ? '#D5E6D3' : colors.pale}
+                fill={colors.accentSoft}
+                opacity={drag ? 0.7 : 1}
               />
             ) : null}
             <Line
@@ -314,11 +322,11 @@ export function Waveform({
               x2={width}
               y1={height / 2}
               y2={height / 2}
-              stroke="#D9D3C4"
+              stroke={colors.line}
               strokeWidth={1}
             />
-            <Path d={path} fill="#9AA79B" />
-            <Path d={path} fill={colors.green} clipPath="url(#played)" />
+            <Path d={path} fill={colors.waveDim} />
+            <Path d={path} fill={colors.accent} clipPath="url(#played)" />
             {shown ? (
               <>
                 <Line
@@ -326,7 +334,7 @@ export function Waveform({
                   x2={x(shown.a)}
                   y1={0}
                   y2={height}
-                  stroke={colors.green}
+                  stroke={colors.accent}
                   strokeWidth={2}
                 />
                 <Line
@@ -334,12 +342,12 @@ export function Waveform({
                   x2={x(shown.b)}
                   y1={0}
                   y2={height}
-                  stroke={colors.green}
+                  stroke={colors.accent}
                   strokeWidth={2}
                 />
               </>
             ) : null}
-            <Path d={scoreMarks} stroke={colors.green} strokeWidth={4} />
+            <Path d={scoreMarks} stroke={colors.accent} strokeWidth={4} />
             {markers
               .filter((m) => m.time >= viewStart && m.time <= viewEnd)
               .map((m) => (
@@ -349,7 +357,7 @@ export function Waveform({
                   x2={x(m.time)}
                   y1={0}
                   y2={height}
-                  stroke="#8A5A2E"
+                  stroke={colors.info}
                   strokeWidth={1.5}
                   strokeDasharray="3 3"
                 />
@@ -371,17 +379,18 @@ export function Waveform({
                 x2={bar.px}
                 y1={0}
                 y2={height}
-                stroke={colors.green}
+                stroke={colors.accent}
                 strokeWidth={2}
               />
             ))}
             {handles.map(({ index, left }) => (
               <React.Fragment key={index}>
-                <Rect x={left} y={4} width={MARKER_WIDTH} height={28} rx={6} fill={colors.green} />
+                <Rect x={left} y={4} width={MARKER_WIDTH} height={28} rx={6} fill={colors.accent} />
                 <SvgText
                   x={left + MARKER_WIDTH / 2}
                   y={22}
-                  fill={colors.white}
+                  fill={colors.onAccent}
+                  fontFamily={fonts.mono}
                   fontSize={13}
                   fontWeight="600"
                   textAnchor="middle"
@@ -408,6 +417,7 @@ export function Waveform({
             minWidth: 40,
             textAlign: 'center',
             color: colors.ink,
+            fontFamily: fonts.mono,
             fontWeight: '600',
             fontVariant: ['tabular-nums'],
           }}
@@ -428,7 +438,9 @@ export function Waveform({
             flex: 1,
             height: 44,
             borderRadius: 6,
-            backgroundColor: '#F3F1EA',
+            backgroundColor: colors.wave,
+            borderWidth: 1,
+            borderColor: colors.line,
             overflow: 'hidden',
           }}
           onLayout={(e) => setOverviewWidth(e.nativeEvent.layout.width)}
@@ -449,10 +461,10 @@ export function Waveform({
                   y={0}
                   width={Math.max(2, ((loop.b - loop.a) / duration) * overviewWidth)}
                   height={44}
-                  fill={colors.pale}
+                  fill={colors.accentSoft}
                 />
               ) : null}
-              <Path d={overviewPath} fill="#B9C2B8" />
+              <Path d={overviewPath} fill={colors.waveDim} />
               {zoom > 1 ? (
                 <Rect
                   x={(viewStart / duration) * overviewWidth}
@@ -461,7 +473,7 @@ export function Waveform({
                   height={30}
                   rx={4}
                   fill="none"
-                  stroke={colors.green}
+                  stroke={colors.accent}
                   strokeWidth={2}
                 />
               ) : null}

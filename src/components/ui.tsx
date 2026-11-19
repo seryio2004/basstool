@@ -4,12 +4,11 @@ import {
   Text,
   Pressable,
   TextInput,
-  StyleSheet,
   ViewStyle,
   TextStyle,
   ActivityIndicator,
 } from 'react-native';
-import Svg, { Path, Circle, Line, Rect, Ellipse } from 'react-native-svg';
+import Svg, { Path, Circle, Line, Ellipse } from 'react-native-svg';
 import { figurePool } from '../core/music';
 import {
   type ScoreNote,
@@ -22,50 +21,9 @@ import {
 } from '../core/notation';
 import { Text as SvgText } from 'react-native-svg';
 export { Heading } from './Heading';
-export const colors = {
-  ink: '#202E26',
-  muted: '#657168',
-  green: '#295E43',
-  pale: '#E8EFE7',
-  line: '#E2E7DF',
-  bg: '#F8F9F6',
-  white: '#FFFFFF',
-  error: '#A33131',
-};
-export const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  between: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  panel: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 14,
-    padding: 24,
-    gap: 18,
-  },
-  title: { color: colors.ink, fontSize: 29, fontWeight: '700', letterSpacing: -0.6 },
-  h2: { color: colors.ink, fontSize: 19, fontWeight: '600', letterSpacing: -0.25 },
-  h3: { color: colors.ink, fontSize: 16, fontWeight: '600' },
-  text: { color: colors.ink, fontSize: 14, lineHeight: 22 },
-  muted: { color: colors.muted, fontSize: 13, lineHeight: 20 },
-  field: {
-    color: colors.ink,
-    backgroundColor: colors.white,
-    borderColor: '#C8D1C7',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 44,
-  },
-  divider: { height: 1, backgroundColor: colors.line },
-});
+export { colors, styles, fonts, space, radius, tabular, useTheme, moduleTone } from './theme';
+import { colors, styles, fonts, radius } from './theme';
+
 export function Label({
   children,
   muted = false,
@@ -77,6 +35,9 @@ export function Label({
 }) {
   return <Text style={[muted ? styles.muted : styles.text, style]}>{children}</Text>;
 }
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+
 export function Button({
   children,
   onPress,
@@ -86,21 +47,31 @@ export function Button({
   icon,
   small = false,
   style,
+  accessibilityLabel,
 }: {
   children: React.ReactNode;
   onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: Variant;
   disabled?: boolean;
   busy?: boolean;
   icon?: string;
   small?: boolean;
   style?: ViewStyle;
+  accessibilityLabel?: string;
 }) {
   const foreground =
-    variant === 'primary' ? '#fff' : variant === 'danger' ? colors.error : colors.green;
+    variant === 'primary'
+      ? colors.onAccent
+      : variant === 'danger'
+        ? colors.error
+        : variant === 'secondary'
+          ? colors.ink
+          : colors.accentText;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
@@ -110,16 +81,24 @@ export function Button({
           alignItems: 'center',
           gap: 8,
           paddingVertical: small ? 8 : 12,
-          paddingHorizontal: small ? 12 : 18,
-          minHeight: small ? 36 : 44,
-          borderRadius: 8,
+          paddingHorizontal: small ? 12 : 20,
+          minHeight: small ? 38 : 48,
+          borderRadius: radius.control,
+          borderWidth: variant === 'secondary' ? 1 : 0,
+          borderColor: colors.lineStrong,
+          borderTopColor: variant === 'secondary' ? colors.sheen : colors.lineStrong,
           backgroundColor:
             variant === 'primary'
-              ? colors.green
+              ? colors.accent
               : variant === 'secondary'
-                ? colors.pale
-                : 'transparent',
-          opacity: disabled || busy ? 0.45 : pressed ? 0.65 : hovered ? 0.84 : 1,
+                ? hovered
+                  ? colors.accentSoft
+                  : colors.raised
+                : hovered
+                  ? colors.accentSoft
+                  : 'transparent',
+          opacity:
+            disabled || busy ? 0.45 : pressed ? 0.7 : variant === 'primary' && hovered ? 0.9 : 1,
         },
         style,
       ]}
@@ -127,12 +106,22 @@ export function Button({
       {busy ? (
         <ActivityIndicator size="small" color={foreground} />
       ) : icon ? (
-        <Icon name={icon} color={foreground} size={16} />
+        <Icon name={icon} color={foreground} size={small ? 16 : 18} />
       ) : null}
-      <Text style={{ color: foreground, fontSize: 13, fontWeight: '600' }}>{children}</Text>
+      <Text
+        style={{
+          color: foreground,
+          fontFamily: fonts.body,
+          fontSize: small ? 14 : 15,
+          fontWeight: '600',
+        }}
+      >
+        {children}
+      </Text>
     </Pressable>
   );
 }
+
 export function Field({
   label,
   value,
@@ -151,14 +140,14 @@ export function Field({
   keyboardType?: 'email-address' | 'numeric' | 'default';
 }) {
   return (
-    <View style={{ gap: 7 }}>
-      <Text style={[styles.text, { fontSize: 13, fontWeight: '500' }]}>{label}</Text>
+    <View style={{ gap: 8 }}>
+      <Text style={[styles.text, { fontSize: 14, fontWeight: '500' }]}>{label}</Text>
       <TextInput
         accessibilityLabel={label}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#727D73"
+        placeholderTextColor={colors.faint}
         secureTextEntry={secureTextEntry}
         autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
         keyboardType={keyboardType}
@@ -168,52 +157,185 @@ export function Field({
     </View>
   );
 }
+
+/** Selector de una opción. Seleccionado en ámbar; el resto, botones de placa. */
 export function Chips<T extends string>({
   options,
   value,
   onChange,
-  minHeight,
+  minHeight = 40,
+  label,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   minHeight?: number;
+  label?: string;
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
-      {options.map((o) => (
-        <Pressable
-          key={o.value}
-          accessibilityRole="button"
-          accessibilityState={{ selected: value === o.value }}
-          onPress={() => onChange(o.value)}
-          style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
-            minHeight,
-            justifyContent: 'center',
-            paddingVertical: 9,
-            paddingHorizontal: 13,
-            backgroundColor: value === o.value ? colors.green : hovered ? '#EDF1EA' : '#F1F3EE',
-            borderRadius: 7,
-          })}
-        >
-          <Text
-            style={{
-              color: value === o.value ? 'white' : colors.muted,
-              fontWeight: value === o.value ? '600' : '400',
-              fontSize: 13,
-            }}
+    <View
+      accessibilityRole="radiogroup"
+      accessibilityLabel={label}
+      style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
+    >
+      {options.map((o) => {
+        const selected = value === o.value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="radio"
+            accessibilityState={{ selected, checked: selected }}
+            onPress={() => onChange(o.value)}
+            style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
+              minHeight,
+              justifyContent: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 14,
+              backgroundColor: selected
+                ? colors.accent
+                : hovered
+                  ? colors.accentSoft
+                  : colors.raised,
+              borderWidth: 1,
+              borderColor: selected ? colors.accent : colors.line,
+              borderRadius: radius.chip,
+            })}
           >
-            {o.label}
-          </Text>
-        </Pressable>
-      ))}
+            <Text
+              style={{
+                color: selected ? colors.onAccent : colors.ink,
+                fontFamily: fonts.body,
+                fontWeight: selected ? '600' : '400',
+                fontSize: 14,
+              }}
+            >
+              {o.label}
+            </Text>
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
+
+/** Interruptor de palanca para conmutadores binarios. */
+export function Toggle({
+  label,
+  value,
+  onChange,
+  detail,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+  detail?: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityState={{ checked: value }}
+      aria-checked={value}
+      onPress={() => onChange(!value)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 48 }}
+    >
+      <View
+        style={{
+          width: 50,
+          height: 28,
+          borderRadius: 14,
+          padding: 3,
+          justifyContent: 'center',
+          backgroundColor: value ? colors.accent : colors.sunken,
+          borderWidth: 1,
+          borderColor: value ? colors.accent : colors.lineStrong,
+        }}
+      >
+        <View
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            alignSelf: value ? 'flex-end' : 'flex-start',
+            backgroundColor: value ? colors.onAccent : colors.muted,
+          }}
+        />
+      </View>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={styles.text}>{label}</Text>
+        {detail ? <Text style={styles.muted}>{detail}</Text> : null}
+      </View>
+    </Pressable>
+  );
+}
+
+/** Acciones secundarias plegadas tras «Más». Se despliegan en el flujo, sin capas. */
+export function MoreMenu({
+  label = 'Más',
+  children,
+  align = 'flex-start',
+}: {
+  label?: string;
+  children: React.ReactNode;
+  align?: 'flex-start' | 'flex-end' | 'center';
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <View style={{ gap: 10, alignItems: align }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        aria-expanded={open}
+        onPress={() => setOpen(!open)}
+        style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          minHeight: 44,
+          paddingHorizontal: 14,
+          borderRadius: radius.control,
+          backgroundColor: hovered || open ? colors.accentSoft : 'transparent',
+        })}
+      >
+        <Icon name="more" size={18} color={colors.accentText} />
+        <Text
+          style={{
+            color: colors.accentText,
+            fontFamily: fonts.body,
+            fontSize: 15,
+            fontWeight: '600',
+          }}
+        >
+          {label}
+        </Text>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.accentText} />
+      </Pressable>
+      {open ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: 8,
+            padding: 10,
+            borderRadius: radius.control,
+            backgroundColor: colors.raised,
+            borderWidth: 1,
+            borderColor: colors.line,
+            borderTopColor: colors.sheen,
+            alignSelf: 'stretch',
+          }}
+        >
+          {children}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function Badge({
   children,
-  color = colors.green,
-  background = colors.pale,
+  color = colors.accentText,
+  background = colors.accentSoft,
 }: {
   children: React.ReactNode;
   color?: string;
@@ -223,16 +345,19 @@ export function Badge({
     <View
       style={{
         alignSelf: 'flex-start',
-        paddingHorizontal: 9,
+        paddingHorizontal: 10,
         paddingVertical: 4,
-        borderRadius: 5,
+        borderRadius: radius.badge,
         backgroundColor: background,
       }}
     >
-      <Text style={{ color, fontSize: 11, fontWeight: '600' }}>{children}</Text>
+      <Text style={{ color, fontFamily: fonts.body, fontSize: 12, fontWeight: '600' }}>
+        {children}
+      </Text>
     </View>
   );
 }
+
 export function Empty({
   title,
   detail,
@@ -243,14 +368,15 @@ export function Empty({
   action?: React.ReactNode;
 }) {
   return (
-    <View style={{ alignItems: 'center', paddingVertical: 40, paddingHorizontal: 20, gap: 10 }}>
-      <Icon name="music" size={30} color="#8A998B" />
+    <View style={{ alignItems: 'center', paddingVertical: 48, paddingHorizontal: 20, gap: 12 }}>
+      <Icon name="music" size={32} color={colors.faint} />
       <Text style={styles.h3}>{title}</Text>
       <Text style={[styles.muted, { textAlign: 'center', maxWidth: 420 }]}>{detail}</Text>
       {action}
     </View>
   );
 }
+
 export function Icon({
   name,
   size = 20,
@@ -272,6 +398,7 @@ export function Icon({
     play: 'm8 4 12 8-12 8Z',
     pause: 'M8 5v14m8-14v14',
     plus: 'M12 5v14M5 12h14',
+    minus: 'M5 12h14',
     check: 'm5 12 4 4L19 6',
     clock: 'M12 7v5l3 2',
     metronome: 'm8 3-5 18h18L16 3ZM12 17l5-10M8 17h8',
@@ -285,6 +412,12 @@ export function Icon({
     note: 'M10 18V4l9-1v5l-9 1m0 9c0 4-7 4-7 1s7-4 7-1',
     wave: 'M3 12h1m3-4v8m4-12v16m4-11v6m4-9v12m2-6h1',
     train: 'M5 3h14v13H5ZM5 9h14M8 21l2-5m6 5-2-5M8 19h8',
+    more: '',
+    'chevron-down': 'm6 9 6 6 6-6',
+    'chevron-up': 'm6 15 6-6 6 6',
+    upload: 'M12 16V4m-5 5 5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3',
+    sun: 'M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
+    moon: 'M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z',
   };
   return (
     <Svg
@@ -298,9 +431,19 @@ export function Icon({
       strokeLinejoin="round"
       accessibilityElementsHidden
     >
-      <Path d={paths[name] || paths.music} />
-      {name === 'clock' ? <Circle cx="12" cy="12" r="9" /> : null}
-      {name === 'settings' ? <Circle cx="12" cy="12" r="5" /> : null}
+      {name === 'more' ? (
+        <>
+          <Circle cx="5" cy="12" r="1.4" fill={color} />
+          <Circle cx="12" cy="12" r="1.4" fill={color} />
+          <Circle cx="19" cy="12" r="1.4" fill={color} />
+        </>
+      ) : (
+        <Path d={paths[name] || paths.music} />
+      )}
+      {name === 'clock' || name === 'settings' ? (
+        <Circle cx="12" cy="12" r={name === 'clock' ? 9 : 5} />
+      ) : null}
+      {name === 'sun' ? <Circle cx="12" cy="12" r="4" /> : null}
     </Svg>
   );
 }
@@ -343,7 +486,7 @@ export function Staff({
             y1={top + i * 14}
             x2={width - 10}
             y2={top + i * 14}
-            stroke="#A9B4A8"
+            stroke={colors.staff}
           />
         ))}
         {clef === 'bass' ? (
@@ -370,7 +513,7 @@ export function Staff({
             const x = 95 + (i * (width - 130)) / Math.max(1, notes.length - 1);
             const y = bottom - steps[i]! * 7;
             const alter = parsePitch(pitch).alter;
-            const color = active === i ? colors.green : colors.ink;
+            const color = active === i ? colors.accent : colors.ink;
             return (
               <React.Fragment key={i}>
                 {ledgerSteps(steps[i]!).map((line) => (
