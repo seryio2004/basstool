@@ -1,19 +1,40 @@
 import React from 'react';
 import { Pressable, Text, View, useWindowDimensions } from 'react-native';
 import { Module, modules } from '../core/types';
-import { Badge, Heading, Icon, Label, Staff, colors, moduleTone, styles } from '../components/ui';
+import {
+  Badge,
+  Heading,
+  Icon,
+  Label,
+  Staff,
+  colors,
+  moduleTone,
+  radius,
+  space,
+  styles,
+} from '../components/ui';
+
+const moduleIcon: Record<Module, string> = {
+  groove: 'train',
+  'chord-train': 'chord',
+  'listen-repeat': 'ear',
+  notes: 'note',
+  intervals: 'music',
+  reading: 'library',
+};
 
 export function Practice({ practice }: { practice: (module: Module) => void }) {
   const { width } = useWindowDimensions();
+  const compact = width < 600;
   return (
-    <View style={{ gap: 32 }}>
+    <View style={{ gap: compact ? space.l : space.xxl }}>
       <View style={{ gap: 8 }}>
         <Heading level={1} style={styles.title}>
           Practicar
         </Heading>
         <Label muted>Ritmo, armonía, oído y lectura. Elige qué quieres trabajar hoy.</Label>
       </View>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 20 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: compact ? space.s : 20 }}>
         {modules.map((base) => {
           const tone = moduleTone(base.id);
           const m = { ...base, color: tone.ink, background: tone.bg };
@@ -25,26 +46,33 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
               onPress={() => practice(m.id)}
               style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
                 width: width > 1000 ? '48.5%' : '100%',
+                flexDirection: compact ? 'row' : 'column',
+                alignItems: compact ? 'center' : 'stretch',
                 backgroundColor: hovered ? colors.raised : colors.surface,
                 borderWidth: 1,
                 borderColor: colors.line,
                 borderTopColor: colors.sheen,
-                borderRadius: 14,
+                borderRadius: radius.panel,
                 overflow: 'hidden',
               })}
             >
               <View
                 style={{
-                  height: 112,
-                  borderBottomWidth: 1,
+                  alignSelf: 'stretch',
+                  width: compact ? 64 : undefined,
+                  minHeight: compact ? 64 : 112,
+                  borderRightWidth: compact ? 1 : 0,
+                  borderBottomWidth: compact ? 0 : 1,
                   borderBottomColor: colors.line,
                   backgroundColor: m.background,
-                  padding: 24,
+                  padding: compact ? 0 : space.xl,
                   justifyContent: 'center',
                   alignItems: 'center',
                 }}
               >
-                {m.id === 'groove' ? (
+                {compact ? (
+                  <Icon name={moduleIcon[m.id]} color={m.color} size={28} />
+                ) : m.id === 'groove' ? (
                   <View style={{ flexDirection: 'row', gap: 9, alignItems: 'flex-end' }}>
                     {[18, 42, 28, 60, 38, 23, 48, 28, 50, 33, 20, 43].map((h, i) => (
                       <View
@@ -60,7 +88,11 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
                     ))}
                   </View>
                 ) : m.id === 'chord-train' || m.id === 'listen-repeat' ? (
-                  <Icon name={m.id === 'listen-repeat' ? 'ear' : 'note'} color={m.color} size={48} />
+                  <Icon
+                    name={m.id === 'listen-repeat' ? 'ear' : 'note'}
+                    color={m.color}
+                    size={48}
+                  />
                 ) : m.id === 'intervals' ? (
                   <View style={[styles.row, { gap: 30 }]}>
                     <Icon name="note" color={m.color} size={45} />
@@ -73,23 +105,36 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
                   </View>
                 )}
               </View>
-              <View style={{ padding: 24, gap: 13 }}>
-                <Heading level={2} style={styles.h2}>
+              <View
+                style={
+                  compact
+                    ? { flex: 1, minWidth: 0, padding: space.m, gap: space.xs }
+                    : { padding: space.xl, gap: 13 }
+                }
+              >
+                <Heading level={2} style={compact ? styles.h3 : styles.h2}>
                   {m.title}
                 </Heading>
                 <Label muted>{m.subtitle}</Label>
-                <View style={styles.between}>
-                  <Badge color={m.color} background={m.background}>
-                    {m.category}
-                  </Badge>
-                  <View style={[styles.row, { gap: 6 }]}>
-                    <Text style={[styles.text, { color: colors.accentText, fontWeight: '600' }]}>
-                      Empezar
-                    </Text>
-                    <Icon name="arrow" size={18} color={colors.accentText} />
+                {!compact && (
+                  <View style={styles.between}>
+                    <Badge color={m.color} background={m.background}>
+                      {m.category}
+                    </Badge>
+                    <View style={[styles.row, { gap: 6 }]}>
+                      <Text style={[styles.text, { color: colors.accentText, fontWeight: '600' }]}>
+                        Empezar
+                      </Text>
+                      <Icon name="arrow" size={18} color={colors.accentText} />
+                    </View>
                   </View>
-                </View>
+                )}
               </View>
+              {compact && (
+                <View style={{ paddingRight: space.m }}>
+                  <Icon name="arrow" size={18} color={colors.accentText} />
+                </View>
+              )}
             </Pressable>
           );
         })}

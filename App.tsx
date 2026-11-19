@@ -276,7 +276,7 @@ function Shell() {
             {!desktop && profile.configured ? (
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Abrir ajustes"
+                accessibilityLabel="Ajustes"
                 onPress={() => navigate('settings')}
                 style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
               >
@@ -412,7 +412,8 @@ function Shell() {
             {navigation.map((n) => (
               <Nav
                 key={n.id}
-                label={n.label}
+                label={n.id === 'tools' ? 'Útiles' : n.label}
+                accessibilityLabel={n.label}
                 icon={n.icon}
                 active={page === n.id}
                 onPress={() => navigate(n.id)}
@@ -512,24 +513,25 @@ function PasswordRecovery({ onDone }: { onDone: () => void }) {
 
 function Nav({
   label,
+  accessibilityLabel = label,
   icon,
   active,
   onPress,
   compact = false,
 }: {
   label: string;
+  accessibilityLabel?: string;
   icon: string;
   active: boolean;
   onPress: () => void;
   compact?: boolean;
 }) {
-  const { width } = useWindowDimensions();
   const tint = active ? colors.accentText : colors.muted;
   return (
     <Pressable
       accessibilityRole={compact ? 'tab' : 'button'}
       accessibilityState={{ selected: active }}
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
         flexDirection: compact ? 'column' : 'row',
@@ -568,7 +570,7 @@ function Nav({
         style={{
           color: active ? colors.accentText : compact ? colors.muted : colors.ink,
           fontFamily: fonts.body,
-          fontSize: compact ? (label === 'Herramientas' && width < 400 ? 9 : 11) : 15,
+          fontSize: compact ? 11 : 15,
           fontWeight: active ? '600' : '400',
         }}
       >

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Text, View } from 'react-native';
+import { Platform, Text, TextInput, View } from 'react-native';
 import {
   Button,
   Chips,
@@ -54,6 +54,12 @@ const variationOptions = [
 ] satisfies { value: DrumVariation; label: string }[];
 const digits = (value: string) => value.replace(/\D/g, '').slice(0, 3);
 const bounded = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+const transportButton = {
+  flexGrow: 1,
+  flexBasis: '45%',
+  minWidth: 124,
+  paddingHorizontal: space.m,
+} as const;
 
 function WebOnly() {
   useTheme();
@@ -106,22 +112,21 @@ function GrooveGenre({
 const pieceLabel = (piece: DrumPiece, ride: boolean) =>
   piece === 'kick' ? 'Bombo' : piece === 'snare' ? 'Caja' : ride ? 'Ride' : 'Charles';
 const initialMixer = {
-  kick: { volume: '100', mute: false },
-  snare: { volume: '100', mute: false },
-  cymbal: { volume: '100', mute: false },
+  kick: { volume: 100, mute: false },
+  snare: { volume: 100, mute: false },
+  cymbal: { volume: 100, mute: false },
 };
 const mixerLevels = (mixer: typeof initialMixer) => ({
-  kick: mixer.kick.mute ? 0 : Number(mixer.kick.volume) / 100,
-  snare: mixer.snare.mute ? 0 : Number(mixer.snare.volume) / 100,
-  cymbal: mixer.cymbal.mute ? 0 : Number(mixer.cymbal.volume) / 100,
+  kick: mixer.kick.mute ? 0 : mixer.kick.volume / 100,
+  snare: mixer.snare.mute ? 0 : mixer.snare.volume / 100,
+  cymbal: mixer.cymbal.mute ? 0 : mixer.cymbal.volume / 100,
 });
 
 function DrumMachine() {
-  useTheme();
+  const { colors } = useTheme();
   const [groove, setGroove] = useState(defaultGroove);
   const current = useRef(groove);
   const [bpmText, setBpmText] = useState(String(groove.bpm));
-  const [swingText, setSwingText] = useState(String(groove.swing));
   const [position, setPosition] = useState<GroovePosition>();
   const [mixer, setMixer] = useState(initialMixer);
   const levels = useRef(mixerLevels(initialMixer));
@@ -146,7 +151,6 @@ function DrumMachine() {
   function changeMeter(genre: DrumGenre, meter: DrumMeter) {
     if (genre === groove.genre && meter === groove.meter) return;
     const swing = defaultSwing(genre, meter);
-    setSwingText(String(swing));
     change({ genre, meter, swing });
     taps.current = [];
   }
@@ -213,59 +217,71 @@ function DrumMachine() {
   return (
     <View style={{ gap: space.l }}>
       <View style={[styles.panel, { gap: space.l }]}>
-        <View style={[styles.row, { flexWrap: 'wrap' }]}>
+        <View style={[styles.row, { flexWrap: 'wrap', gap: space.s }]}>
           <Button
             icon={running ? 'pause' : 'play'}
             disabled={!running && !validTempo}
             onPress={() => void toggle()}
+            style={transportButton}
           >
-            {running ? 'Detener' : 'Iniciar batería'}
+            {running ? 'Parar batería' : 'Iniciar batería'}
           </Button>
-          {position && (
-            <Text style={styles.data}>
-              {position.bpm} BPM · Compás {position.bar + 1}
-              {position.variation === 'fill' ? ' · Relleno' : ''}
-            </Text>
-          )}
+          <Button
+            variant="secondary"
+            style={transportButton}
+            onPress={() => {
+              const result = tapTempo(taps.current, performance.now());
+              taps.current = result.taps;
+              if (result.bpm !== undefined) changeTempo(String(result.bpm), true);
+            }}
+          >
+            Marcar tempo
+          </Button>
+        </View>
+        <View style={[styles.row, { justifyContent: 'center' }]}>
+          <Button
+            variant="secondary"
+            accessibilityLabel="Bajar 1 BPM"
+            onPress={() => changeTempo(String(bounded(groove.bpm - 1, 40, 240)))}
+          >
+            −
+          </Button>
+          <View style={{ width: 92, alignItems: 'center' }}>
+            <TextInput
+              accessibilityLabel="Tempo en BPM (40–240)"
+              inputMode="numeric"
+              value={bpmText}
+              onChangeText={(value) => changeTempo(digits(value))}
+              style={[
+                styles.data,
+                {
+                  fontSize: 34,
+                  width: '100%',
+                  textAlign: 'center',
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.lineStrong,
+                },
+              ]}
+            />
+            <Text style={styles.legend}>BPM</Text>
+          </View>
+          <Button
+            variant="secondary"
+            accessibilityLabel="Subir 1 BPM"
+            onPress={() => changeTempo(String(bounded(groove.bpm + 1, 40, 240)))}
+          >
+            +
+          </Button>
         </View>
         <RhythmError message={error} />
-        <PatternGrid pattern={pattern} activeStep={position?.step} ride={ride} />
+        {!validTempo && <RhythmError message="Introduce un tempo entre 40 y 240 BPM." />}
         <View style={{ gap: space.s }}>
-          <View style={[styles.row, { flexWrap: 'wrap', alignItems: 'flex-end' }]}>
-            <View style={{ width: 118 }}>
-              <Field
-                label="BPM (40–240)"
-                keyboardType="numeric"
-                value={bpmText}
-                onChangeText={(value) => changeTempo(digits(value))}
-              />
-            </View>
-            <Button
-              variant="secondary"
-              accessibilityLabel="Bajar 1 BPM"
-              onPress={() => changeTempo(String(bounded(groove.bpm - 1, 40, 240)))}
-            >
-              −
-            </Button>
-            <Button
-              variant="secondary"
-              accessibilityLabel="Subir 1 BPM"
-              onPress={() => changeTempo(String(bounded(groove.bpm + 1, 40, 240)))}
-            >
-              +
-            </Button>
-            <Button
-              variant="secondary"
-              onPress={() => {
-                const result = tapTempo(taps.current, performance.now());
-                taps.current = result.taps;
-                if (result.bpm !== undefined) changeTempo(String(result.bpm), true);
-              }}
-            >
-              Marcar tempo
-            </Button>
-          </View>
-          {!validTempo && <RhythmError message="Introduce un tempo entre 40 y 240 BPM." />}
+          <Text style={styles.muted}>
+            Compás {position ? position.bar + 1 : '—'}
+            {position?.variation === 'fill' ? ' · Relleno' : ''}
+            {position && position.bpm !== groove.bpm ? ` · ${position.bpm} BPM` : ''}
+          </Text>
+          <PatternGrid pattern={pattern} activeStep={position?.step} ride={ride} />
           {(groove.meter === '6/8' || groove.meter === '12/8') && (
             <Label muted>El pulso es una negra con puntillo.</Label>
           )}
@@ -296,19 +312,12 @@ function DrumMachine() {
             minHeight={44}
           />
         </View>
-        <View style={{ maxWidth: 160 }}>
-          <Field
-            label="Swing (0–60 %)"
-            keyboardType="numeric"
-            value={swingText}
-            onChangeText={(value) => {
-              const text = digits(value);
-              const swing = Math.min(60, Number(text));
-              setSwingText(text === '' ? '' : String(swing));
-              change({ swing });
-            }}
-          />
-        </View>
+        <PercentSlider
+          label="Swing"
+          value={groove.swing}
+          max={60}
+          onChange={(swing) => change({ swing })}
+        />
         {groove.variation !== 'fill' && (
           <View style={{ gap: space.s }}>
             <Text style={styles.legend}>Relleno automático</Text>
@@ -333,20 +342,12 @@ function DrumMachine() {
         {drumPieces.map((piece) => {
           const label = pieceLabel(piece, groove.genre === 'jazz');
           return (
-            <View key={piece} style={[styles.row, { flexWrap: 'wrap', alignItems: 'flex-end' }]}>
-              <View style={{ width: 140 }}>
-                <Field
-                  label={`${label} (%)`}
-                  value={mixer[piece].volume}
-                  keyboardType="numeric"
-                  onChangeText={(value) => {
-                    const text = digits(value);
-                    changeMix(piece, {
-                      volume: text === '' ? '' : String(Math.min(100, Number(text))),
-                    });
-                  }}
-                />
-              </View>
+            <View key={piece}>
+              <PercentSlider
+                label={label}
+                value={mixer[piece].volume}
+                onChange={(volume) => changeMix(piece, { volume })}
+              />
               <Toggle
                 label={`Silenciar ${label.toLowerCase()}`}
                 value={mixer[piece].mute}
@@ -360,6 +361,42 @@ function DrumMachine() {
   );
 }
 
+function PercentSlider({
+  label,
+  value,
+  max = 100,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  max?: number;
+  onChange: (value: number) => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ maxWidth: 640 }}>
+      <View style={styles.between}>
+        <Text style={styles.legend}>{label}</Text>
+        <Text style={styles.data}>{value} %</Text>
+      </View>
+      <input
+        aria-label={label}
+        aria-valuetext={`${value} %`}
+        type="range"
+        min={0}
+        max={max}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.valueAsNumber)}
+        style={{ width: '100%', minHeight: 44, margin: 0, accentColor: colors.accent }}
+      />
+    </View>
+  );
+}
+
+const cellWidth = 18;
+const cellGap = 2;
+const labelWidth = 56;
+
 function PatternGrid({
   pattern,
   activeStep,
@@ -370,60 +407,107 @@ function PatternGrid({
   ride: boolean;
 }) {
   const { colors } = useTheme();
+  const [width, setWidth] = useState(0);
+  const pulses: number[][] = [];
+  pattern.forEach(({ pulse }, step) => {
+    const index = Math.floor(pulse);
+    (pulses[index] ??= []).push(step);
+  });
+  const maxSteps = Math.max(...pulses.map((pulse) => pulse.length));
+  const pulseWidth = maxSteps * cellWidth + (maxSteps - 1) * cellGap;
+  // Los pulsos se mantienen enteros y todos los bloques tienen un número parecido de pulsos.
+  const available = width - labelWidth - space.s;
+  const capacity = Math.max(1, Math.floor((available + space.s) / (pulseWidth + space.s)));
+  const perBlock = Math.ceil(pulses.length / Math.ceil(pulses.length / capacity));
+  const blocks = [];
+  for (let index = 0; index < pulses.length; index += perBlock) {
+    blocks.push(pulses.slice(index, index + perBlock));
+  }
+
   return (
-    <View style={{ gap: space.xs }}>
-      {drumPieces.map((piece) => {
-        const label = pieceLabel(piece, ride);
-        const hits = pattern.map(({ hits }) => hits.some(({ drum }) => drumPiece(drum) === piece));
-        const steps = hits.flatMap((hit, i) => (hit ? [i + 1] : []));
-        return (
-          <View
-            key={piece}
-            accessible
-            accessibilityLabel={
-              steps.length
-                ? `${label}. Golpes en los pasos ${steps.join(', ')}`
-                : `${label}. Sin golpes`
-            }
-            style={[styles.row, { gap: space.s, minHeight: 20 }]}
-          >
-            <Text style={[styles.muted, { width: 54 }]}>{label}</Text>
-            <View style={{ flex: 1, flexDirection: 'row', gap: 2 }} aria-hidden>
-              {hits.map((hit, step) => {
-                const active = activeStep === step;
-                return (
-                  <View
-                    key={step}
-                    style={{
-                      flex: 1,
-                      marginLeft: step > 0 && Number.isInteger(pattern[step]?.pulse) ? space.xs : 0,
-                      height: 18,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderRadius: radius.badge,
-                      borderColor: active ? colors.accent : colors.lineStrong,
-                      backgroundColor: active ? colors.accent : colors.sunken,
-                    }}
-                  >
-                    {hit && (
-                      <View
-                        style={{
-                          width: '60%',
-                          maxWidth: 8,
-                          height: 4,
-                          borderRadius: 2,
-                          backgroundColor: active ? colors.onAccent : colors.accentText,
-                        }}
-                      />
-                    )}
-                  </View>
-                );
-              })}
-            </View>
+    <View
+      style={{ width: '100%', maxWidth: 640, gap: space.m }}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+    >
+      {blocks.map((block, index) => (
+        <View key={index} style={{ gap: space.xs }}>
+          <View style={{ flexDirection: 'row', gap: space.s, marginLeft: labelWidth + space.s }}>
+            {block.map((steps, beat) => (
+              <Text
+                key={steps[0]}
+                style={[styles.data, { flex: 1, fontSize: 12, color: colors.muted }]}
+              >
+                {index * perBlock + beat + 1}
+              </Text>
+            ))}
           </View>
-        );
-      })}
+          {drumPieces.map((piece) => {
+            const label = pieceLabel(piece, ride);
+            const hits = pattern.map(({ hits }) =>
+              hits.some(({ drum }) => drumPiece(drum) === piece),
+            );
+            const hitSteps = block
+              .flat()
+              .filter((step) => hits[step])
+              .map((step) => step + 1);
+            return (
+              <View
+                key={piece}
+                accessible
+                accessibilityLabel={
+                  hitSteps.length
+                    ? `${label}. Golpes en los pasos ${hitSteps.join(', ')}`
+                    : `${label}. Sin golpes`
+                }
+                style={[styles.row, { gap: space.s }]}
+              >
+                <Text style={[styles.muted, { width: labelWidth }]}>{label}</Text>
+                <View style={{ flex: 1, flexDirection: 'row', gap: space.s }} aria-hidden>
+                  {block.map((steps) => (
+                    <View key={steps[0]} style={{ flex: 1, flexDirection: 'row', gap: cellGap }}>
+                      {steps.map((step) => {
+                        const active = activeStep === step;
+                        const hit = hits[step];
+                        return (
+                          <View
+                            key={step}
+                            style={{
+                              flex: 1,
+                              minWidth: cellWidth,
+                              height: 26,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              borderWidth: 1,
+                              borderRadius: radius.badge,
+                              borderColor: active ? colors.accent : colors.lineStrong,
+                              backgroundColor: active
+                                ? colors.accent
+                                : hit
+                                  ? colors.accentSoft
+                                  : colors.sunken,
+                            }}
+                          >
+                            {hit && (
+                              <View
+                                style={{
+                                  width: 8,
+                                  height: 6,
+                                  borderRadius: 2,
+                                  backgroundColor: active ? colors.onAccent : colors.accentText,
+                                }}
+                              />
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      ))}
     </View>
   );
 }
@@ -446,7 +530,7 @@ function finishSpeed(run: SpeedRun): PracticeSession | undefined {
 }
 
 function SpeedTrainer() {
-  useTheme();
+  const { colors } = useTheme();
   const { profile, savePractice } = useStore();
   const [start, setStart] = useState('60');
   const [target, setTarget] = useState('120');
@@ -463,6 +547,7 @@ function SpeedTrainer() {
   const [retry, setRetry] = useState<PracticeSession>();
   const [position, setPosition] = useState<RhythmPosition>();
   const [count, setCount] = useState(0);
+  const [pendingTempo, setPendingTempo] = useState(false);
   const active = useRef<SpeedRun | null>(null);
   const progress = useRef({ bpm: 60, repetitions: 0 });
   const mounted = useRef(false);
@@ -519,6 +604,7 @@ function SpeedTrainer() {
     setError('');
     setResult(undefined);
     setCount(0);
+    setPendingTempo(false);
     progress.current = startSpeed(settings);
     const run: SpeedRun = {
       id: uid(),
@@ -544,6 +630,7 @@ function SpeedTrainer() {
         if (!mounted.current || active.current !== run) return;
         setPosition(next);
         setCount(progress.current.bpm === next.bpm ? progress.current.repetitions : 0);
+        setPendingTempo(false);
       },
       onError(failure: Error) {
         if (active.current !== run) return;
@@ -572,45 +659,95 @@ function SpeedTrainer() {
   function report(event: 'success' | 'failure') {
     if (!position || !active.current) return;
     progress.current = advanceSpeed(settings, progress.current, event);
-    setCount(
-      progress.current.bpm === position.bpm ? progress.current.repetitions : settings.repetitions,
-    );
+    setPendingTempo(progress.current.bpm !== position.bpm);
+    setCount(progress.current.repetitions);
   }
+
+  const bpm = position?.bpm ?? settings.start;
+  const reached = Boolean(position) && bpm >= settings.target;
+  const progressPercent =
+    settings.target > settings.start
+      ? bounded((100 * (bpm - settings.start)) / (settings.target - settings.start), 0, 100)
+      : reached
+        ? 100
+        : 0;
+  const remaining = settings.repetitions - count;
 
   return (
     <View style={[styles.panel, { gap: space.l }]}>
       {running ? (
         <>
-          <View accessibilityLiveRegion="polite" style={{ gap: space.xs }}>
-            <Text style={[styles.data, { fontSize: 28 }]}>
-              {position?.bpm ?? settings.start} BPM
-            </Text>
-            <Label muted>
+          <View style={{ gap: space.m, width: '100%', maxWidth: 640 }}>
+            <View accessibilityLiveRegion="polite" style={{ alignItems: 'center' }}>
+              <Text style={[styles.data, { fontSize: 52, lineHeight: 58 }]}>{bpm}</Text>
+              <Text style={styles.legend}>BPM actuales</Text>
+            </View>
+            <View
+              accessibilityRole="progressbar"
+              accessibilityLabel="Progreso hacia el tempo objetivo"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progressPercent)}
+              style={{
+                height: 12,
+                borderRadius: radius.pill,
+                borderWidth: 1,
+                borderColor: colors.lineStrong,
+                backgroundColor: colors.sunken,
+                overflow: 'hidden',
+              }}
+            >
+              <View
+                style={{
+                  width: `${progressPercent}%`,
+                  height: '100%',
+                  backgroundColor: colors.accent,
+                }}
+              />
+            </View>
+            <View style={styles.between}>
+              <Text style={styles.muted}>Inicio · {settings.start} BPM</Text>
+              <Text style={styles.muted}>Objetivo · {settings.target} BPM</Text>
+            </View>
+            <Text accessibilityLiveRegion="polite" style={styles.h3}>
               {!position
                 ? 'Preparando audio…'
-                : position.bpm >= settings.target
-                  ? 'Objetivo alcanzado'
-                  : `${count}/${settings.repetitions} ${mode === 'auto' ? 'compases' : 'repeticiones'}`}
-            </Label>
+                : pendingTempo
+                  ? 'Cambio de tempo en el próximo compás'
+                  : reached
+                    ? 'Objetivo alcanzado'
+                    : mode === 'auto'
+                      ? `Siguiente paso en ${remaining} ${remaining === 1 ? 'compás' : 'compases'}`
+                      : `Siguiente paso en ${remaining} ${remaining === 1 ? 'repetición' : 'repeticiones'}`}
+            </Text>
           </View>
-          <View style={[styles.row, { flexWrap: 'wrap' }]}>
+          <View style={[styles.row, { flexWrap: 'wrap', maxWidth: 640 }]}>
             {mode === 'manual' && (
               <Button
-                disabled={
-                  !position || count >= settings.repetitions || position.bpm >= settings.target
-                }
+                disabled={!position || pendingTempo || reached}
                 onPress={() => report('success')}
+                style={{ flexGrow: 1 }}
               >
                 Lo he clavado
               </Button>
             )}
-            <Button disabled={!position} variant="secondary" onPress={() => report('failure')}>
+            <Button
+              disabled={!position}
+              variant="secondary"
+              onPress={() => report('failure')}
+              style={mode === 'manual' ? { flexGrow: 1 } : undefined}
+            >
               Fallo
             </Button>
-            <Button icon="pause" variant={mode === 'auto' ? 'primary' : 'secondary'} onPress={stop}>
-              Detener
-            </Button>
           </View>
+          <Button
+            icon="pause"
+            variant={mode === 'auto' ? 'primary' : 'secondary'}
+            onPress={stop}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            Detener
+          </Button>
         </>
       ) : (
         <>

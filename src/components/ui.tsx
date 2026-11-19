@@ -7,6 +7,7 @@ import {
   ViewStyle,
   TextStyle,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
 import Svg, { Path, Circle, Line, Ellipse } from 'react-native-svg';
 import { figurePool } from '../core/music';
@@ -165,21 +166,30 @@ export function Chips<T extends string | number>({
   onChange,
   minHeight = 40,
   label,
+  segmentOnMobile = false,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
   minHeight?: number;
   label?: string;
+  segmentOnMobile?: boolean;
 }) {
+  const segmented = useWindowDimensions().width < 1000 && segmentOnMobile;
   return (
     <View
       accessibilityRole="radiogroup"
       accessibilityLabel={label}
-      style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
+      style={{
+        flexDirection: 'row',
+        flexWrap: segmented ? 'nowrap' : 'wrap',
+        gap: segmented ? 0 : 8,
+      }}
     >
-      {options.map((o) => {
+      {options.map((o, index) => {
         const selected = value === o.value;
+        const first = index === 0;
+        const last = index === options.length - 1;
         return (
           <Pressable
             key={o.value}
@@ -188,10 +198,10 @@ export function Chips<T extends string | number>({
             aria-checked={selected}
             onPress={() => onChange(o.value)}
             style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
-              minHeight,
+              minHeight: segmented ? Math.max(44, minHeight) : minHeight,
               justifyContent: 'center',
               paddingVertical: 8,
-              paddingHorizontal: 14,
+              paddingHorizontal: segmented ? 4 : 14,
               backgroundColor: selected
                 ? colors.accent
                 : hovered
@@ -200,6 +210,15 @@ export function Chips<T extends string | number>({
               borderWidth: 1,
               borderColor: selected ? colors.accent : colors.line,
               borderRadius: radius.chip,
+              ...(segmented && {
+                flex: 1,
+                minWidth: 0,
+                borderLeftWidth: first ? 1 : 0,
+                borderTopLeftRadius: first ? radius.chip : 0,
+                borderBottomLeftRadius: first ? radius.chip : 0,
+                borderTopRightRadius: last ? radius.chip : 0,
+                borderBottomRightRadius: last ? radius.chip : 0,
+              }),
             })}
           >
             <Text
@@ -208,6 +227,7 @@ export function Chips<T extends string | number>({
                 fontFamily: fonts.body,
                 fontWeight: selected ? '600' : '400',
                 fontSize: 14,
+                textAlign: segmented ? 'center' : undefined,
               }}
             >
               {o.label}
@@ -392,7 +412,8 @@ export function Icon({
     practice: 'M10 4v14M16 7v8M4 9v5M22 10v3',
     library: 'M12 5C8 2 3 4 3 4v15s5-2 9 1c4-3 9-1 9-1V4s-5-2-9 1Zm0 0v15',
     progress: 'M3 3v18h18M7 16v-5m5 5V7m5 9v-5',
-    settings: 'M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2M6 18l2-2m8-8 2-2',
+    settings:
+      'M10 2h4v3l2 1.2 2.6-1.5 2 3.5L18 9.7v4.6l2.6 1.5-2 3.5L16 17.8l-2 1.2v3h-4v-3l-2-1.2-2.6 1.5-2-3.5L6 14.3V9.7L3.4 8.2l2-3.5L8 6.2 10 5Z',
     music: 'M9 18V5l11-2v13M9 9l11-2M9 18c0 3-6 4-6 1s6-4 6-1m11-2c0 3-6 4-6 1s6-4 6-1',
     arrow: 'M5 12h14m-5-5 5 5-5 5',
     back: 'M19 12H5m5-5-5 5 5 5',
@@ -444,7 +465,7 @@ export function Icon({
         <Path d={paths[name] || paths.music} />
       )}
       {name === 'clock' || name === 'settings' ? (
-        <Circle cx="12" cy="12" r={name === 'clock' ? 9 : 5} />
+        <Circle cx="12" cy="12" r={name === 'clock' ? 9 : 3} />
       ) : null}
       {name === 'sun' ? <Circle cx="12" cy="12" r="4" /> : null}
     </Svg>

@@ -68,7 +68,6 @@ function Notes() {
           <Heading level={1} style={styles.title}>
             {selected.title}
           </Heading>
-          <Label muted>{selected.reviewed ? 'Revisado' : 'Pendiente de revisión musical'}</Label>
           <Text style={[styles.text, { lineHeight: 27, maxWidth: 720 }]}>{selected.content}</Text>
         </View>
       </View>
@@ -80,6 +79,9 @@ function Notes() {
           Apuntes
         </Heading>
         <Label muted>Conceptos breves para consultar mientras practicas.</Label>
+        {notes.some((note) => !note.reviewed) && (
+          <Label muted>Algunos apuntes están pendientes de revisión por profesores.</Label>
+        )}
       </View>
       <Field
         label="Buscar apuntes"
@@ -101,9 +103,7 @@ function Notes() {
                 <Icon name="library" size={26} color={colors.accentText} />
                 <View style={{ flex: 1, gap: 5 }}>
                   <Text style={styles.h3}>{n.title}</Text>
-                  <Label muted>
-                    {n.category} · {n.reviewed ? 'Revisado' : 'Pendiente de revisión'}
-                  </Label>
+                  <Label muted>{n.category}</Label>
                 </View>
               </View>
               <Button variant="secondary" small onPress={() => setSelected(n)}>

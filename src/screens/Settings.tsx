@@ -53,6 +53,7 @@ export function BassForm<T extends BassDraft>({
       <Group title="Escala">
         <Chips<BassScale>
           label="Escala del bajo"
+          segmentOnMobile
           value={value.scale}
           onChange={(scale) => onChange({ ...value, scale })}
           options={bassScales.map((scale) => ({ value: scale, label: `${scale}″` }))}
@@ -80,6 +81,7 @@ export function NomenclatureChips({
   return (
     <Chips<Nomenclature>
       label="Nombres de las notas"
+      segmentOnMobile
       value={value}
       onChange={onChange}
       options={[
@@ -104,6 +106,7 @@ export function InstrumentForm({
       <Group title="Nivel">
         <Chips<Level>
           label="Nivel"
+          segmentOnMobile
           value={value.level}
           onChange={(level) => onChange({ ...value, level })}
           options={levels}
@@ -159,6 +162,7 @@ export function Settings() {
         <InstrumentForm value={draft} onChange={setDraft} />
         <Button
           busy={busy}
+          variant={changed ? 'primary' : 'secondary'}
           disabled={!changed}
           onPress={() => {
             setBusy(true);

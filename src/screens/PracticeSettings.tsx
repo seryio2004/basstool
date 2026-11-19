@@ -47,6 +47,7 @@ export function PracticeSettings() {
       <Label>Tiempo por defecto</Label>
       <Chips
         label="Tiempo por defecto"
+        segmentOnMobile
         minHeight={44}
         value={draft.minutes}
         options={practiceMinutes.map((value) => ({ value, label: `${value} min` }))}

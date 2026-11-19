@@ -199,6 +199,7 @@ export function Today({
         ) : null}
         <Chips
           label="Tiempo disponible"
+          segmentOnMobile
           minHeight={44}
           value={selectedMinutes}
           options={practiceMinutes.map((value) => ({ value, label: `${value} min` }))}
