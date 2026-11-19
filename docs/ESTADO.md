@@ -8,9 +8,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 - Transcribir: reproductor (velocidad, bucle por arrastre, graves, volumen, zoom), partitura/tab sincronizadas por marcas de compás (M) y pulso (B), editor con figura persistente, mástil completo y piano, compases limitados a su métrica, acordes por compás, quintillos, síntesis de la transcripción, PDF por impresión en web.
 
 ## En curso
-- Encargo `transcribir-fix` (Sol 6.2): .git/coord/encargos/transcribir-fix.md — reproducción de la transcripción no funciona, asignar compases no es intuitivo, acordes deducidos de las notas escritas, notas simultáneas (una por cuerda).
-
-- **Interrumpido 2026-11-19 ~08:05 por límite de uso de Codex (reintentar desde las 08:28).** Trabajo parcial en la rama `codex/transcribir-fix` (commit WIP, sin verificar). Para reanudar: `scripts/sol.sh transcribir-fix .git/coord/encargos/transcribir-fix.md` (retoma la misma rama) e incluir también los requisitos enviados por el buzón: notas simultáneas (#22) y selector de BPM (#24) — ver `npm run coord -- log 10`.
+- Integrado 2026-11-19: reproducción de la transcripción, flujo de compases guiado, acordes deducidos de las notas escritas.
+- **Siguiente encargo para Sol (no empezado):** notas simultáneas, una por cuerda (buzón #22), y selector de BPM editable que regenera los compases (buzón #24). Ver `npm run coord -- log 12`. Crear encargo nuevo y lanzarlo con `scripts/sol.sh`.
 
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
