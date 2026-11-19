@@ -379,7 +379,7 @@ test('web player uses local blobs, preserves pitch, applies bass filters, loops 
   b.select();
   const file = (await picked)!;
   assert.equal(file.duration, 10);
-  assert.equal(file.peaks.length, 1000);
+  assert.equal(file.peaks.length, 16000);
   assert.equal(Math.max(...file.peaks), 1);
   const el = b.elements[0]!,
     ctx = b.contexts[0]!;

@@ -4,6 +4,7 @@ import { Button, Chips, Heading, Icon, Label, colors, styles } from '../componen
 import { Waveform } from '../components/Waveform';
 import { ScoreEditor } from '../components/ScoreEditor';
 import { tunings } from '../core/instrument';
+import { loopFromTimes } from '../core/waveform';
 import { useStore } from '../data/Store';
 import {
   RATE_MAX,
@@ -21,11 +22,10 @@ import {
   setLoopStart,
   setRate,
   setTranspose,
-  step,
 } from '../core/transcription';
 import { listSessions, loadSession, saveSession } from '../data/transcriptions';
 import { createPlayer } from '../platform/player';
-import type { BassMode, PickedAudio, Player } from '../platform/playerTypes';
+import type { BassMode, Loop, PickedAudio, Player } from '../platform/playerTypes';
 
 export function Transcribe() {
   const { width } = useWindowDimensions();
@@ -47,7 +47,7 @@ export function Transcribe() {
   // Acciones de marcado que registra el editor de partitura (teclas M y B).
   const scoreActions = useRef<{ markMeasure: () => void; markBeat: () => void } | null>(null);
   const registerScore = useCallback(
-    (actions: { markMeasure: () => void; markBeat: () => void }) => {
+    (actions: { markMeasure: () => void; markBeat: () => void } | null) => {
       scoreActions.current = actions;
     },
     [],
@@ -64,13 +64,14 @@ export function Transcribe() {
   }, []);
   /** Cambia la sesión y la guarda. Cada acción actualiza también el reproductor. */
   const update = useCallback(
-    (change: (s: Session) => Session) =>
-      setSession((s) => {
-        if (!s) return s;
-        const next = change(s);
-        persist(next);
-        return next;
-      }),
+    (change: (s: Session) => Session) => {
+      const current = latest.current;
+      if (!current) return;
+      const next = change(current);
+      if (next === current) return;
+      persist(next);
+      setSession(next);
+    },
     [persist],
   );
 
@@ -104,6 +105,7 @@ export function Transcribe() {
       p.setBass(s.bass);
       p.setTranspose(s.transpose);
       p.seek(s.position);
+      if (latest.current?.id !== s.id) setEditing(false);
       setAudio(picked);
       setSession(s);
       setTime(s.position);
@@ -158,7 +160,7 @@ export function Transcribe() {
         toggle();
       } else if (key === 'arrowleft' || key === 'arrowright') {
         e.preventDefault();
-        seek(step(session, (key === 'arrowleft' ? -1 : 1) * (e.shiftKey ? 5 : 1)));
+        seek(time + (key === 'arrowleft' ? -1 : 1) * (e.shiftKey ? 5 : 1));
       } else if (key === '[') loopAt('a');
       else if (key === ']') loopAt('b');
       else if (key === 's') mark();
@@ -167,7 +169,7 @@ export function Transcribe() {
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [session, editing, toggle, seek, loopAt, mark]);
+  }, [session, editing, toggle, seek, loopAt, mark, time]);
 
   if (!audio || !session)
     return (
@@ -227,9 +229,19 @@ export function Transcribe() {
   const withPlayer = (change: (s: Session) => Session, apply: (s: Session) => void) =>
     update((s) => {
       const next = change(s);
-      apply(next);
+      if (next !== s) apply(next);
       return next;
     });
+
+  const selectLoop = (selection: Loop | null) =>
+    withPlayer(
+      (s) => {
+        if (!selection) return clearLoop(s);
+        const loop = loopFromTimes(clampTime(s, selection.a), clampTime(s, selection.b));
+        return loop ? { ...s, loop, updatedAt: new Date().toISOString() } : s;
+      },
+      (s) => p.setLoop(s.loop),
+    );
 
   return (
     <View style={{ gap: 20 }}>
@@ -244,6 +256,7 @@ export function Transcribe() {
           </Button>
         </View>
         <Waveform
+          key={session.id}
           peaks={audio.peaks}
           duration={session.duration}
           position={time}
@@ -251,13 +264,8 @@ export function Transcribe() {
           markers={session.markers}
           playing={playing}
           onSeek={seek}
-          onSelect={(l) =>
-            withPlayer(
-              (s) => setLoopEnd(setLoopStart(s, l.a), l.b),
-              (s) => p.setLoop(s.loop),
-            )
-          }
-          onClearLoop={() => withPlayer(clearLoop, () => p.setLoop(null))}
+          onSelect={selectLoop}
+          onClearLoop={() => selectLoop(null)}
         />
         <View style={[styles.between, { alignItems: 'flex-end' }]}>
           <Text
@@ -284,20 +292,16 @@ export function Transcribe() {
         <View
           style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}
         >
-          <Round
-            label="−5 s"
-            hint="Retroceder 5 segundos"
-            onPress={() => seek(step(session, -5))}
-          />
-          <Round label="−1 s" hint="Retroceder 1 segundo" onPress={() => seek(step(session, -1))} />
+          <Round label="−5 s" hint="Retroceder 5 segundos" onPress={() => seek(time - 5)} />
+          <Round label="−1 s" hint="Retroceder 1 segundo" onPress={() => seek(time - 1)} />
           <Round
             icon={playing ? 'pause' : 'play'}
             hint={playing ? 'Pausa' : 'Reproducir'}
             onPress={toggle}
             primary
           />
-          <Round label="+1 s" hint="Avanzar 1 segundo" onPress={() => seek(step(session, 1))} />
-          <Round label="+5 s" hint="Avanzar 5 segundos" onPress={() => seek(step(session, 5))} />
+          <Round label="+1 s" hint="Avanzar 1 segundo" onPress={() => seek(time + 1)} />
+          <Round label="+5 s" hint="Avanzar 5 segundos" onPress={() => seek(time + 5)} />
         </View>
         {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
         {Platform.OS === 'web' && wide ? (
@@ -309,6 +313,7 @@ export function Transcribe() {
       </View>
 
       <ScoreEditor
+        key={session.id}
         sessionId={session.id}
         duration={session.duration}
         time={time}
@@ -319,12 +324,7 @@ export function Transcribe() {
         editing={editing}
         onEditingChange={setEditing}
         onSeek={seek}
-        onLoop={(span) =>
-          withPlayer(
-            (s) => (span ? setLoopEnd(setLoopStart(s, span.a), span.b) : clearLoop(s)),
-            (s) => p.setLoop(s.loop),
-          )
-        }
+        onLoop={selectLoop}
         register={registerScore}
       />
 

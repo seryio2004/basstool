@@ -13,16 +13,11 @@ import type {
   Score,
   ScoreDisplay,
   Technique,
-  TimeMap,
 } from '../core/scoreTypes';
 import {
-  History,
+  MAX_SCORE_MEASURES,
   addMeasure,
-  commit,
-  createHistory,
   deleteEvent,
-  emptyScore,
-  ensureMeasures,
   insertNote,
   insertRest,
   measureFill,
@@ -38,17 +33,22 @@ import {
   undo,
 } from '../core/score';
 import {
+  createScoreEditor,
+  editScore,
+  fillScoreMeasures,
+  restoreScore,
+  selectScoreCursor,
+  updateScoreTimeMap,
+} from '../core/scoreEditor';
+import {
   addBeatMarker,
   addMeasureMarker,
-  emptyTimeMap,
-  generateMeasures,
   measureSpan,
   positionAt,
   removeMarkerNear,
   tapTempo,
-  timeAt,
 } from '../core/timeMap';
-import { loadScoreDoc, saveScoreDoc } from '../data/scores';
+import { loadScoreDoc, saveScoreDoc, type ScoreDoc } from '../data/scores';
 
 const values: { value: BaseValue; label: string; key: string }[] = [
   { value: 1, label: 'Redonda', key: 'w' },
@@ -73,7 +73,6 @@ const meters: Meter[] = [
   { beats: 12, unit: 8 },
 ];
 const meterKey = (m: Meter) => `${m.beats}/${m.unit}`;
-
 /**
  * Editor de la línea de bajo dentro de Transcribir. Dos modos, como en los
  * reproductores de transcripción: «Marcar» (teclas S, M, B sobre el audio,
@@ -105,114 +104,108 @@ export function ScoreEditor({
   onSeek: (time: number) => void;
   onLoop: (span: { a: number; b: number } | null) => void;
   /** Transcribe registra aquí las acciones de marcado para sus atajos (M, B). */
-  register: (actions: { markMeasure: () => void; markBeat: () => void }) => void;
+  register: (actions: { markMeasure: () => void; markBeat: () => void } | null) => void;
 }) {
-  const [history, setHistory] = useState<History>(() => createHistory(emptyScore()));
-  const [timeMap, setTimeMap] = useState<TimeMap>(emptyTimeMap);
+  const [{ history, timeMap }, setEditor] = useState(createScoreEditor);
   const [display, setDisplay] = useState<ScoreDisplay>('both');
-  const [cursor, setCursor] = useState<EditCursor>({ measure: 0, event: 0, string: 1 });
   const [duration_, setDuration_] = useState<Duration>({ base: 8, dots: 0 });
   const [taps, setTaps] = useState<number[]>([]);
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-  const score = history.present;
+  const { score, cursor } = history.present;
   const timeRef = useRef(time);
   timeRef.current = time;
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSave = useRef<ScoreDoc | null>(null);
 
-  // Carga la partitura de esta canción.
+  // El editor se monta por canción. Un cambio de afinación no vuelve a cargar el documento.
   useEffect(() => {
     let alive = true;
-    setLoaded(false);
     void loadScoreDoc(sessionId)
       .then((doc) => {
         if (!alive) return;
         if (doc) {
-          setHistory(createHistory(doc.score));
-          setTimeMap(doc.timeMap);
+          setEditor(createScoreEditor(doc.score, doc.timeMap));
           setDisplay(doc.display);
-        } else {
-          setHistory(createHistory(emptyScore()));
-          setTimeMap(emptyTimeMap());
         }
-        setCursor({ measure: 0, event: 0, string: Math.min(1, instrument.strings.length - 1) });
         setLoaded(true);
       })
-      .catch(() => setError('No se pudo leer la partitura guardada.'));
+      .catch(() => {
+        if (alive) setError('No se pudo leer la partitura guardada.');
+      });
     return () => {
       alive = false;
     };
-  }, [sessionId, instrument.strings.length]);
+  }, [sessionId]);
 
-  // Guardado diferido.
+  // Conserva la última edición aunque se cambie de canción antes de los 700 ms.
   useEffect(() => {
     if (!loaded) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void saveScoreDoc(sessionId, {
-        score,
-        timeMap,
-        display,
-        updatedAt: new Date().toISOString(),
-      }).catch(() => setError('No se pudo guardar la partitura en este dispositivo.'));
+    const doc = { score, timeMap, display, updatedAt: new Date().toISOString() };
+    pendingSave.current = doc;
+    const timer = setTimeout(() => {
+      pendingSave.current = null;
+      void saveScoreDoc(sessionId, doc).catch(() =>
+        setError('No se pudo guardar la partitura en este dispositivo.'),
+      );
     }, 700);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
+    return () => clearTimeout(timer);
   }, [score, timeMap, display, loaded, sessionId]);
+  useEffect(
+    () => () => {
+      if (pendingSave.current) void saveScoreDoc(sessionId, pendingSave.current).catch(() => {});
+    },
+    [sessionId],
+  );
 
-  const apply = useCallback((edit: { score: Score; cursor: EditCursor }) => {
-    setHistory((h) => commit(h, edit.score));
-    setCursor(edit.cursor);
-  }, []);
   const run = useCallback(
     (fn: (s: Score, c: EditCursor) => { score: Score; cursor: EditCursor }) => {
-      try {
-        apply(fn(history.present, cursor));
-        setError('');
-      } catch (e) {
-        setError((e as Error).message);
-      }
+      if (!loaded) return;
+      setEditor((state) => editScore(state, fn));
+      setError('');
     },
-    [apply, history.present, cursor],
+    [loaded],
+  );
+  const changeHistory = (travel: typeof undo) => {
+    if (loaded) setEditor((state) => restoreScore(state, travel));
+  };
+  const adjustEvent = useCallback(
+    (fn: (s: Score, c: EditCursor) => { score: Score; cursor: EditCursor }) =>
+      run((s, c) => (s.measures[c.measure]?.events[c.event] ? fn(s, c) : { score: s, cursor: c })),
+    [run],
   );
 
   // Marcas sobre el audio (las teclas M y B las envía Transcribe).
   const markMeasure = useCallback(() => {
-    setTimeMap((m) => {
-      const next = addMeasureMarker(m, timeRef.current);
-      setHistory((h) => {
-        const grown = ensureMeasures(h.present, next.measures.length);
-        return grown === h.present ? h : commit(h, grown);
-      });
-      return next;
-    });
-  }, []);
-  const markBeat = useCallback(() => setTimeMap((m) => addBeatMarker(m, timeRef.current)), []);
-  useEffect(() => register({ markMeasure, markBeat }), [register, markMeasure, markBeat]);
+    const now = timeRef.current;
+    if (!loaded || now >= duration) return;
+    setEditor((state) => updateScoreTimeMap(state, addMeasureMarker(state.timeMap, now)));
+  }, [duration, loaded]);
+  const markBeat = useCallback(() => {
+    const now = timeRef.current;
+    if (loaded) setEditor((state) => updateScoreTimeMap(state, addBeatMarker(state.timeMap, now)));
+  }, [loaded]);
+  useEffect(() => {
+    register({ markMeasure, markBeat });
+    return () => register(null);
+  }, [register, markMeasure, markBeat]);
 
   const tempo = useMemo(() => tapTempo(taps), [taps]);
-  const tap = () =>
+  const tap = () => {
+    if (!loaded) return;
+    const now = timeRef.current;
     setTaps((t) => {
-      const now = timeRef.current;
-      // Una pausa de más de 2 s empieza una serie nueva.
-      const keep = t.length && now - t[t.length - 1]! > 2 ? [] : t;
+      const last = t.at(-1);
+      if (last === now) return t;
+      // Un salto hacia atrás o una pausa larga inicia otra serie sobre el audio.
+      const keep = last !== undefined && (now < last || now - last > 2) ? [] : t;
       return [...keep, now].slice(-9);
     });
+  };
   const fillFromHere = () => {
-    if (!tempo) return;
-    const beats = measureMeter(score, 0).beats;
-    setTimeMap((m) => {
-      const next = generateMeasures(m, {
-        start: timeRef.current,
-        bpm: tempo.bpm,
-        beatsPerMeasure: beats,
-        until: duration,
-      });
-      setHistory((h) => commit(h, ensureMeasures(h.present, next.measures.length)));
-      return next;
-    });
+    const start = timeRef.current;
+    if (!loaded || !tempo || start >= duration) return;
+    setEditor((state) => fillScoreMeasures(state, start, tempo.bpm, duration));
   };
 
   const playhead = useMemo(
@@ -222,76 +215,139 @@ export function ScoreEditor({
   const goToMeasure = (measure: number, loop: boolean) => {
     const span = measureSpan(timeMap, measure, duration);
     if (!span) return;
+    if (loop) {
+      setEditor((state) =>
+        selectScoreCursor(state, { ...state.history.present.cursor, measure, event: 0 }),
+      );
+      onLoop({ a: span.start, b: span.end });
+    }
     onSeek(span.start);
-    if (loop) onLoop({ a: span.start, b: span.end });
   };
-  const select = (c: EditCursor) => {
-    setCursor(c);
-    const t = timeAt(timeMap, score, { measure: c.measure, beat: 0 }, duration);
-    if (t !== null && !editing) onSeek(t);
-  };
+  const select = (cursor: EditCursor) => setEditor((state) => selectScoreCursor(state, cursor));
+
+  const writeNote = useCallback(
+    (fret: number, string?: number) => {
+      if (!Number.isInteger(fret) || fret < 0 || fret > instrument.frets) {
+        setError('Traste fuera del instrumento.');
+        return;
+      }
+      run((s, c) =>
+        insertNote(
+          s,
+          { ...c, string: Math.min(string ?? c.string, instrument.strings.length - 1) },
+          fret,
+          duration_,
+          instrument,
+        ),
+      );
+    },
+    [duration_, instrument, run],
+  );
 
   // Teclado del modo «Escribir» (web). Los números se acumulan 0,6 s para trastes de dos cifras.
   const pendingFret = useRef<{ value: string; timer: ReturnType<typeof setTimeout> | null }>({
     value: '',
     timer: null,
   });
+  const latestWrite = useRef(writeNote);
+  latestWrite.current = writeNote;
+  const flushFret = useCallback(() => {
+    const { value, timer } = pendingFret.current;
+    if (timer !== null) clearTimeout(timer);
+    pendingFret.current = { value: '', timer: null };
+    if (value) latestWrite.current(Number(value));
+  }, []);
   useEffect(() => {
-    if (Platform.OS !== 'web' || !editing || typeof document === 'undefined') return;
-    const flushFret = () => {
-      const fret = Number(pendingFret.current.value);
+    if (!editing) return;
+    return () => {
+      const { timer } = pendingFret.current;
+      if (timer !== null) clearTimeout(timer);
       pendingFret.current = { value: '', timer: null };
-      if (Number.isInteger(fret)) run((s, c) => insertNote(s, c, fret, duration_, instrument));
+    };
+  }, [editing]);
+  const changeDuration = useCallback(
+    (base: BaseValue) => {
+      const next = { ...duration_, base };
+      setDuration_(next);
+      adjustEvent((s, c) => setDuration(s, c, next));
+    },
+    [adjustEvent, duration_],
+  );
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !editing || !loaded || typeof document === 'undefined') return;
+    const moves: Record<string, Parameters<typeof moveCursor>[2]> = {
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+      PageDown: 'nextMeasure',
+      PageUp: 'prevMeasure',
     };
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       const key = e.key;
+      const lower = key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && key.toLowerCase() === 'z') {
+      if (mod && lower === 'z') {
         e.preventDefault();
-        setHistory((h) => (e.shiftKey ? redo(h) : undo(h)));
+        flushFret();
+        setEditor((state) => restoreScore(state, e.shiftKey ? redo : undo));
         return;
       }
       if (mod || e.altKey) return;
       if (/^[0-9]$/.test(key)) {
         e.preventDefault();
         const p = pendingFret.current;
-        if (p.timer) clearTimeout(p.timer);
-        p.value = (p.value + key).slice(-2);
-        if (Number(p.value) * 10 > instrument.frets) flushFret();
+        if (p.timer !== null) clearTimeout(p.timer);
+        p.value += key;
+        if (p.value.length === 2 || key === '0' || Number(key) * 10 > instrument.frets) flushFret();
         else p.timer = setTimeout(flushFret, 600);
         return;
       }
-      const lower = key.toLowerCase();
       const value = values.find((v) => v.key === lower);
-      const moves: Record<string, Parameters<typeof moveCursor>[2]> = {
-        ArrowLeft: 'left',
-        ArrowRight: 'right',
-        ArrowUp: 'up',
-        ArrowDown: 'down',
-        PageDown: 'nextMeasure',
-        PageUp: 'prevMeasure',
-      };
-      if (moves[key]) {
+      const move = moves[key];
+      if (move) {
         e.preventDefault();
-        setCursor((c) => moveCursor(score, c, moves[key]!, instrument));
+        flushFret();
+        setEditor((state) => {
+          const { score, cursor } = state.history.present;
+          return selectScoreCursor(state, moveCursor(score, cursor, move, instrument));
+        });
       } else if (value) {
-        const next = { ...duration_, base: value.value };
-        setDuration_(next);
-        run((s, c) => setDuration(s, c, next));
-      } else if (key === '.') run(toggleDot);
-      else if (lower === 't') run(toggleTriplet);
-      else if (lower === 'l') run(toggleTie);
-      else if (lower === 'r') run((s, c) => insertRest(s, c, duration_));
-      else if (key === 'Backspace' || key === 'Delete') {
+        flushFret();
+        changeDuration(value.value);
+      } else if (key === '.' || lower === 't' || lower === 'l') {
+        flushFret();
+        adjustEvent(key === '.' ? toggleDot : lower === 't' ? toggleTriplet : toggleTie);
+      } else if (lower === 'r') {
+        flushFret();
+        run((s, c) => insertRest(s, c, duration_));
+      } else if (key === 'Backspace' || key === 'Delete') {
         e.preventDefault();
-        run(deleteEvent);
+        const { value, timer } = pendingFret.current;
+        if (value && key === 'Backspace') {
+          if (timer !== null) clearTimeout(timer);
+          pendingFret.current = { value: '', timer: null };
+        } else {
+          flushFret();
+          adjustEvent(deleteEvent);
+        }
       } else if (key === 'Escape') onEditingChange(false);
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [editing, run, score, duration_, instrument, onEditingChange]);
+  }, [
+    editing,
+    loaded,
+    flushFret,
+    run,
+    adjustEvent,
+    duration_,
+    changeDuration,
+    instrument,
+    onEditingChange,
+  ]);
 
   const fill = measureFill(score, cursor.measure);
   const currentMeter = measureMeter(score, cursor.measure);
@@ -336,7 +392,15 @@ export function ScoreEditor({
             <Button variant="secondary" onPress={markBeat}>
               Pulso aquí (B)
             </Button>
-            <Button variant="ghost" onPress={() => setTimeMap((m) => removeMarkerNear(m, time))}>
+            <Button
+              variant="ghost"
+              onPress={() => {
+                if (loaded)
+                  setEditor((state) =>
+                    updateScoreTimeMap(state, removeMarkerNear(state.timeMap, timeRef.current)),
+                  );
+              }}
+            >
               Quitar marca cercana
             </Button>
           </View>
@@ -364,25 +428,24 @@ export function ScoreEditor({
       ) : (
         <View style={{ gap: 12 }}>
           <Row wide={wide}>
-            <Chips<BaseValue>
-              value={duration_.base}
-              onChange={(base) => {
-                const next = { ...duration_, base };
-                setDuration_(next);
-                run((s, c) => setDuration(s, c, next));
-              }}
-              options={values.map((v) => ({ value: v.value, label: `${v.label} (${v.key})` }))}
+            <Chips
+              value={String(duration_.base)}
+              onChange={(base) => changeDuration(Number(base) as BaseValue)}
+              options={values.map((v) => ({
+                value: String(v.value),
+                label: `${v.label} (${v.key})`,
+              }))}
             />
           </Row>
           <Row wide={wide}>
             <View style={[styles.row, { gap: 8 }]}>
-              <Button small variant="secondary" onPress={() => run(toggleDot)}>
+              <Button small variant="secondary" onPress={() => adjustEvent(toggleDot)}>
                 Puntillo (.)
               </Button>
-              <Button small variant="secondary" onPress={() => run(toggleTriplet)}>
+              <Button small variant="secondary" onPress={() => adjustEvent(toggleTriplet)}>
                 Tresillo (t)
               </Button>
-              <Button small variant="secondary" onPress={() => run(toggleTie)}>
+              <Button small variant="secondary" onPress={() => adjustEvent(toggleTie)}>
                 Ligadura (l)
               </Button>
               <Button
@@ -392,14 +455,14 @@ export function ScoreEditor({
               >
                 Silencio (r)
               </Button>
-              <Button small variant="ghost" onPress={() => run(deleteEvent)}>
+              <Button small variant="ghost" onPress={() => adjustEvent(deleteEvent)}>
                 Borrar
               </Button>
               <Button
                 small
                 variant="ghost"
                 disabled={!history.past.length}
-                onPress={() => setHistory(undo)}
+                onPress={() => changeHistory(undo)}
               >
                 Deshacer
               </Button>
@@ -407,7 +470,7 @@ export function ScoreEditor({
                 small
                 variant="ghost"
                 disabled={!history.future.length}
-                onPress={() => setHistory(redo)}
+                onPress={() => changeHistory(redo)}
               >
                 Rehacer
               </Button>
@@ -416,7 +479,7 @@ export function ScoreEditor({
           <Row wide={wide}>
             <Chips<Technique | 'none'>
               value={score.measures[cursor.measure]?.events[cursor.event]?.technique ?? 'none'}
-              onChange={(t) => run((s, c) => setTechnique(s, c, t === 'none' ? null : t))}
+              onChange={(t) => adjustEvent((s, c) => setTechnique(s, c, t === 'none' ? null : t))}
               options={techniques}
             />
           </Row>
@@ -432,7 +495,7 @@ export function ScoreEditor({
             width={width}
             playhead={playhead}
             cursor={editing ? cursor : null}
-            onPressEvent={select}
+            onPressEvent={editing ? select : undefined}
             onPressMeasure={(m) => goToMeasure(m, !editing)}
           />
         ) : null}
@@ -454,14 +517,19 @@ export function ScoreEditor({
             value={meterKey(currentMeter)}
             onChange={(k) => {
               const m = meters.find((x) => meterKey(x) === k)!;
-              setHistory((h) => commit(h, setMeter(h.present, cursor.measure, m)));
+              run((s, c) => ({ score: setMeter(s, c.measure, m), cursor: c }));
             }}
             options={meters.map((m) => ({ value: meterKey(m), label: meterKey(m) }))}
           />
           <Button
             small
             variant="ghost"
-            onPress={() => setHistory((h) => commit(h, addMeasure(h.present, cursor.measure)))}
+            onPress={() =>
+              run((s, c) => ({
+                score: s.measures.length < MAX_SCORE_MEASURES ? addMeasure(s, c.measure) : s,
+                cursor: c,
+              }))
+            }
           >
             Añadir compás
           </Button>
@@ -482,9 +550,7 @@ export function ScoreEditor({
             nomenclature={nomenclature}
             leftHanded={leftHanded}
             marks={[]}
-            onPress={(string, fret) =>
-              run((s, c) => insertNote(s, { ...c, string }, fret, duration_, instrument))
-            }
+            onPress={(string, fret) => writeNote(fret, string)}
           />
         </View>
       ) : null}

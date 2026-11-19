@@ -1,47 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Text, View } from 'react-native';
 import Svg, { ClipPath, Defs, Line, Path, Rect } from 'react-native-svg';
+import { envelope, loopFromTimes, wavePath } from '../core/waveform';
 import type { Loop } from '../platform/playerTypes';
 import { Button, colors } from './ui';
 
 const ZOOMS = [1, 2, 4, 8, 16, 32] as const;
 const DOUBLE_TAP_MS = 320;
 const DRAG_PX = 5;
-const MIN_LOOP = 0.2;
-
-/** Envolvente simétrica de una ventana [from, to) en segundos: un valor 0–1 por columna. */
-function envelope(peaks: number[], duration: number, from: number, to: number, columns: number) {
-  const out = new Array<number>(columns).fill(0);
-  if (!peaks.length || duration <= 0) return out;
-  const perSecond = peaks.length / duration;
-  for (let c = 0; c < columns; c++) {
-    const a = from + ((to - from) * c) / columns;
-    const b = from + ((to - from) * (c + 1)) / columns;
-    const i0 = Math.max(0, Math.floor(a * perSecond));
-    const i1 = Math.min(peaks.length, Math.max(i0 + 1, Math.ceil(b * perSecond)));
-    let max = 0;
-    for (let i = i0; i < i1; i++) if (peaks[i]! > max) max = peaks[i]!;
-    // Curva suave para que los pasajes flojos se lean sin saturar los fuertes.
-    out[c] = Math.pow(max, 0.8);
-  }
-  return out;
-}
-
-/** Un único trazo relleno (arriba y abajo en espejo): mucho más ligero que miles de rectángulos. */
-function wavePath(levels: number[], height: number, columnWidth: number) {
-  if (!levels.length) return '';
-  const mid = height / 2;
-  const amp = mid - 4;
-  let top = `M0 ${mid}`;
-  let bottom = '';
-  levels.forEach((level, i) => {
-    const x = (i + 0.5) * columnWidth;
-    const h = Math.max(0.6, level * amp);
-    top += ` L${x.toFixed(1)} ${(mid - h).toFixed(1)}`;
-    bottom = ` L${x.toFixed(1)} ${(mid + h).toFixed(1)}` + bottom;
-  });
-  return `${top} L${(levels.length * columnWidth).toFixed(1)} ${mid}${bottom} Z`;
-}
 
 /**
  * Forma de onda navegable, al estilo de los reproductores de transcripción:
@@ -73,8 +39,10 @@ export function Waveform({
   height?: number;
 }) {
   const [width, setWidth] = useState(0);
+  const [overviewWidth, setOverviewWidth] = useState(0);
   const [zoom, setZoom] = useState<(typeof ZOOMS)[number]>(1);
   const [start, setStart] = useState(0);
+  const [selecting, setSelecting] = useState(false);
   const [drag, setDrag] = useState<Loop | null>(null);
   const span = duration / zoom;
   const viewStart = Math.max(0, Math.min(start, Math.max(0, duration - span)));
@@ -82,9 +50,9 @@ export function Waveform({
 
   // La ventana sigue a la reproducción cuando el cursor se sale de ella.
   useEffect(() => {
-    if (zoom === 1 || !playing || drag) return;
+    if (zoom === 1 || !playing || selecting) return;
     if (position < viewStart || position > viewEnd - span * 0.05) setStart(position - span * 0.1);
-  }, [position, playing, zoom, viewStart, viewEnd, span, drag]);
+  }, [position, playing, zoom, viewStart, viewEnd, span, selecting]);
 
   const levels = useMemo(
     () => (width > 0 ? envelope(peaks, duration, viewStart, viewEnd, Math.floor(width)) : []),
@@ -95,22 +63,41 @@ export function Waveform({
     [levels, height, width],
   );
   const overviewLevels = useMemo(
-    () => (width > 0 ? envelope(peaks, duration, 0, duration, Math.floor(width / 2)) : []),
-    [peaks, duration, width],
+    () => envelope(peaks, duration, 0, duration, Math.floor(overviewWidth)),
+    [peaks, duration, overviewWidth],
   );
   const overviewPath = useMemo(
-    () => wavePath(overviewLevels, 32, width / Math.max(1, overviewLevels.length)),
-    [overviewLevels, width],
+    () => wavePath(overviewLevels, 32, overviewWidth / Math.max(1, overviewLevels.length)),
+    [overviewLevels, overviewWidth],
   );
 
-  const x = (t: number) => ((t - viewStart) / span) * width;
+  const x = (t: number) => (span > 0 ? ((t - viewStart) / span) * width : 0);
   const timeAtX = (px: number) =>
-    Math.max(0, Math.min(duration, viewStart + (Math.max(0, Math.min(width, px)) / width) * span));
+    Math.max(
+      0,
+      Math.min(
+        duration,
+        viewStart + (Math.max(0, Math.min(width, px)) / Math.max(1, width)) * span,
+      ),
+    );
 
   // Gestos: pulsar, arrastrar y doble pulsación, sobre la vista principal.
-  const gesture = useRef({ x0: 0, t0: 0, dragging: false, lastTap: 0, lastX: -100 });
+  const gesture = useRef({ x0: 0, dragging: false, timeAtX });
+  const pendingTap = useRef<{
+    x: number;
+    time: number;
+    at: number;
+    timer: ReturnType<typeof setTimeout>;
+  } | null>(null);
   const latest = useRef({ timeAtX, onSeek, onSelect, onClearLoop });
   latest.current = { timeAtX, onSeek, onSelect, onClearLoop };
+  useEffect(
+    () => () => {
+      if (pendingTap.current) clearTimeout(pendingTap.current.timer);
+    },
+    [],
+  );
+
   const responder = useMemo(
     () =>
       PanResponder.create({
@@ -118,61 +105,78 @@ export function Waveform({
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
-          const px = e.nativeEvent.locationX;
-          gesture.current.x0 = px;
-          gesture.current.t0 = latest.current.timeAtX(px);
-          gesture.current.dragging = false;
+          gesture.current = {
+            x0: e.nativeEvent.locationX,
+            dragging: false,
+            timeAtX: latest.current.timeAtX,
+          };
+          setSelecting(true);
         },
         onPanResponderMove: (_, g) => {
-          if (!gesture.current.dragging && Math.abs(g.dx) < DRAG_PX) return;
-          gesture.current.dragging = true;
-          const t1 = latest.current.timeAtX(gesture.current.x0 + g.dx);
-          const t0 = gesture.current.t0;
+          const active = gesture.current;
+          if (!active.dragging && Math.abs(g.dx) < DRAG_PX) return;
+          active.dragging = true;
+          const t0 = active.timeAtX(active.x0);
+          const t1 = active.timeAtX(active.x0 + g.dx);
           setDrag({ a: Math.min(t0, t1), b: Math.max(t0, t1) });
         },
         onPanResponderRelease: (_, g) => {
-          const { t0 } = gesture.current;
-          if (gesture.current.dragging) {
-            const t1 = latest.current.timeAtX(gesture.current.x0 + g.dx);
-            const a = Math.min(t0, t1),
-              b = Math.max(t0, t1);
-            setDrag(null);
-            if (b - a >= MIN_LOOP) latest.current.onSelect({ a, b });
+          const { x0, timeAtX, dragging } = gesture.current;
+          const t0 = timeAtX(x0);
+          setDrag(null);
+          setSelecting(false);
+          if (dragging || Math.abs(g.dx) >= DRAG_PX) {
+            const selection = loopFromTimes(t0, timeAtX(x0 + g.dx));
+            if (selection) latest.current.onSelect(selection);
             return;
           }
+
           const now = Date.now();
-          const isDouble =
-            now - gesture.current.lastTap < DOUBLE_TAP_MS &&
-            Math.abs(gesture.current.x0 - gesture.current.lastX) < 24;
-          gesture.current.lastTap = isDouble ? 0 : now;
-          gesture.current.lastX = gesture.current.x0;
-          if (isDouble) latest.current.onClearLoop();
-          else latest.current.onSeek(t0);
+          const previous = pendingTap.current;
+          if (previous) {
+            clearTimeout(previous.timer);
+            pendingTap.current = null;
+            if (now - previous.at < DOUBLE_TAP_MS && Math.abs(x0 - previous.x) < 24) {
+              latest.current.onClearLoop();
+              return;
+            }
+            latest.current.onSeek(previous.time);
+          }
+          const timer = setTimeout(() => {
+            pendingTap.current = null;
+            latest.current.onSeek(t0);
+          }, DOUBLE_TAP_MS);
+          pendingTap.current = { x: x0, time: t0, at: now, timer };
         },
-        onPanResponderTerminate: () => setDrag(null),
+        onPanResponderTerminate: () => {
+          setDrag(null);
+          setSelecting(false);
+        },
       }),
     [],
   );
-  // Franja general: pulsar o arrastrar mueve la ventana visible.
-  const overview = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => centerAt(e.nativeEvent.locationX),
-        onPanResponderMove: (e) => centerAt(e.nativeEvent.locationX),
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+
+  // Franja general: usa su propio ancho y el desplazamiento desde el punto inicial.
   const centerRef = useRef((px: number) => {});
   centerRef.current = (px: number) => {
-    if (width <= 0) return;
-    setStart((px / width) * duration - span / 2);
+    if (overviewWidth <= 0) return;
+    setStart((px / overviewWidth) * duration - span / 2);
   };
-  function centerAt(px: number) {
-    centerRef.current(px);
-  }
+  const overview = useMemo(() => {
+    let x0 = 0;
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        x0 = e.nativeEvent.locationX;
+        setSelecting(true);
+        centerRef.current(x0);
+      },
+      onPanResponderMove: (_, g) => centerRef.current(x0 + g.dx),
+      onPanResponderRelease: () => setSelecting(false),
+      onPanResponderTerminate: () => setSelecting(false),
+    });
+  }, []);
 
   const shown = drag ?? loop;
   const played = Math.max(0, Math.min(width, x(position)));
@@ -315,22 +319,23 @@ export function Waveform({
             backgroundColor: '#F3F1EA',
             overflow: 'hidden',
           }}
+          onLayout={(e) => setOverviewWidth(e.nativeEvent.layout.width)}
           accessibilityLabel="Vista general de la canción"
           {...overview.panHandlers}
         >
-          {width > 0 ? (
+          {overviewWidth > 0 && duration > 0 ? (
             <Svg
               width="100%"
               height={32}
-              viewBox={`0 0 ${width} 32`}
+              viewBox={`0 0 ${overviewWidth} 32`}
               preserveAspectRatio="none"
               pointerEvents="none"
             >
               {loop ? (
                 <Rect
-                  x={(loop.a / duration) * width}
+                  x={(loop.a / duration) * overviewWidth}
                   y={0}
-                  width={Math.max(2, ((loop.b - loop.a) / duration) * width)}
+                  width={Math.max(2, ((loop.b - loop.a) / duration) * overviewWidth)}
                   height={32}
                   fill={colors.pale}
                 />
@@ -338,9 +343,9 @@ export function Waveform({
               <Path d={overviewPath} fill="#B9C2B8" />
               {zoom > 1 ? (
                 <Rect
-                  x={(viewStart / duration) * width}
+                  x={(viewStart / duration) * overviewWidth}
                   y={1}
-                  width={Math.max(4, (span / duration) * width)}
+                  width={Math.max(4, (span / duration) * overviewWidth)}
                   height={30}
                   rx={4}
                   fill="none"
@@ -349,8 +354,8 @@ export function Waveform({
                 />
               ) : null}
               <Line
-                x1={(position / duration) * width}
-                x2={(position / duration) * width}
+                x1={(position / duration) * overviewWidth}
+                x2={(position / duration) * overviewWidth}
                 y1={0}
                 y2={32}
                 stroke={colors.ink}

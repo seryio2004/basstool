@@ -335,17 +335,15 @@ export function retune(score: Score, from: Instrument, to: Instrument): Score {
     to,
   );
 }
-export type History = { past: Score[]; present: Score; future: Score[] };
-export const createHistory = (score: Score): History => ({ past: [], present: score, future: [] });
-export const commit = (h: History, score: Score): History =>
-  score === h.present
-    ? h
-    : { past: [...h.past, h.present].slice(-100), present: score, future: [] };
-export const undo = (h: History): History =>
+export type History<T = Score> = { past: T[]; present: T; future: T[] };
+export const createHistory = <T>(present: T): History<T> => ({ past: [], present, future: [] });
+export const commit = <T>(h: History<T>, present: T): History<T> =>
+  present === h.present ? h : { past: [...h.past, h.present].slice(-100), present, future: [] };
+export const undo = <T>(h: History<T>): History<T> =>
   !h.past.length
     ? h
     : { past: h.past.slice(0, -1), present: h.past.at(-1)!, future: [h.present, ...h.future] };
-export const redo = (h: History): History =>
+export const redo = <T>(h: History<T>): History<T> =>
   !h.future.length
     ? h
     : {
@@ -353,6 +351,8 @@ export const redo = (h: History): History =>
         present: h.future[0]!,
         future: h.future.slice(1),
       };
+export const MAX_SCORE_MEASURES = 10000;
+
 export function parseScore(value: unknown): Score | null {
   try {
     if (!value || typeof value !== 'object') return null;
@@ -364,7 +364,7 @@ export function parseScore(value: unknown): Score | null {
       Math.abs(s.keyFifths) > 7 ||
       !Array.isArray(s.measures) ||
       !s.measures.length ||
-      s.measures.length > 10000
+      s.measures.length > MAX_SCORE_MEASURES
     )
       return null;
     const ids = new Set<string>();
