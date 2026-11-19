@@ -246,6 +246,36 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
     };
     return { show, stop, home };
   }, []);
+  // Gesto común: empezar (mantener gira solo), mover (arrastre horizontal) y soltar.
+  const gesture = useMemo(
+    () => ({
+      begin: () => {
+        actions.stop();
+        drag.current = { active: false, from: frameRef.current, dx0: 0 };
+        if (!reducedRef.current)
+          timers.current.hold = setTimeout(() => {
+            // Giro por tiempo: la velocidad no depende de cuántos fotogramas pinte el dispositivo.
+            const from = frameRef.current;
+            const t0 = performance.now();
+            const tick = (now: number) => {
+              actions.show(from + Math.floor(((now - t0) / SPIN_REV_MS) * FRAME_COUNT));
+              timers.current.raf = requestAnimationFrame(tick);
+            };
+            timers.current.raf = requestAnimationFrame(tick);
+          }, HOLD_MS);
+      },
+      move: (dx: number) => {
+        if (!drag.current.active && Math.abs(dx) > 4) {
+          actions.stop();
+          drag.current = { active: true, from: frameRef.current, dx0: dx };
+        }
+        if (drag.current.active)
+          actions.show(drag.current.from + Math.round((dx - drag.current.dx0) / DRAG_STEP));
+      },
+      end: actions.home,
+    }),
+    [actions],
+  );
   const pan = useMemo(
     () =>
       PanResponder.create({
@@ -254,34 +284,42 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
           Math.abs(g.dx) > 6 && Math.abs(g.dx) > Math.abs(g.dy),
         // Sin arrastre horizontal, el desplazamiento vertical de la pantalla sigue mandando.
         onPanResponderTerminationRequest: () => !drag.current.active,
-        onPanResponderGrant: () => {
-          actions.stop();
-          drag.current = { active: false, from: frameRef.current, dx0: 0 };
-          if (!reducedRef.current)
-            timers.current.hold = setTimeout(() => {
-              // Giro por tiempo: la velocidad no depende de cuántos fotogramas pinte el dispositivo.
-              const from = frameRef.current;
-              const t0 = performance.now();
-              const tick = (now: number) => {
-                actions.show(from + Math.floor(((now - t0) / SPIN_REV_MS) * FRAME_COUNT));
-                timers.current.raf = requestAnimationFrame(tick);
-              };
-              timers.current.raf = requestAnimationFrame(tick);
-            }, HOLD_MS);
-        },
-        onPanResponderMove: (_, g) => {
-          if (!drag.current.active && Math.abs(g.dx) > 6) {
-            actions.stop();
-            drag.current = { active: true, from: frameRef.current, dx0: g.dx };
-          }
-          if (drag.current.active)
-            actions.show(drag.current.from + Math.round((g.dx - drag.current.dx0) / DRAG_STEP));
-        },
-        onPanResponderRelease: actions.home,
-        onPanResponderTerminate: actions.home,
+        onPanResponderGrant: gesture.begin,
+        onPanResponderMove: (_, g) => gesture.move(g.dx),
+        onPanResponderRelease: gesture.end,
+        onPanResponderTerminate: gesture.end,
       }),
-    [actions],
+    [gesture],
   );
+  // En web, eventos de puntero con captura: el ratón sigue mandando aunque salga del dibujo.
+  const pointer = useRef<{ id: number; x0: number } | null>(null);
+  const webHandlers =
+    Platform.OS === 'web'
+      ? {
+          onPointerDown: (e: any) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            if (e.pointerType === 'mouse') e.preventDefault();
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+            pointer.current = { id: e.pointerId, x0: e.clientX };
+            gesture.begin();
+          },
+          onPointerMove: (e: any) => {
+            const p = pointer.current;
+            if (!p || p.id !== e.pointerId) return;
+            gesture.move(e.clientX - p.x0);
+          },
+          onPointerUp: (e: any) => {
+            if (pointer.current?.id !== e.pointerId) return;
+            pointer.current = null;
+            gesture.end();
+          },
+          onPointerCancel: (e: any) => {
+            if (pointer.current?.id !== e.pointerId) return;
+            pointer.current = null;
+            gesture.end();
+          },
+        }
+      : pan.panHandlers;
   useEffect(() => actions.stop, [actions]);
   useEffect(() => {
     // Precalcula el resto de fotogramas en segundo plano para que el primer giro no dé tirones.
@@ -315,7 +353,7 @@ export function BassPreview({ tuning, scale, leftHanded }: Props) {
         accessibilityRole="image"
         accessibilityLabel={label}
         style={[style, web]}
-        {...pan.panHandlers}
+        {...webHandlers}
       >
         {render && frame === 0 ? (
           <Image source={render} style={style} resizeMode="contain" />
