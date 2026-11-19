@@ -10,6 +10,13 @@ const items: { id: Tool; title: string; detail: string; icon: string }[] = [
   { id: 'tuner', title: 'Afinador', detail: 'Nota, cuerda y desviación en cents.', icon: 'tuner' },
   { id: 'metronome', title: 'Metrónomo', detail: 'Tempo, compás y acento.', icon: 'metronome' },
   {
+    id: 'drums',
+    title: 'Batería',
+    detail: 'Patrones por género con swing y rellenos.',
+    icon: 'drums',
+  },
+  { id: 'speed', title: 'Velocidad', detail: 'Practica con subidas de tempo.', icon: 'speed' },
+  {
     id: 'fretboard',
     title: 'Mástil',
     detail: 'Escalas y arpegios en tu afinación, con notas o grados.',

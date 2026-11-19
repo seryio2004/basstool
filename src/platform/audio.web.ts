@@ -20,27 +20,10 @@ export const audio = {
   },
   tone(midi: number, when: number, duration = 0.35, volume = 0.16) {
     if (!context) return;
-    const oscillator = context.createOscillator(),
-      gain = context.createGain();
-    const start = Math.max(when, context.currentTime);
-    oscillator.type = 'triangle';
-    oscillator.frequency.value = frequency(midi);
-    gain.gain.setValueAtTime(0, start);
-    gain.gain.linearRampToValueAtTime(volume, start + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    nodes.add(oscillator);
-    oscillator.onended = () => {
-      oscillator.disconnect();
-      gain.disconnect();
-      nodes.delete(oscillator);
-    };
-    oscillator.start(start);
-    oscillator.stop(start + duration + 0.02);
+    remember(scheduleTone(context, context.destination, midi, when, duration, volume));
   },
   click(when: number, accent = false) {
-    audio.tone(accent ? 93 : 86, when, 0.045, accent ? 0.14 : 0.08);
+    if (context) remember(scheduleClick(context, context.destination, when, accent));
   },
   stop() {
     for (const node of nodes) {
@@ -53,6 +36,42 @@ export const audio = {
     nodes.clear();
   },
 };
+function remember(oscillator: OscillatorNode) {
+  nodes.add(oscillator);
+  oscillator.addEventListener('ended', () => nodes.delete(oscillator), { once: true });
+}
+
+function scheduleTone(
+  ctx: AudioContext,
+  output: AudioNode,
+  midi: number,
+  when: number,
+  duration: number,
+  volume: number,
+) {
+  const oscillator = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const start = Math.max(when, ctx.currentTime);
+  oscillator.type = 'triangle';
+  oscillator.frequency.value = frequency(midi);
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain);
+  gain.connect(output);
+  oscillator.onended = () => {
+    oscillator.disconnect();
+    gain.disconnect();
+  };
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+  return oscillator;
+}
+
+export function scheduleClick(ctx: AudioContext, output: AudioNode, when: number, accent: boolean) {
+  return scheduleTone(ctx, output, accent ? 93 : 86, when, 0.045, accent ? 0.14 : 0.08);
+}
+
 export async function rhythmAudioContext(): Promise<AudioContext> {
   await audio.ready();
   return context!;

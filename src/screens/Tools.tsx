@@ -12,12 +12,16 @@ import { tunings } from '../core/instrument';
 import { targetString } from '../core/tuner';
 import { TunerError } from '../platform/tunerErrors';
 import { FretboardTool } from './FretboardTool';
-export type Tool = 'metronome' | 'tuner' | 'chords' | 'fretboard';
+import { startMetronome } from '../platform/drumMachine';
+import { DrumMachineTool, SpeedTrainerTool } from './RhythmTools';
+export type Tool = 'metronome' | 'tuner' | 'chords' | 'fretboard' | 'drums' | 'speed';
 export const toolNames: Record<Tool, string> = {
   metronome: 'Metrónomo',
   tuner: 'Afinador',
   chords: 'Progresiones de acordes',
   fretboard: 'Mástil',
+  drums: 'Batería',
+  speed: 'Velocidad',
 };
 
 export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
@@ -35,6 +39,10 @@ export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
         <Tuner />
       ) : tool === 'fretboard' ? (
         <FretboardTool />
+      ) : tool === 'drums' ? (
+        <DrumMachineTool />
+      ) : tool === 'speed' ? (
+        <SpeedTrainerTool />
       ) : (
         <Chords />
       )}
@@ -51,6 +59,30 @@ function Metronome() {
   useEffect(() => {
     if (!running) return;
     const token = ++generation.current;
+    if (Platform.OS === 'web') {
+      let stop: (() => void) | undefined;
+      function fail(e: Error) {
+        if (token !== generation.current) return;
+        setError(e.message);
+        setRunning(false);
+      }
+      void startMetronome(Number(bpm), Number(meter), {
+        onStep: ({ step }) => {
+          if (token === generation.current) setBeat(step);
+        },
+        onError: fail,
+      })
+        .then((player) => {
+          if (token !== generation.current) player.stop();
+          else stop = player.stop;
+        })
+        .catch(fail);
+      return () => {
+        generation.current++;
+        stop?.();
+        setBeat(-1);
+      };
+    }
     let timer: ReturnType<typeof setInterval> | undefined;
     const flashes = new Set<ReturnType<typeof setTimeout>>();
     (async () => {

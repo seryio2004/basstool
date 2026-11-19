@@ -193,3 +193,47 @@ test('attempt migration accepts the module snapshot while preserving older modul
     await db.close();
   }
 });
+
+test('the shared engine preserves every original Listen and Repeat hit, accent and offset', () => {
+  const eighths = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
+  const original = {
+    rock: [[0, 2, 2.5], [1, 3], eighths],
+    funk: [
+      [0, 0.75, 2, 2.75],
+      [1, 3],
+      [...eighths, 1.75, 3.75],
+    ],
+    blues: [
+      [0, 2],
+      [1, 3],
+      [0, 2 / 3, 1, 5 / 3, 2, 8 / 3, 3, 11 / 3],
+    ],
+    reggae: [[2], [2], [0.5, 1.5, 2.5, 3.5]],
+    latin: [[0, 1.5, 3], [0, 1.5, 3], eighths],
+    jazz: [
+      [0, 1, 2, 3],
+      [1, 3 + 2 / 3],
+      [0, 1, 1 + 2 / 3, 2, 3, 3 + 2 / 3],
+    ],
+  };
+  for (const { value: genre } of listenGenres) {
+    for (const difficulty of listenLevelOrder) {
+      const phrase = makeListenPhrase(
+        { genre, difficulty, seed: 4, chords: false },
+        tunings.standard4,
+      );
+      const cycle = listenCycle(phrase, false);
+      const drums = ['kick', 'snare', 'hat'];
+      const expected = Array.from({ length: phrase.bars + 2 }, (_, bar) =>
+        original[genre].flatMap((beats, i) =>
+          beats.map((beat) => ({
+            drum: drums[i],
+            start: (bar * 4 + beat) * phrase.beatSeconds,
+            accent: Number.isInteger(beat),
+          })),
+        ),
+      ).flat();
+      assert.deepEqual(cycle.drums, expected);
+    }
+  }
+});

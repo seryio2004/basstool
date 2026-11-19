@@ -1,3 +1,4 @@
+import { listenDrumTimeline } from './drums';
 import { positionsOf, range, type Instrument } from './instrument';
 import type { Level } from './profile';
 import { scoreTimeline, synthTones } from './scoreAudio';
@@ -363,29 +364,9 @@ export function gradeListenPhrase(phrase: ListenPhrase, attacks: readonly Listen
   return { correct, total, extra, passed: correct === total && extra === 0 };
 }
 
-export type Drum = 'kick' | 'snare' | 'hat';
-const eighths = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5];
-const swingHats = [0, 2 / 3, 1, 5 / 3, 2, 8 / 3, 3, 11 / 3];
-export const listenDrums: Record<ListenGenre, Record<Drum, number[]>> = {
-  rock: { kick: [0, 2, 2.5], snare: [1, 3], hat: eighths },
-  funk: { kick: [0, 0.75, 2, 2.75], snare: [1, 3], hat: [...eighths, 1.75, 3.75] },
-  blues: { kick: [0, 2], snare: [1, 3], hat: swingHats },
-  reggae: { kick: [2], snare: [2], hat: [0.5, 1.5, 2.5, 3.5] },
-  latin: { kick: [0, 1.5, 3], snare: [0, 1.5, 3], hat: eighths },
-  jazz: { kick: [0, 1, 2, 3], snare: [1, 3 + 2 / 3], hat: [0, 1, 1 + 2 / 3, 2, 3, 3 + 2 / 3] },
-};
-
 export function listenCycle(phrase: ListenPhrase, withChords: boolean) {
   const repeatEnd = phrase.duration + repeatBeats * phrase.beatSeconds;
-  const drums = Array.from({ length: phrase.bars + repeatBeats / 4 }, (_, bar) =>
-    (Object.keys(listenDrums[phrase.genre]) as Drum[]).flatMap((drum) =>
-      listenDrums[phrase.genre][drum].map((beat) => ({
-        drum,
-        start: (bar * 4 + beat) * phrase.beatSeconds,
-        accent: Number.isInteger(beat),
-      })),
-    ),
-  ).flat();
+  const drums = listenDrumTimeline(phrase.genre, phrase.bars + repeatBeats / 4, phrase.beatSeconds);
   const chords = withChords
     ? Array.from({ length: phrase.bars }, (_, bar) =>
         phrase.chord.map((midi) => ({

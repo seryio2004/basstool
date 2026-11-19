@@ -431,7 +431,7 @@ Responsables según los papeles de `AGENTS.md`: Claude diseña, coordina e integ
 | 8. Uso sin cuenta | Claude | Hecha. El perfil vive en `src/core/profile.ts`. |
 | 9. Retirar código docente | Claude | Hecha. |
 | 14. Imagen del bajo en configuración | Sol (+ renders del usuario) | Pendiente. |
-| 13. Herramientas nuevas | Sol | Pendiente (caja de ritmos primero: la usan rutinas y tarea 12). |
+| 13. Herramientas nuevas | Sol | 13a (Batería y Velocidad) implementada en web en `codex/herr-ritmo`, pendiente de revisión e integración. Pendientes la conexión con rutinas y los encargos 13b y 13c. |
 | 12. Escucha y repite | Sol | Pendiente; lanzar tras GrooveTrain. |
 | 11. Separación del bajo con IA | Sol/Astra (PoC) | Pendiente. Realizable; empezar por 11a. |
 | 10. Tablatura y partitura sincronizadas | Sol (modelo, mapa de tiempo, maquetación, dibujo, integración); Claude (contrato, editor, revisión) | Hecha en web: marcas de compás y pulso al estilo de Transcribe!, editor con mástil y teclado, forma de onda con zoom y bucle por arrastre. P1 pendiente: sugerencia de notas, exportación, reproducción de lo anotado. |

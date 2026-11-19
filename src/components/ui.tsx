@@ -403,6 +403,8 @@ export function Icon({
     check: 'm5 12 4 4L19 6',
     clock: 'M12 7v5l3 2',
     metronome: 'm8 3-5 18h18L16 3ZM12 17l5-10M8 17h8',
+    drums: 'M4 8c0-4 16-4 16 0s-16 4-16 0Zm0 0v9c0 4 16 4 16 0V8M8 11v4m8-4v4M8 3l8 5m0-5-8 5',
+    speed: 'M3 17h6v-4h6V9h6m-5-4h5v5',
     tuner: 'M8 3v7a4 4 0 0 0 8 0V3m-4 11v7M5 6H3m18 0h-2',
     chord: 'M6 3v18M12 3v18M18 3v18M3 7h18M3 13h18M3 19h18',
     logout: 'M9 3H4v18h5m5-14 5 5-5 5M8 12h12',
