@@ -53,6 +53,11 @@ export const audio = {
     nodes.clear();
   },
 };
+export async function rhythmAudioContext(): Promise<AudioContext> {
+  await audio.ready();
+  return context!;
+}
+
 export type TuningValue = ReturnType<typeof tuning>;
 export async function startTuner(
   onPitch: (value: TuningValue | null) => void,

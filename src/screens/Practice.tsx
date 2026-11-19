@@ -11,7 +11,7 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
         <Heading level={1} style={styles.title}>
           Practicar
         </Heading>
-        <Label muted>Ritmo, oído y lectura. Elige qué quieres trabajar hoy.</Label>
+        <Label muted>Ritmo, armonía, oído y lectura. Elige qué quieres trabajar hoy.</Label>
       </View>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 18 }}>
         {modules.map((m) => (
@@ -50,6 +50,8 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
                     />
                   ))}
                 </View>
+              ) : m.id === 'chord-train' ? (
+                <Icon name="note" color={m.color} size={48} />
               ) : m.id === 'intervals' ? (
                 <View style={[styles.row, { gap: 30 }]}>
                   <Icon name="note" color={m.color} size={45} />

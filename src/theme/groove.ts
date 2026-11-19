@@ -1,0 +1,15 @@
+export const grooveColors = {
+  ink: '#191A1D',
+  yellow: '#F7DB16',
+  cream: '#FFFDF3',
+  paper: '#F6F4ED',
+  green: '#80B586',
+  sleeper: '#B69A2D',
+  coral: '#E79C7B',
+  blue: '#6D9CBF',
+  mint: '#C1E6E0',
+  amber: '#FFE3A5',
+  gold: '#FFDF6B',
+  rose: '#CE8296',
+  tiles: ['#58A4B0', '#689ACA', '#CC7E91', '#73A878', '#E79C7B', '#8EA7D2', '#5E98CE', '#D89886'],
+} as const;

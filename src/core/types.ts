@@ -1,11 +1,18 @@
 import type { LessonProgress } from './course';
-export type Module = 'groove' | 'notes' | 'intervals' | 'reading';
+import { grooveColors } from '../theme/groove';
+export type Module = 'chord-train' | 'groove' | 'notes' | 'intervals' | 'reading';
 export type Page = 'tools' | 'transcribe' | 'learn' | 'practice' | 'progress' | 'settings';
 export type { Profile } from './profile';
 export type ExerciseConfig = {
   bpm: number;
   level: number;
   pattern?: number[];
+  chords?: string[];
+  rhythmInput?: import('./chordTrain').RhythmInput;
+  rhythmVersion?: 1;
+  rhythmMode?: 'levels' | 'random';
+  micSensitivity?: number;
+  micOffsetMs?: number;
   modality?: import('./exercises').ExerciseModality;
   clef?: import('./notation').Clef;
   instrument?: import('./instrument').Instrument;
@@ -45,8 +52,17 @@ export const modules: {
     title: 'GrooveTrain',
     subtitle: 'Escucha, siente el pulso y reproduce el patrón.',
     category: 'Ritmo',
-    color: '#305C47',
-    background: '#E7EFE8',
+    color: grooveColors.ink,
+    background: grooveColors.yellow,
+    minutes: 4,
+  },
+  {
+    id: 'chord-train',
+    title: 'Tren de acordes',
+    subtitle: 'Toca una línea de bajo sobre los acordes de cada pulso.',
+    category: 'Ritmo y armonía',
+    color: grooveColors.ink,
+    background: grooveColors.mint,
     minutes: 4,
   },
   {

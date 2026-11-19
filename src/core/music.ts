@@ -101,19 +101,23 @@ export const figurePool = [
   { name: 'Silencio de corchea y corchea', notes: [0.5], beams: 0 },
   { name: 'Corchea y silencio', notes: [0], beams: 0 },
 ];
-// Figure definitions and difficulty pools adapted from seryio2004/grooveTrain/js/{figures,app}.js.
+// Keep the figure IDs and the original weighted pools for all ten levels.
+const figureWeights = [
+  [6, 0, 0, 0, 0, 5, 0, 0, 0, 0],
+  [6, 0, 0, 0, 0, 4, 3, 2, 0, 0],
+  [5, 3, 4, 0, 0, 1, 2, 2, 1, 1],
+  [3, 3, 5, 2, 0, 1, 2, 2, 1, 1],
+  [2, 2, 3, 4, 4, 1, 2, 2, 1, 1],
+];
+export const groovePassScore = 85;
 export function makePattern(level = 1, length = 16, random = Math.random) {
-  const pool =
-    level <= 1
-      ? [0, 5]
-      : level <= 2
-        ? [0, 5, 6, 7]
-        : level <= 4
-          ? [0, 1, 2, 5, 6, 7, 8, 9]
-          : level <= 6
-            ? [0, 1, 2, 3, 5, 6, 7, 8, 9]
-            : figurePool.map((_, i) => i);
-  return Array.from({ length }, () => pool[Math.floor(random() * pool.length)]!);
+  const weights =
+    figureWeights[level <= 1 ? 0 : level <= 2 ? 1 : level <= 4 ? 2 : level <= 6 ? 3 : 4]!;
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  return Array.from({ length }, () => {
+    let draw = random() * total;
+    return weights.findIndex((weight) => (draw -= weight) < 0);
+  });
 }
 export function expectedHits(pattern: number[], bpm: number) {
   return pattern.flatMap((id, block) =>

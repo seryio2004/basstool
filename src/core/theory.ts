@@ -63,6 +63,22 @@ export const arpeggios = {
   augmentedMajor7: pattern('Aumentado con séptima mayor', [0, 4, 8, 11], [1, 3, 5, 7]),
 } as const satisfies Record<string, TheoryPattern>;
 
+export const majorProgressions = [
+  { value: '0,4,5,3', label: 'I · V · vi · IV' },
+  { value: '1,4,0,0', label: 'ii · V · I · I' },
+  { value: '0,3,4,0', label: 'I · IV · V · I' },
+];
+
+export const majorDegrees = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
+
+export function majorTriads(tonic: number, progression: string) {
+  return progression.split(',').map((degree) => {
+    const index = Number(degree);
+    const quality = index === 6 ? 'diminished' : [1, 2, 5].includes(index) ? 'minor' : 'major';
+    return { root: tonic + majorSteps[index]!, quality, degree: majorDegrees[index]! } as const;
+  });
+}
+
 /**
  * Tonic is a spelled pitch class (C, F#, Bb…), independent of octave.
  * Includes both fret endpoints and every octave; sorted by string then fret.

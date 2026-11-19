@@ -19,8 +19,26 @@ colors:
   nav-hover: "#E8EDE2"
   nav-active-ink: "#2D5738"
   nav-ink: "#5E6B59"
-  groove-ink: "#305C47"
-  groove-bg: "#E7EFE8"
+  groove-ink: "#191A1D"
+  groove-stage: "#F7DB16"
+  groove-cream: "#FFFDF3"
+  groove-paper: "#F6F4ED"
+  groove-green: "#80B586"
+  groove-sleeper: "#B69A2D"
+  groove-coral: "#E79C7B"
+  groove-blue: "#6D9CBF"
+  groove-mint: "#C1E6E0"
+  groove-amber: "#FFE3A5"
+  groove-gold: "#FFDF6B"
+  groove-rose: "#CE8296"
+  groove-tile-1: "#58A4B0"
+  groove-tile-2: "#689ACA"
+  groove-tile-3: "#CC7E91"
+  groove-tile-4: "#73A878"
+  groove-tile-5: "#E79C7B"
+  groove-tile-6: "#8EA7D2"
+  groove-tile-7: "#5E98CE"
+  groove-tile-8: "#D89886"
   notes-ink: "#745437"
   notes-bg: "#F3EBDF"
   intervals-ink: "#5B547E"
@@ -132,7 +150,7 @@ Las superficies claras, la tinta oscura y el verde reúnen navegación, tareas y
 **Key Characteristics:**
 
 - Superficies planas delimitadas por trazos suaves.
-- Verde para acciones y selección; cuatro pares de color identifican módulos.
+- Verde para acciones y selección; los pares de color identifican los módulos.
 - Jerarquía breve de texto y componentes reutilizados.
 
 ## Colors
@@ -146,7 +164,7 @@ El acento verde y los neutros claros se complementan con pares de color vinculad
 
 ### Secondary
 
-- **groove-ink / groove-bg:** GrooveTrain y ritmo.
+- **groove-ink / groove-stage:** GrooveTrain. **groove-ink / groove-mint:** Tren de acordes.
 - **notes-ink / notes-bg:** reconocimiento de notas.
 - **intervals-ink / intervals-bg:** intervalos.
 - **reading-ink / reading-bg:** lectura musical.
@@ -224,7 +242,9 @@ El destino activo cambia relleno, color y peso a 600; el inactivo usa peso 400. 
 
 ### Musical notation and pulse
 
-Staff y RhythmFigure dibujan notación vectorial. GrooveTrain representa los bloques y el pulso activo con fondo verde y contenido blanco, y el avance mediante una barra. El cambio refleja el estado de práctica; no establece animación ornamental para el resto de componentes.
+Staff y RhythmFigure dibujan notación vectorial. El tablero compartido de GrooveTrain y Tren de acordes usa el amarillo del original (`groove-stage`) y alterna sus ocho `groove-tile`. La casilla activa usa `groove-cream` con contorno `groove-ink`. El cifrado acompaña a la figura rítmica de cada casilla. Lectura rítmica conserva el verde y su barra de avance.
+
+La locomotora SVG usa `groove-coral`, `groove-blue`, `groove-mint`, `groove-amber`, `groove-gold`, `groove-rose` y `groove-green`. Se desplaza linealmente por los 16 pulsos según el reloj de audio. Con movimiento reducido queda fija y las traviesas siguen indicando el pulso activo y los recorridos con `groove-cream` y `groove-green`. Las pendientes usan `groove-sleeper`. El medidor de entrada usa `groove-paper`, `groove-blue` y `groove-green`.
 
 ### Escritura en Transcribir
 
@@ -237,7 +257,7 @@ El compás seleccionado usa fondo `pale` y borde verde. Un indicador sobre la ca
 
 Los diagramas del curso de armonía se dibujan con SVG sobre el panel blanco, con líneas de pentagrama `#A9B4A8`, tinta `ink` y verde para el paso activo. Las funciones tonales usan pares locales que reutilizan valores existentes y siempre acompañan a su nombre escrito: tónica `#295E43/#E8EFE7`, subdominante `#375B76/#E7EFF5`, dominante `#745437/#F3EBDF` y dominante secundario `#5B547E/#EDEAF5`. El semitono se distingue en ocre `#8A5A2E`.
 
-El único movimiento autorado es el cursor de paso: un fondo `pale` que viaja 260 ms con `cubic-bezier(0.16, 1, 0.3, 1)` hasta el elemento que suena, y un cabezal lineal en los ritmos. Con movimiento reducido salta sin desplazarse. La escala mínima es 0,8 para que el texto del diagrama no baje de unos 10 px; por debajo, el diagrama se desplaza en horizontal.
+En los diagramas, el cursor de paso es un fondo `pale` que viaja 260 ms con `cubic-bezier(0.16, 1, 0.3, 1)` hasta el elemento que suena, y un cabezal lineal en los ritmos. Con movimiento reducido salta sin desplazarse. La escala mínima es 0,8 para que el texto del diagrama no baje de unos 10 px; por debajo, el diagrama se desplaza en horizontal.
 
 ## Do's and Don'ts
 

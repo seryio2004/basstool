@@ -131,6 +131,54 @@ test('Supabase migration isolates each bassist, keeps attempts immutable and del
       );
     }
 
+    const oldGroove = { bpm: 95, level: 7, pattern: Array.from({ length: 16 }, (_, i) => i % 10) };
+    const rhythmReading = { bpm: 100, level: 3, pattern: [8, 9, 4, 2], reading: 'rhythm' };
+    const attemptSql =
+      'insert into public.attempts(user_id,module,correct,total,score,duration,config) values ($1,$2,1,1,100,5,$3)';
+    await db.query(attemptSql, [alice, 'groove', oldGroove]);
+    await db.query(attemptSql, [alice, 'reading', rhythmReading]);
+    await db.exec('reset role;');
+    await db.exec(
+      await readFile(
+        new URL('../supabase/migrations/202611190003_chord_train.sql', import.meta.url),
+        'utf8',
+      ),
+    );
+    await as(alice);
+    assert.deepEqual(
+      (await db.query('select config from public.attempts where module = $1', ['groove'])).rows,
+      [{ config: oldGroove }],
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select * from public.attempts where module = 'reading' and config->>'reading' = 'rhythm'",
+        )
+      ).rows.length,
+      1,
+    );
+    const chordTrain = {
+      bpm: 90,
+      level: 2,
+      pattern: Array(16).fill(0),
+      chords: Array(16).fill('F#m7b5'),
+      rhythmInput: 'mic',
+      rhythmVersion: 1,
+    };
+    await db.query(attemptSql, [alice, 'chord-train', chordTrain]);
+    for (const override of [
+      { level: 7 },
+      { chords: ['C'] },
+      { chords: Array(16).fill('X') },
+      { rhythmInput: null },
+      { pattern: [0] },
+    ]) {
+      await assert.rejects(
+        db.query(attemptSql, [alice, 'chord-train', { ...chordTrain, ...override }]),
+        /check constraint/,
+      );
+    }
+
     // Course progress keeps its validation.
     const answers = {
       'harmony-01-q1': 'Dos pulsos',

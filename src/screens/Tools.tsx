@@ -4,6 +4,7 @@ import { View, Text, Pressable, TextInput, Platform } from 'react-native';
 import { Button, Chips, Field, Icon, Label, colors, styles } from '../components/ui';
 import { audio, startTuner, TuningValue } from '../platform/audio';
 import { naturals, noteName, tuning } from '../core/music';
+import { arpeggios, majorProgressions, majorTriads } from '../core/theory';
 import { tunings } from '../core/instrument';
 import { targetString } from '../core/tuner';
 import { TunerError } from '../platform/tunerErrors';
@@ -354,9 +355,7 @@ function Chords() {
   const [root, setRoot] = useState('0'),
     [progression, setProgression] = useState('0,4,5,3'),
     [error, setError] = useState('');
-  const scale = [0, 2, 4, 5, 7, 9, 11],
-    roman = ['I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii°'];
-  const degrees = progression.split(',').map(Number);
+  const chords = majorTriads(60 + Number(root), progression);
   useEffect(() => () => audio.stop(), []);
   async function play() {
     try {
@@ -364,11 +363,9 @@ function Chords() {
       audio.stop();
       await audio.ready();
       const t = audio.now() + 0.1;
-      degrees.forEach((d, i) => {
-        const base = 60 + Number(root) + scale[d]!;
-        const minor = [1, 2, 5, 6].includes(d);
-        [base, base + (minor ? 3 : 4), base + (d === 6 ? 6 : 7)].forEach((n) =>
-          audio.tone(n, t + i * 0.8, 0.65, 0.08),
+      chords.forEach(({ root, quality }, i) => {
+        arpeggios[quality].tones.forEach(({ semitones }) =>
+          audio.tone(root + semitones, t + i * 0.8, 0.65, 0.08),
         );
       });
     } catch (e) {
@@ -388,17 +385,9 @@ function Chords() {
           .slice(0, 7)
           .map((n) => ({ value: String(n - 60), label: `${noteName(n)} mayor` }))}
       />
-      <Chips
-        value={progression}
-        onChange={setProgression}
-        options={[
-          { value: '0,4,5,3', label: 'I · V · vi · IV' },
-          { value: '1,4,0,0', label: 'ii · V · I · I' },
-          { value: '0,3,4,0', label: 'I · IV · V · I' },
-        ]}
-      />
+      <Chips value={progression} onChange={setProgression} options={majorProgressions} />
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingVertical: 20 }}>
-        {degrees.map((d, i) => (
+        {chords.map(({ root, quality, degree }, i) => (
           <View
             key={i}
             style={{
@@ -412,10 +401,10 @@ function Chords() {
             }}
           >
             <Text style={{ color: colors.green, fontSize: 30, fontWeight: '600' }}>
-              {noteName(60 + Number(root) + scale[d]!)}
-              {[1, 2, 5].includes(d) ? 'm' : d === 6 ? '°' : ''}
+              {noteName(root)}
+              {quality === 'minor' ? 'm' : quality === 'diminished' ? '°' : ''}
             </Text>
-            <Label muted>{roman[d]}</Label>
+            <Label muted>{degree}</Label>
           </View>
         ))}
       </View>
