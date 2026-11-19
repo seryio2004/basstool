@@ -20,8 +20,10 @@ import { exportScore } from '../platform/exportScore';
 import { printTab } from '../platform/printTab';
 import { PianoEntry, pianoKeys } from './PianoEntry';
 import { ChordEditor } from './ChordEditor';
-import { Fretboard } from './Fretboard';
+import { Fretboard, plainName } from './Fretboard';
 import { ScoreView, type ScoreFrame } from './ScoreView';
+import type { NoteGesture } from './ScoreNoteTarget';
+import { scoreDurationName } from '../core/scoreLayout';
 import type { Instrument } from '../core/instrument';
 import type { Nomenclature } from '../core/notation';
 import type {
@@ -31,6 +33,7 @@ import type {
   Meter,
   Score,
   ScoreDisplay,
+  ScoreNote,
   Technique,
 } from '../core/scoreTypes';
 import {
@@ -66,8 +69,17 @@ import {
   createScoreEditor,
   editScore,
   fillScoreMeasures,
+  moveNoteSelection,
+  moveNoteToString,
+  noteAtCursor,
+  notePositionAvailable,
   restoreScore,
+  selectNote,
   selectScoreCursor,
+  setNoteDuration,
+  setNotePosition,
+  transposeNote,
+  transposedPosition,
   updateScoreTimeMap,
 } from '../core/scoreEditor';
 import {
@@ -164,6 +176,7 @@ export function ScoreEditor({
     entry: React.ReactNode,
     alignment: React.ReactNode,
     onMoveMeasure: (index: number, time: number) => void,
+    interaction: { dragging: boolean; deselect: () => void },
   ) => React.JSX.Element;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
@@ -185,6 +198,11 @@ export function ScoreEditor({
   const [chordMode, setChordMode] = useState(false);
   const [lastNote, setLastNote] = useState<{ string: number; fret: number } | null>(null);
   const scoreRegion = useRef<React.ComponentRef<typeof View>>(null);
+  const entryRegion = useRef<React.ComponentRef<typeof View>>(null);
+  const toolsRegion = useRef<React.ComponentRef<typeof View>>(null);
+  const drag = useRef<{ score: Score; cursor: EditCursor; next?: ScoreNote } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [previewNote, setPreviewNote] = useState<ScoreNote>();
   const showCursor = useCallback(
     (cursor: ScoreFrame, system?: ScoreFrame) => {
       if (scoreRegion.current) onCursorFrame(scoreRegion.current, cursor, system);
@@ -212,6 +230,9 @@ export function ScoreEditor({
   const cursor = { ...position, string: Math.min(position.string, instrument.strings.length - 1) };
   const bar = score.measures[cursor.measure]!;
   const event = isMeasurePlaceholder(bar) ? undefined : bar.events[cursor.event];
+  const selectedNote =
+    editing && history.present.noteSelected ? noteAtCursor(score, position) : undefined;
+  const activeDuration = selectedNote && event ? event.duration : entryDuration;
   const timeRef = useRef(time);
   timeRef.current = time;
   const pendingSave = useRef<ScoreDoc | null>(null);
@@ -358,6 +379,29 @@ export function ScoreEditor({
     }
   };
   const select = (cursor: EditCursor) => setEditor((state) => selectScoreCursor(state, cursor));
+  const deselect = useCallback(() => {
+    setEditor((state) =>
+      state.history.present.noteSelected
+        ? selectScoreCursor(state, state.history.present.cursor)
+        : state,
+    );
+  }, []);
+  useEffect(() => {
+    if (!editing) deselect();
+  }, [editing, deselect]);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !selectedNote || typeof document === 'undefined') return;
+    const outside = (event: PointerEvent) => {
+      if (
+        ![scoreRegion, entryRegion, toolsRegion].some((region) =>
+          (region.current as unknown as HTMLElement | null)?.contains(event.target as Node),
+        )
+      )
+        deselect();
+    };
+    document.addEventListener('pointerdown', outside, true);
+    return () => document.removeEventListener('pointerdown', outside, true);
+  }, [selectedNote, deselect]);
 
   const pendingFret = useRef<{ value: string; timer: ReturnType<typeof setTimeout> | null }>({
     value: '',
@@ -376,6 +420,13 @@ export function ScoreEditor({
         setError('Traste fuera del instrumento.');
         return;
       }
+      if (selectedNote) {
+        const next = { string, fret };
+        if (notePositionAvailable(score, position, next, instrument))
+          run((s, c) => setNotePosition(s, c, next, instrument));
+        else setError('Esa cuerda ya tiene una nota en el acorde.');
+        return;
+      }
       const duration = durationRef.current;
       run((s, c) =>
         chordMode
@@ -384,7 +435,7 @@ export function ScoreEditor({
       );
       setLastNote({ string, fret });
     },
-    [cursor.string, instrument, loaded, run, chordMode],
+    [cursor.string, instrument, loaded, run, chordMode, selectedNote, score, position],
   );
   const writePitch = useCallback(
     (midi: number) => {
@@ -392,12 +443,18 @@ export function ScoreEditor({
         instrument,
         midi,
         preference,
-        chordMode ? eventNotes(event).map((n) => n.string) : [],
+        selectedNote
+          ? eventNotes(event)
+              .filter((n) => n.string !== selectedNote.string)
+              .map((n) => n.string)
+          : chordMode
+            ? eventNotes(event).map((n) => n.string)
+            : [],
       );
       if (pos) writeNote(pos.fret, pos.string);
       else setError('Altura fuera del mástil.');
     },
-    [instrument, preference, writeNote, chordMode, event],
+    [instrument, preference, writeNote, chordMode, event, selectedNote],
   );
   const latestWrite = useRef(writeNote);
   latestWrite.current = writeNote;
@@ -415,11 +472,26 @@ export function ScoreEditor({
   const changeFigure = useCallback(
     (change: (current: Duration) => Duration) => {
       flushFret();
+      if (selectedNote) {
+        run((s, c) => {
+          const duration = s.measures[c.measure]?.events[c.event]?.duration;
+          if (!duration) return { score: s, cursor: c };
+          const next = change(duration);
+          return next === duration
+            ? { score: s, cursor: c }
+            : setNoteDuration(s, c, {
+                ...next,
+                base: next.base > 16 ? 16 : next.base,
+                tuplet: next.tuplet === 15 ? undefined : next.tuplet,
+              });
+        });
+        return;
+      }
       const next = change(durationRef.current);
       durationRef.current = next;
       setEntryDuration(next);
     },
-    [flushFret],
+    [flushFret, selectedNote, run],
   );
   const writeRest = useCallback(() => {
     flushFret();
@@ -428,6 +500,10 @@ export function ScoreEditor({
   }, [flushFret, run]);
   const erase = useCallback(
     (backward: boolean) => {
+      if (selectedNote) {
+        run((s, c) => setChordNote(s, c, null, durationRef.current, instrument));
+        return;
+      }
       run((s, c) =>
         chordMode
           ? setChordNote(s, c, null, durationRef.current, instrument)
@@ -435,8 +511,72 @@ export function ScoreEditor({
       );
       setLastNote(null);
     },
-    [run, chordMode, instrument],
+    [run, chordMode, instrument, selectedNote],
   );
+  const seekEvent = (c: EditCursor) => {
+    const e = score.measures[c.measure]?.events[c.event];
+    const timed = e && timeline.find((t) => t.id === e.id);
+    if (timed) onSeekNote(timed.start);
+  };
+  const pickNote = (c: EditCursor) => {
+    takeFret();
+    setEditor((state) => selectNote(state, c));
+  };
+  const noteGesture: NoteGesture = {
+    select(c) {
+      pickNote(c);
+      seekEvent(c);
+    },
+    start(c) {
+      if (drag.current) return;
+      drag.current = { score, cursor: c };
+      setDragging(true);
+      pickNote(c);
+    },
+    preview(c, surface, dy) {
+      const active = drag.current;
+      if (!active || active.cursor !== c) return;
+      // A tablature row is 14 px; an octave on the staff spans seven 5 px steps.
+      const string = Math.max(
+        0,
+        Math.min(instrument.strings.length - 1, c.string + Math.round(-dy / 14)),
+      );
+      const next =
+        surface === 'tab'
+          ? moveNoteToString(active.score, c, instrument, string)
+          : transposedPosition(active.score, c, instrument, Math.round((-dy * 12) / 35), false);
+      if (next?.string === active.next?.string && next?.fret === active.next?.fret) return;
+      active.next = next;
+      setPreviewNote(next);
+    },
+    finish(c, commit) {
+      const active = drag.current;
+      if (!active || active.cursor !== c) return;
+      drag.current = null;
+      setDragging(false);
+      setPreviewNote(undefined);
+      const next = active.next;
+      if (commit && next) {
+        run((s, c) =>
+          s === active.score
+            ? setNotePosition(s, active.cursor, next, instrument)
+            : { score: s, cursor: c },
+        );
+      }
+    },
+    fret(c, step) {
+      if (
+        !selectedNote ||
+        dragging ||
+        c.measure !== cursor.measure ||
+        c.event !== cursor.event ||
+        c.string !== cursor.string
+      )
+        return false;
+      run((s, current) => transposeNote(s, current, instrument, step, true));
+      return true;
+    },
+  };
   useEffect(() => {
     if (Platform.OS !== 'web' || !editing || !loaded || typeof document === 'undefined') return;
     const moves: Record<string, Parameters<typeof moveCursor>[2]> = {
@@ -457,6 +597,7 @@ export function ScoreEditor({
       const key = e.key;
       const lower = key.toLowerCase();
       const mod = e.metaKey || e.ctrlKey;
+      if (dragging) return;
       if (mod && lower === 'z') {
         e.preventDefault();
         flushFret();
@@ -464,7 +605,29 @@ export function ScoreEditor({
         setLastNote(null);
         return;
       }
-      if (mod || e.altKey) return;
+      if (mod) return;
+      if (e.altKey) {
+        if (selectedNote && (key === 'ArrowUp' || key === 'ArrowDown')) {
+          e.preventDefault();
+          takeFret();
+          run((s, c) => transposeNote(s, c, instrument, key === 'ArrowUp' ? 1 : -1, true));
+        }
+        return;
+      }
+      if (key === 'Tab') {
+        const region = scoreRegion.current as unknown as HTMLElement | null;
+        if (!region?.contains(target) && !(selectedNote && target === document.body)) return;
+        const next =
+          !selectedNote && noteAtCursor(score, position)
+            ? position
+            : moveNoteSelection(score, position, e.shiftKey ? 'left' : 'right');
+        if (next) {
+          e.preventDefault();
+          takeFret();
+          setEditor((state) => selectNote(state, next));
+        }
+        return;
+      }
       if (lower === 'c') {
         e.preventDefault();
         if (!e.repeat) {
@@ -473,7 +636,13 @@ export function ScoreEditor({
         }
         return;
       }
-      if (input === 'piano' && pianoKeys.includes(lower) && lower.length === 1) {
+      const base = ENTRY_BASES[figureKeys.indexOf(lower)];
+      if (
+        input === 'piano' &&
+        pianoKeys.includes(lower) &&
+        lower.length === 1 &&
+        !(selectedNote && (base || lower === 't'))
+      ) {
         e.preventDefault();
         if (!e.repeat) writePitch(pianoBase + pianoKeys.indexOf(lower));
         return;
@@ -487,18 +656,28 @@ export function ScoreEditor({
         else p.timer = setTimeout(flushFret, 600);
         return;
       }
-      const base = ENTRY_BASES[figureKeys.indexOf(lower)];
       const move = moves[key];
       if (move) {
         e.preventDefault();
+        const pending = !!pendingFret.current.value;
         flushFret();
         setEditor((state) => {
-          const { score, cursor } = state.history.present;
+          const { score, cursor, noteSelected } = state.history.present;
+          if (
+            !pending &&
+            (move === 'left' ||
+              move === 'right' ||
+              (noteSelected && (move === 'up' || move === 'down')))
+          ) {
+            const next = moveNoteSelection(score, cursor, move);
+            if (next) return selectNote(state, next);
+            if (noteSelected) return state;
+          }
           return selectScoreCursor(state, moveCursor(score, cursor, move, instrument));
         });
       } else if (base || key === '+' || key === '-' || key === '.' || lower === 't') {
         e.preventDefault();
-        const editSelected = !base && !pendingFret.current.value;
+        const editAtCursor = !selectedNote && !base && !pendingFret.current.value;
         changeFigure((d) => {
           if (base) return { ...d, base };
           if (key === '.') return { ...d, dots: d.dots ? 0 : 1 };
@@ -506,7 +685,7 @@ export function ScoreEditor({
             return { ...d, tuplet: undefined, triplet: !(d.triplet || d.tuplet === 3) };
           return stepEntryDuration(d, key === '+' ? 'longer' : 'shorter');
         });
-        if (editSelected) {
+        if (editAtCursor) {
           if (key === '.') adjustEvent(toggleDot);
           else if (lower === 't') adjustEvent(toggleTriplet);
           else
@@ -530,7 +709,13 @@ export function ScoreEditor({
           flushFret();
           erase(key === 'Backspace');
         }
-      } else if (key === 'Escape') onEditingChange(false);
+      } else if (key === 'Escape') {
+        if (selectedNote) {
+          e.preventDefault();
+          takeFret();
+          deselect();
+        } else onEditingChange(false);
+      }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -548,6 +733,12 @@ export function ScoreEditor({
     erase,
     instrument,
     onEditingChange,
+    selectedNote,
+    score,
+    position,
+    dragging,
+    deselect,
+    run,
   ]);
 
   const suggestAudio = useMemo(() => {
@@ -616,18 +807,18 @@ export function ScoreEditor({
         <EntryKey
           key={base}
           label={figureLabels[i]!}
-          selected={entryDuration.base === base}
+          selected={activeDuration.base === base}
           onPress={() => changeFigure((d) => ({ ...d, base }))}
         >
           <Figure
             base={base}
-            color={entryDuration.base === base ? colors.onAccent : colors.accentText}
+            color={activeDuration.base === base ? colors.onAccent : colors.accentText}
           />
         </EntryKey>
       ))}
       <EntryKey
         label="Puntillo"
-        selected={!!entryDuration.dots}
+        selected={!!activeDuration.dots}
         onPress={() => changeFigure((d) => ({ ...d, dots: d.dots ? 0 : 1 }))}
       >
         <Svg width={24} height={24} viewBox="0 0 24 24" aria-hidden>
@@ -635,12 +826,12 @@ export function ScoreEditor({
             cx={12}
             cy={12}
             r={2.5}
-            fill={entryDuration.dots ? colors.onAccent : colors.accent}
+            fill={activeDuration.dots ? colors.onAccent : colors.accent}
           />
         </Svg>
       </EntryKey>
       {([3, 5] as const).map((count) => {
-        const selected = (entryDuration.tuplet ?? (entryDuration.triplet ? 3 : 1)) === count;
+        const selected = tupletCount(activeDuration) === count;
         return (
           <EntryKey
             key={count}
@@ -650,7 +841,7 @@ export function ScoreEditor({
               changeFigure((d) => ({
                 ...d,
                 triplet: undefined,
-                tuplet: selected ? undefined : count,
+                tuplet: tupletCount(d) === count ? undefined : count,
               }))
             }
           >
@@ -805,10 +996,11 @@ export function ScoreEditor({
           {input === 'piano'
             ? 'Piano: A W S E D F T G Y H U J, desde Do hasta Si.'
             : 'Números · traste.'}{' '}
-          C · modo Acorde. Flechas · cursor. +/− · figura. . · puntillo.{' '}
-          {input === 'neck' ? 'T · tresillo. ' : ''} R · silencio. L · ligadura. Supr · borrar
-          selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer (Mayús · rehacer). Esc ·
-          salir.
+          Tab, Mayús+Tab o ←/→ · recorrer notas. ↑/↓ · elegir cuerda del acorde. Alt+↑/↓ · cambiar
+          traste. W/H/Q/E/S o +/− · figura. . · puntillo. T · tresillo. Con una nota seleccionada,
+          las figuras tienen prioridad sobre las teclas del piano. C · modo Acorde. R · silencio. L
+          · ligadura. Supr · borrar selección. Retroceso · borrar anterior. Ctrl+Z o ⌘Z · deshacer
+          (Mayús · rehacer). Esc · deseleccionar o salir.
         </Label>
       ) : null}
       {tools === 'techniques' && eventNotes(event).length > 0 ? (
@@ -861,7 +1053,13 @@ export function ScoreEditor({
             <Button
               variant="ghost"
               disabled={!event}
-              onPress={() => adjustEvent((s, c) => setDuration(s, c, durationRef.current))}
+              onPress={() =>
+                adjustEvent((s, c) =>
+                  selectedNote
+                    ? setNoteDuration(s, c, durationRef.current)
+                    : setDuration(s, c, durationRef.current),
+                )
+              }
             >
               Aplicar figura
             </Button>
@@ -898,17 +1096,29 @@ export function ScoreEditor({
         const length = durationValue(item.duration);
         return offset + (length.n * currentMeter.unit) / length.d;
       }, 0);
-  const figure = figureLabels[ENTRY_BASES.indexOf(entryDuration.base)];
-  const tuplet = tupletCount(entryDuration);
-  const figureName = `${figure}${entryDuration.dots ? ' con puntillo' : ''}${
-    tuplet === 3 ? ' en tresillo' : tuplet === 5 ? ' en quintillo' : ''
-  }`;
+  const figureName = scoreDurationName(activeDuration);
+  const noteSummary = selectedNote
+    ? `Nota seleccionada: ${plainName(instrument.strings[selectedNote.string]! + selectedNote.fret, nomenclature)}, cuerda ${instrument.strings.length - selectedNote.string}, traste ${selectedNote.fret} · ${figureName}`
+    : '';
+  const selectedLabel = (
+    <Text
+      accessibilityLiveRegion="polite"
+      aria-live="polite"
+      aria-atomic
+      style={[styles.muted, { color: theme.accentText }, !noteSummary && { position: 'absolute' }]}
+    >
+      {noteSummary}
+    </Text>
+  );
+  const keepSelection =
+    Platform.OS === 'web' ? undefined : (e: { stopPropagation: () => void }) => e.stopPropagation();
   const entryToggleLabel = entryExpanded ? 'Ocultar teclado' : 'Mostrar teclado';
   const entry =
     editing && loaded ? (
       wide ? (
-        <View style={{ gap: 6 }}>
+        <View ref={entryRegion} onTouchStart={keepSelection} style={{ gap: 6 }}>
           {entryStatus}
+          {selectedLabel}
           {figureControls}
           {inputSelector}
           {input === 'piano' ? (
@@ -921,16 +1131,23 @@ export function ScoreEditor({
           {entryActions}
         </View>
       ) : (
-        <View style={{ flexShrink: 1, minHeight: 0, gap: space.xs }}>
+        <View
+          ref={entryRegion}
+          onTouchStart={keepSelection}
+          style={{ flexShrink: 1, minHeight: 0, gap: space.xs }}
+        >
           <View
             accessibilityRole="toolbar"
             accessibilityLabel="Panel de escritura"
             style={{ flexDirection: 'row', alignItems: 'center', gap: space.s, flexShrink: 0 }}
           >
             <View style={{ flex: 1 }}>
-              <Text style={[styles.muted, { color: theme.ink }]}>
-                Compás {cursor.measure + 1} · Pulso {pulseFormat.format(pulse)} · {figureName}
-              </Text>
+              {!selectedNote ? (
+                <Text style={[styles.muted, { color: theme.ink }]}>
+                  Compás {cursor.measure + 1} · Pulso {pulseFormat.format(pulse)} · {figureName}
+                </Text>
+              ) : null}
+              {selectedLabel}
               {history.present.notice ? (
                 <Text accessibilityLiveRegion="polite" style={styles.muted}>
                   {notices[history.present.notice]}
@@ -969,10 +1186,11 @@ export function ScoreEditor({
             style={{ flexGrow: 0, minHeight: 0 }}
             contentContainerStyle={{ gap: space.s }}
           >
+            {selectedNote ? figureControls : null}
             {input === 'piano' ? piano : fretboard}
             {entryExpanded ? (
               <>
-                {figureControls}
+                {!selectedNote ? figureControls : null}
                 {inputSelector}
                 {entryActions}
                 {entryStatus}
@@ -1052,11 +1270,22 @@ export function ScoreEditor({
         </View>
       </MoreMenu>
 
-      {wide && editing && loaded ? editorTools : null}
+      {wide && editing && loaded ? (
+        <View ref={toolsRegion} onTouchStart={keepSelection}>
+          {editorTools}
+        </View>
+      ) : null}
 
       <View
         ref={scoreRegion}
         collapsable={false}
+        onTouchStart={keepSelection}
+        tabIndex={Platform.OS === 'web' && editing ? 0 : undefined}
+        accessibilityLabel={
+          editing
+            ? 'Partitura y tablatura. Usa las flechas o Tab para seleccionar notas.'
+            : undefined
+        }
         onLayout={(e) => {
           setWidth(e.nativeEvent.layout.width);
         }}
@@ -1069,6 +1298,11 @@ export function ScoreEditor({
             width={width}
             playhead={playhead}
             cursor={editing ? cursor : null}
+            noteGesture={editing ? noteGesture : undefined}
+            selectedNote={selectedNote ? position : undefined}
+            previewNote={previewNote}
+            dragging={dragging}
+            onPressBackground={selectedNote ? deselect : undefined}
             onCursorFrame={editing ? showCursor : undefined}
             followCursorSystem={!wide}
             onPressEvent={(c) => {
@@ -1201,6 +1435,7 @@ export function ScoreEditor({
       </View>
     ) : null,
     moveMarker,
+    { dragging, deselect },
   );
 }
 

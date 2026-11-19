@@ -41,6 +41,7 @@ export type EventGeometry = {
   heads: {
     string: number;
     fret: number;
+    name: string;
     x: number;
     y: number;
     tabY?: number;
@@ -143,6 +144,12 @@ const durationNames: Record<number, string> = {
   256: 'figura de subdivisión',
   64: 'semifusa',
 };
+export function scoreDurationName(duration: ScoreEvent['duration']): string {
+  const tuplet = tupletCount(duration);
+  return `${durationNames[duration.base]}${duration.dots ? ' con puntillo' : ''}${
+    tuplet === 5 ? ' en quintillo' : tuplet === 3 ? ' en tresillo' : ''
+  }`;
+}
 const line = (
   x1: number,
   y1: number,
@@ -457,6 +464,7 @@ export function layoutScore(
           accidentals.set(pitch.step, pitch.alter);
           return {
             ...note,
+            name: pitch.name,
             step: pitch.step,
             accidental,
             accidentalX: accidental ? ex + 12 * columns++ : ex,
@@ -480,7 +488,7 @@ export function layoutScore(
               `cuerda ${spellPitch(instrument.strings[note.string]!, 0).name} traste ${note.fret}`,
           )
           .join(', ');
-        const label = `Compás ${b.index + 1}, ${name}${fingers ? ', ' + fingers : ''}, ${durationNames[e.duration.base]}${e.duration.dots ? ' con puntillo' : ''}${tupletCount(e.duration) === 5 ? ', quintillo' : tupletCount(e.duration) === 3 ? ', tresillo' : ''}`;
+        const label = `Compás ${b.index + 1}, ${name}${fingers ? ', ' + fingers : ''}, ${scoreDurationName(e.duration)}`;
         const geom: EventGeometry = {
           heads,
           event,

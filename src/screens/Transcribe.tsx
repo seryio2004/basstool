@@ -129,13 +129,19 @@ export function Transcribe({
     },
     [viewportHeight],
   );
-  const frame = (body: React.ReactNode, entry?: React.ReactNode) => (
+  const frame = (
+    body: React.ReactNode,
+    entry?: React.ReactNode,
+    interaction?: { dragging: boolean; deselect: () => void },
+  ) => (
     <View
       style={{ flex: 1, minHeight: 0 }}
       onLayout={wide ? undefined : (event) => setFrameHeight(event.nativeEvent.layout.height)}
+      onTouchStart={Platform.OS === 'web' ? undefined : interaction?.deselect}
     >
       <ScrollView
         ref={scroll}
+        scrollEnabled={Platform.OS === 'web' || !interaction?.dragging}
         onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
         onScroll={(e) => {
           scrollY.current = e.nativeEvent.contentOffset.y;
@@ -849,7 +855,7 @@ export function Transcribe({
       fretboardHeight={Math.max(100, Math.min(294, height - 475))}
       playing={playing}
       onTogglePlayback={toggle}
-      renderLayout={(score, entry, alignment, onMoveMeasure) =>
+      renderLayout={(score, entry, alignment, onMoveMeasure, interaction) =>
         frame(
           <>
             <Heading level={1} style={styles.title}>
@@ -860,6 +866,7 @@ export function Transcribe({
             {songTools}
           </>,
           entry,
+          interaction,
         )
       }
     />
