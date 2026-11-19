@@ -19,6 +19,7 @@ test('sessions start with neutral settings; rate and transpose clamp and round i
       duration: 65.3,
       position: 0,
       rate: 1,
+      volume: 1,
       transpose: 0,
       bass: 'off',
       loop: null,
@@ -152,6 +153,15 @@ test('nonfinite numeric input is rejected throughout the core', () => {
   assert.throws(() => core.newSession({ id: 'x', name: 'x', duration: -1 }));
 });
 
+test('session volume defaults to full and clamps finite input', () => {
+  const s = session();
+  assert.equal(s.volume, 1);
+  assert.equal(core.setVolume(s, 0.37).volume, 0.37);
+  assert.equal(core.setVolume(s, -0.1).volume, 0);
+  assert.equal(core.setVolume(s, 1.5).volume, 1);
+  assert.throws(() => core.setVolume(s, NaN), RangeError);
+});
+
 test('AsyncStorage sessions recover from corrupt data, retain metadata only and serialize concurrent saves', async (t) => {
   let stored: string | null = null;
   t.mock.method(AsyncStorage, 'getItem', async (key: string) => {
@@ -168,7 +178,18 @@ test('AsyncStorage sessions recover from corrupt data, retain metadata only and 
     stored = value;
     assert.deepEqual(await listSessions(), []);
   }
-  const s = core.addMarker(core.setLoopStart(session(), 10), 4);
+  const s = core.setVolume(core.addMarker(core.setLoopStart(session(), 10), 4), 0.35);
+  const { volume: _, ...legacy } = s;
+  stored = JSON.stringify([
+    legacy,
+    { ...s, id: 'muted', volume: 0 },
+    ...[-0.1, 1.1, null, '0.35'].map((volume, i) => ({ ...s, id: `invalid-volume-${i}`, volume })),
+  ]);
+  assert.deepEqual(await listSessions(), [
+    { ...legacy, volume: 1 },
+    { ...s, id: 'muted', volume: 0 },
+  ]);
+  stored = null;
   await saveSession({ ...s, audio: 'DO NOT STORE', peaks: [1] } as core.Session);
   assert.deepEqual(await loadSession(s.id), s);
   assert.ok(!stored!.includes('DO NOT STORE') && !stored!.includes('peaks'));
@@ -276,6 +297,7 @@ function browser(t: TestContext) {
     closes = 0;
     source = new Node();
     filter = new Filter();
+    output = Object.assign(new Node(), { gain: { value: 1 } });
     fail = false;
     constructor() {
       contexts.push(this);
@@ -302,6 +324,9 @@ function browser(t: TestContext) {
     }
     createBiquadFilter() {
       return this.filter;
+    }
+    createGain() {
+      return this.output;
     }
   }
   const replace = (name: string, value: unknown) => {
@@ -386,7 +411,17 @@ test('web player uses local blobs, preserves pitch, applies bass filters, loops 
   assert.equal(el.src, 'blob:local-1');
   assert.equal(el.preservesPitch, true);
   assert.deepEqual(ctx.source.connections, [ctx.filter]);
-  assert.deepEqual(ctx.filter.connections, [ctx.destination]);
+  assert.deepEqual(ctx.filter.connections, [ctx.output]);
+  assert.deepEqual(ctx.output.connections, [ctx.destination]);
+  assert.equal(ctx.output.gain.value, 1);
+  p.setVolume(0.42);
+  assert.equal(ctx.output.gain.value, 0.42);
+  p.setVolume(NaN);
+  assert.equal(ctx.output.gain.value, 0.42);
+  p.setVolume(-1);
+  assert.equal(ctx.output.gain.value, 0);
+  p.setVolume(2);
+  assert.equal(ctx.output.gain.value, 1);
   p.setRate(0.51);
   assert.equal(el.playbackRate, 0.5);
   p.setRate(3);
@@ -445,6 +480,7 @@ test('web player uses local blobs, preserves pitch, applies bass filters, loops 
   assert.deepEqual(b.revoked, ['blob:local-1']);
   assert.equal(ctx.closes, 1);
   assert.equal(ctx.source.disconnected, true);
+  assert.equal(ctx.output.disconnected, true);
   p.unload();
   p.unload();
   assert.deepEqual(b.revoked, ['blob:local-1', 'blob:local-2']);

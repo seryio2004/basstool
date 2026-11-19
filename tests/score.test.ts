@@ -46,7 +46,7 @@ test('default measures, inherited meter and exact fill including unusual meters'
     assert.equal(s.measureFill(s.emptyScore(meter), 0).status, 'full');
   const changed = s.setMeter(score, 1, { beats: 3, unit: 4 });
   assert.deepEqual(s.measureMeter(changed, 3), { beats: 3, unit: 4 });
-  assert.equal(s.measureFill(changed, 1).status, 'over');
+  assert.equal(s.measureFill(changed, 1).status, 'full');
   assert.deepEqual(score.meter, { beats: 4, unit: 4 });
   assert.equal(s.ensureMeasures(score, 8).measures.length, 8);
   assert.equal(s.ensureMeasures(score, 2), score);
@@ -236,4 +236,102 @@ test('parse rejects dangling ties and techniques on rests', () => {
   const rest = s.emptyScore();
   rest.measures[0]!.events[0]!.technique = 'slide';
   assert.equal(s.parseScore(rest), null);
+});
+
+test('a full 4/4, 3/4 or 6/8 bar advances the next insertion in order', () => {
+  for (const [meter, count, duration] of [
+    [{ beats: 4, unit: 4 }, 4, quarter],
+    [{ beats: 4, unit: 4 }, 2, { base: 2, dots: 0 }],
+    [{ beats: 4, unit: 4 }, 8, { base: 8, dots: 0 }],
+    [{ beats: 3, unit: 4 }, 3, quarter],
+    [{ beats: 6, unit: 8 }, 6, { base: 8, dots: 0 }],
+  ] as const) {
+    let edit: s.Edit = { score: s.emptyScore(meter, 1), cursor };
+    for (let i = 0; i < count; i++)
+      edit = s.insertNote(edit.score, edit.cursor, i, duration, instrument);
+    assert.equal(s.measureFill(edit.score, 0).status, 'full');
+    const next = s.insertNote(edit.score, edit.cursor, 12, duration, instrument);
+    assert.equal(next.score.measures.length, 2);
+    assert.deepEqual(next.cursor, { ...cursor, measure: 1, event: 1 });
+    assert.deepEqual(next.score.measures[0]!.events, edit.score.measures[0]!.events);
+  }
+});
+
+test('dotted notes and rests split at the barline without losing time', () => {
+  const first = s.insertNote(
+    s.emptyScore({ beats: 6, unit: 8 }, 1),
+    cursor,
+    2,
+    { base: 2, dots: 0 },
+    instrument,
+  );
+  const dotted = { base: 4, dots: 1 } as const;
+  for (const result of [
+    s.insertNote(first.score, first.cursor, 5, dotted, instrument),
+    s.insertRest(first.score, first.cursor, dotted),
+  ]) {
+    const a = result.score.measures[0]!.events[1]!;
+    const b = result.score.measures[1]!.events[0]!;
+    assert.equal(result.notice, 'split');
+    assert.equal(s.measureFill(result.score, 0).status, 'full');
+    assert.equal(b.tie, undefined);
+    assert.equal(a.tie, a.note ? true : undefined);
+    assert.deepEqual(a.note, b.note);
+    assert.deepEqual(
+      s.addF(s.durationValue(a.duration), s.durationValue(b.duration)),
+      s.durationValue(dotted),
+    );
+    assert.deepEqual(result.cursor, { ...cursor, measure: 1, event: 1 });
+  }
+});
+
+test('editing a figure or meter redistributes events and legacy overflow can be repaired', () => {
+  let edit: s.Edit = { score: s.emptyScore(undefined, 2), cursor };
+  for (let i = 0; i < 4; i++) edit = s.insertNote(edit.score, edit.cursor, i, quarter, instrument);
+  const last = { ...cursor, event: 3 };
+  for (const change of [
+    s.setDuration(edit.score, last, { base: 2, dots: 0 }),
+    s.toggleDot(edit.score, last),
+    s.toggleTriplet(edit.score, last),
+    s.changeMeasureMeter(edit.score, cursor, { beats: 3, unit: 4 }),
+  ]) {
+    assert.ok(
+      change.score.measures.every((_, i) => s.measureFill(change.score, i).status !== 'over'),
+    );
+  }
+  const contracted = s.changeMeasureMeter(edit.score, cursor, { beats: 7, unit: 8 });
+  assert.equal(contracted.notice, 'reflow');
+  assert.equal(contracted.score.measures[0]!.events.at(-1)!.tie, true);
+  assert.equal(contracted.score.measures[1]!.events[0]!.note!.fret, 3);
+  const legacy = {
+    ...edit.score,
+    measures: [
+      { ...edit.score.measures[0]!, meter: { beats: 3, unit: 4 } as const },
+      edit.score.measures[1]!,
+    ],
+  };
+  assert.equal(s.measureFill(s.parseScore(legacy)!, 0).status, 'over');
+  const repaired = s.repairMeasure(legacy, cursor);
+  assert.equal(s.measureFill(repaired.score, 0).status, 'full');
+  assert.equal(repaired.score.measures[1]!.events[0]!.note!.fret, 3);
+});
+
+test('mixed triplets and dots can split on an exact 1/96 boundary and survive parsing', () => {
+  const dotted = { base: 16, dots: 1 } as const; // 9/96
+  const triplet = { base: 16, dots: 0, triplet: true } as const; // 4/96
+  // 9 + 2×4 + 6 = 23/96 in a 24/96 measure.
+  let edit: s.Edit = { score: s.emptyScore({ beats: 1, unit: 4 }, 1), cursor };
+  for (const duration of [dotted, triplet, triplet, { base: 16, dots: 0 } as const])
+    edit = s.insertRest(edit.score, edit.cursor, duration);
+  const split = s.insertNote(edit.score, edit.cursor, 9, triplet, instrument);
+  assert.equal(split.notice, 'split');
+  assert.equal(s.measureFill(split.score, 0).status, 'full');
+  const before = split.score.measures[0]!.events.at(-1)!;
+  assert.deepEqual(s.durationValue(before.duration), s.fraction(1, 96));
+  assert.equal(before.tie, true);
+  const after = split.score.measures[1]!.events[0]!;
+  assert.deepEqual(s.durationValue(after.duration), s.fraction(1, 32));
+  const roundTrip = s.parseScore(JSON.parse(JSON.stringify(split.score)))!;
+  assert.equal(s.measureFill(roundTrip, 0).status, 'full');
+  assert.equal(roundTrip.measures[0]!.events.at(-1)!.tie, true);
 });

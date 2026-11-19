@@ -12,6 +12,7 @@ export function createPlayer(): Player {
     pause() {},
     seek() {},
     setRate() {},
+    setVolume() {},
     setLoop() {},
     setBass() {},
     setTranspose() {},

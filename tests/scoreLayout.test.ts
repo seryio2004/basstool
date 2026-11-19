@@ -214,3 +214,21 @@ test('triplets and accidentals remain legible in incomplete mobile bars', () => 
         assert.ok(m.events[i]!.x - m.events[i - 1]!.x >= 14);
       }
 });
+
+test('editable note and append targets reserve 44 px with accidentals', () => {
+  const score = scoreOf([29, 30, 29, 31, 35, 36], 16, undefined, 2);
+  for (const width of [390, 1200]) {
+    const layout = layoutScore(score, instrument, 'both', width, 0, true);
+    for (const line of layout.lines) {
+      for (const measure of line.measures) {
+        let left = measure.x;
+        for (const [i, event] of measure.events.entries()) {
+          const right = (event.x + (measure.events[i + 1]?.x ?? event.endX)) / 2;
+          assert.ok(right - left >= 44);
+          left = right;
+        }
+        assert.ok(measure.x + measure.width - left >= 44);
+      }
+    }
+  }
+});

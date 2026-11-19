@@ -7,6 +7,7 @@ export type Session = {
   duration: number;
   position: number;
   rate: number;
+  volume: number;
   transpose: number;
   bass: BassMode;
   loop: Loop | null;
@@ -35,6 +36,7 @@ export function newSession(audio: { id: string; name: string; duration: number }
     duration: audio.duration,
     position: 0,
     rate: 1,
+    volume: 1,
     transpose: 0,
     bass: 'off',
     loop: null,
@@ -47,6 +49,10 @@ export function clampTime(session: Session, time: number): number {
 }
 export function setRate(session: Session, rate: number): Session {
   return update(session, { rate: Math.round(clamp(rate, RATE_MIN, RATE_MAX) * 20) / 20 });
+}
+export function setVolume(session: Session, volume: number): Session {
+  const next = clamp(volume, 0, 1);
+  return next === session.volume ? session : update(session, { volume: next });
 }
 export function setTranspose(session: Session, semitones: number): Session {
   return update(session, { transpose: Math.round(clamp(semitones, -12, 12)) });

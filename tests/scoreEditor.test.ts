@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { tunings } from '../src/core/instrument';
-import { emptyScore, insertNote, redo, setMeter, undo } from '../src/core/score';
+import { emptyScore, insertNote, insertRest, redo, setMeter, undo } from '../src/core/score';
 import {
+  advanceAfterEntry,
+  entryMeasureFill,
+  eraseEntry,
+  stepEntryDuration,
   createScoreEditor,
   editScore,
   fillScoreMeasures,
@@ -61,4 +65,51 @@ test('fill from the current audio position uses the meter there and retains earl
   const filled = fillScoreMeasures(state, 3, tempo.bpm, 9);
   assert.deepEqual(filled.timeMap, { measures: [1, 3, 4.5, 6, 7.5, 9], beats: [2] });
   assert.equal(filled.history.present.score.measures.length, 6);
+});
+
+test('entry duration steps between supported figures and preserves its modifiers', () => {
+  const duration = { base: 8, dots: 1, triplet: true } as const;
+  assert.deepEqual(stepEntryDuration(duration, 'longer'), { ...duration, base: 4 });
+  assert.deepEqual(stepEntryDuration(duration, 'shorter'), { ...duration, base: 16 });
+  assert.equal(stepEntryDuration({ base: 1, dots: 0 }, 'longer').base, 1);
+  assert.equal(stepEntryDuration({ base: 16, dots: 0 }, 'shorter').base, 16);
+});
+
+test('writing crosses exact bar lines in one undo step and keeps authored rests', () => {
+  const initial = createScoreEditor(emptyScore({ beats: 2, unit: 4 }, 1));
+  const quarter = { base: 4, dots: 0 } as const;
+  const write = (state: typeof initial) =>
+    editScore(state, (s, c) => advanceAfterEntry(insertRest(s, c, quarter)));
+  assert.equal(entryMeasureFill(initial.history.present.score, 0).status, 'empty');
+  const first = write(initial);
+  assert.equal(entryMeasureFill(first.history.present.score, 0).status, 'short');
+  assert.deepEqual(first.history.present.cursor, { measure: 0, event: 1, string: 1 });
+  const second = write(first);
+  assert.equal(entryMeasureFill(second.history.present.score, 0).status, 'full');
+  assert.equal(entryMeasureFill(second.history.present.score, 1).status, 'empty');
+  assert.deepEqual(second.history.present.cursor, { measure: 1, event: 0, string: 1 });
+  assert.deepEqual(restoreScore(second, undo).history.present, first.history.present);
+  const { score, cursor } = second.history.present;
+  const inserted = insertNote(score, { ...cursor, measure: 0 }, 2, quarter, tunings.standard4);
+  assert.equal(entryMeasureFill(inserted.score, 0).status, 'full');
+  assert.equal(entryMeasureFill(inserted.score, 1).status, 'short');
+  assert.deepEqual(inserted.cursor, { ...cursor, event: 1 });
+  assert.equal(inserted.score.measures[0]!.events.filter((e) => !e.note).length, 2);
+  const erased = eraseEntry(score, cursor, true);
+  assert.deepEqual(erased.cursor, { measure: 0, event: 1, string: 1 });
+  assert.equal(erased.score.measures[0]!.events.length, 1);
+  assert.equal(eraseEntry(score, cursor, false).score, score);
+});
+
+test('changing the meter of an untouched bar keeps its first note at beat zero', () => {
+  const score = setMeter(emptyScore(undefined, 1), 0, { beats: 3, unit: 4 });
+  const edit = insertNote(
+    score,
+    { measure: 0, event: 0, string: 0 },
+    7,
+    { base: 4, dots: 0 },
+    tunings.standard4,
+  );
+  assert.equal(edit.score.measures[0]!.events.length, 1);
+  assert.equal(entryMeasureFill(edit.score, 0).status, 'short');
 });

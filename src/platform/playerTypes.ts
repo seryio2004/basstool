@@ -28,6 +28,8 @@ export interface Player {
   seek(time: number): void;
   /** 0,25–1,5. Cambia la velocidad sin cambiar el tono. */
   setRate(rate: number): void;
+  /** 0–1. Ajusta el nivel de salida después del filtro de graves. */
+  setVolume(volume: number): void;
   /** Con bucle, la reproducción vuelve a `a` al llegar a `b`. */
   setLoop(loop: Loop | null): void;
   setBass(mode: BassMode): void;

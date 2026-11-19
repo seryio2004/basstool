@@ -4,9 +4,10 @@ import type { Session } from '../core/transcription';
 const KEY = 'clasro.transcriptions.v1';
 const number = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const text = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
-function valid(value: unknown): value is Session {
+type StoredSession = Omit<Session, 'volume'> & { volume?: number };
+function valid(value: unknown): value is StoredSession {
   if (!value || typeof value !== 'object') return false;
-  const s = value as Session;
+  const s = value as StoredSession;
   if (
     !text(s.id) ||
     !text(s.name) ||
@@ -18,6 +19,7 @@ function valid(value: unknown): value is Session {
     !number(s.rate) ||
     s.rate < 0.25 ||
     s.rate > 1.5 ||
+    (s.volume !== undefined && (!number(s.volume) || s.volume < 0 || s.volume > 1)) ||
     !number(s.transpose) ||
     !Number.isInteger(s.transpose) ||
     Math.abs(s.transpose) > 12 ||
@@ -55,13 +57,14 @@ function valid(value: unknown): value is Session {
   });
 }
 // Explicit projection prevents accidental persistence of File, blob URL or PCM properties.
-function metadata(s: Session): Session {
+function metadata(s: StoredSession): Session {
   return {
     id: s.id,
     name: s.name,
     duration: s.duration,
     position: s.position,
     rate: s.rate,
+    volume: s.volume ?? 1,
     transpose: s.transpose,
     bass: s.bass,
     loop: s.loop ? { a: s.loop.a, b: s.loop.b } : null,

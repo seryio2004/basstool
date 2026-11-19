@@ -2,7 +2,14 @@
  * into pixel coordinates; no rounding feeds back into the score. */
 import type { Instrument } from './instrument';
 import { noteAt } from './instrument';
-import { addF, durationValue, fraction, measureFill, measureMeter } from './score';
+import {
+  addF,
+  durationValue,
+  fraction,
+  isMeasurePlaceholder,
+  measureFill,
+  measureMeter,
+} from './score';
 import type {
   EditCursor,
   Fraction,
@@ -45,6 +52,7 @@ export type EventGeometry = {
 export type BeamGeometry = { events: number[]; levels: number; stem: 'up' | 'down' };
 export type MeasureGeometry = {
   measure: number;
+  placeholder: boolean;
   x: number;
   width: number;
   contentX: number;
@@ -118,6 +126,8 @@ const durationNames: Record<number, string> = {
   4: 'negra',
   8: 'corchea',
   16: 'semicorchea',
+  32: 'fusa',
+  64: 'semifusa',
 };
 const line = (
   x1: number,
@@ -170,6 +180,7 @@ export function layoutScore(
   display: ScoreDisplay,
   width: number,
   keyFifths = score.keyFifths,
+  editable = false,
 ): ScoreLayout {
   const usable = Math.max(180, Number.isFinite(width) ? width : 350);
   const lines: ScoreLine[] = [];
@@ -180,10 +191,18 @@ export function layoutScore(
     let total = 0;
     while (index < score.measures.length) {
       const widths = eventWidths(score.measures[index]!.events, instrument, keyFifths);
-      const prefix = prefixWidth(score, index, !batch.length, display, keyFifths);
+      if (editable) {
+        // Leave 44 px between note targets even when an adjacent accidental shifts an anchor.
+        for (let i = 0; i < widths.length; i++) widths[i] = Math.max(56, widths[i]!);
+      }
+      const prefix =
+        prefixWidth(score, index, !batch.length, display, keyFifths) + (editable ? 10 : 0);
       const fill = measureFill(score, index);
       const emptyWidth = Math.max(0, ratio(fill.expected) - ratio(fill.actual)) * 96;
-      const min = Math.max(110, prefix + 28 + widths.reduce((a, b) => a + b, 0) + emptyWidth);
+      const min = Math.max(
+        110,
+        prefix + (editable ? 42 : 28) + widths.reduce((a, b) => a + b, 0) + emptyWidth,
+      );
       if (batch.length && total + min > usable - 24) break;
       batch.push({ index, min, prefix, widths });
       total += min;
@@ -213,7 +232,7 @@ export function layoutScore(
         meter = measureMeter(score, b.index);
       const w = b.min + (actualWidth - 24 - total) / batch.length;
       const contentX = x + b.prefix + 12,
-        endX = x + w - 14;
+        endX = x + w - (editable ? 28 : 14);
       const measureState = measureFill(score, b.index);
       const missingWeight =
         Math.max(0, ratio(measureState.expected) - ratio(measureState.actual)) * 96;
@@ -266,17 +285,16 @@ export function layoutScore(
           );
       }
       const fill = measureState;
-      if (batchIndex === 0 || fill.status !== 'full')
-        shapes.push(
-          text(
-            x + 3,
-            18,
-            String(b.index + 1),
-            12,
-            fill.status === 'over' ? '#A33131' : fill.status === 'full' ? '#202E26' : '#8A5A2E',
-            'start',
-          ),
-        );
+      shapes.push(
+        text(
+          x + 3,
+          18,
+          String(b.index + 1),
+          14,
+          fill.status === 'over' ? '#A33131' : fill.status === 'full' ? '#202E26' : '#8A5A2E',
+          'start',
+        ),
+      );
       const accidentals = new Map<number, number>();
       let offset = fraction(0, 1),
         ex = contentX;
@@ -344,6 +362,7 @@ export function layoutScore(
         const eligible =
           e.source.note &&
           e.source.duration.base >= 8 &&
+          e.source.duration.base <= 16 &&
           e.endBeat <= (group + 1) * groupSize + 1e-9;
         if (
           !eligible ||
@@ -436,10 +455,10 @@ export function layoutScore(
         ) {
           const dir = stemDir(e),
             base = stemBase(e),
-            end = stemEnds.get(e.event) ?? base + dir * 28;
+            end = stemEnds.get(e.event) ?? base + dir * (src.duration.base > 16 ? 40 : 28);
           shapes.push(line(stemX(e), base, stemX(e), end, 1.3));
           if (!beamed.has(e.event) && src.duration.base >= 8) {
-            for (let f = 0; f < (src.duration.base === 16 ? 2 : 1); f++) {
+            for (let f = 0; f < Math.log2(src.duration.base) - 2; f++) {
               const fy = end - dir * f * 7;
               shapes.push({
                 kind: 'path',
@@ -503,6 +522,7 @@ export function layoutScore(
       }
       measures.push({
         measure: b.index,
+        placeholder: isMeasurePlaceholder(m),
         x,
         width: w,
         contentX,
@@ -568,7 +588,7 @@ function drawRest(shapes: Primitive[], x: number, y: number, base: number) {
     });
   else {
     shapes.push(line(x + 4, y - 8, x - 2, y + 12, 1.6));
-    for (let f = 0; f < (base === 16 ? 2 : 1); f++)
+    for (let f = 0; f < Math.log2(base) - 2; f++)
       shapes.push(
         { kind: 'ellipse', x: x - 2 - f * 2, y: y - 7 + f * 7, rx: 3, ry: 2.5 },
         {

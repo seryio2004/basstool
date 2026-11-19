@@ -1,5 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  PanResponder,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { Button, Chips, Heading, Icon, Label, colors, styles } from '../components/ui';
 import { Waveform } from '../components/Waveform';
 import { ScoreEditor } from '../components/ScoreEditor';
@@ -22,13 +31,14 @@ import {
   setLoopStart,
   setRate,
   setTranspose,
+  setVolume,
 } from '../core/transcription';
 import { listSessions, loadSession, saveSession } from '../data/transcriptions';
 import { createPlayer } from '../platform/player';
 import type { BassMode, Loop, PickedAudio, Player } from '../platform/playerTypes';
 
-export function Transcribe() {
-  const { width } = useWindowDimensions();
+export function Transcribe({ pagePadding }: { pagePadding: number }) {
+  const { width, height } = useWindowDimensions();
   const wide = width >= 1100;
   const player = useRef<Player | null>(null);
   if (!player.current) player.current = createPlayer();
@@ -44,6 +54,75 @@ export function Transcribe() {
   const { profile } = useStore();
   const instrument = tunings[profile.tuning];
   const [editing, setEditing] = useState(false);
+  const [openSection, setOpenSection] = useState<'Bucle' | 'Sonido' | 'Secciones' | null>(null);
+  const [viewportHeight, setViewportHeight] = useState(0);
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const scrollBody = useRef<React.ComponentRef<typeof View>>(null);
+  const scrollY = useRef(0);
+  const resumeVolume = useRef(1);
+  const revealCursor = useCallback(
+    (view: React.ComponentRef<typeof View>, top: number, height: number) => {
+      if (!scrollBody.current || !viewportHeight) return;
+      view.measureLayout(scrollBody.current, (_, offset) => {
+        const start = offset + top;
+        const end = start + height;
+        const y = scrollY.current;
+        const next =
+          start < y + 12
+            ? start - 12
+            : end > y + viewportHeight - 12
+              ? end - viewportHeight + 12
+              : y;
+        if (next !== y) scroll.current?.scrollTo({ y: Math.max(0, next), animated: false });
+      });
+    },
+    [viewportHeight],
+  );
+  const frame = (body: React.ReactNode, entry?: React.ReactNode) => (
+    <View style={{ flex: 1, minHeight: 0 }}>
+      <ScrollView
+        ref={scroll}
+        onLayout={(e) => setViewportHeight(e.nativeEvent.layout.height)}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View
+          ref={scrollBody}
+          collapsable={false}
+          style={{
+            width: '100%',
+            maxWidth: 1400,
+            alignSelf: 'center',
+            padding: pagePadding,
+            paddingBottom: entry ? 12 : 50,
+            gap: 16,
+          }}
+        >
+          {body}
+        </View>
+      </ScrollView>
+      {entry ? (
+        <View
+          style={{ backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.line }}
+        >
+          <View
+            style={{
+              width: '100%',
+              maxWidth: 1400,
+              alignSelf: 'center',
+              paddingHorizontal: Math.min(20, pagePadding),
+              paddingVertical: 6,
+            }}
+          >
+            {entry}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
   // Acciones de marcado que registra el editor de partitura (teclas M y B).
   const scoreActions = useRef<{ markMeasure: () => void; markBeat: () => void } | null>(null);
   const registerScore = useCallback(
@@ -57,6 +136,7 @@ export function Transcribe() {
     latest.current = next;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       void saveSession(next).catch(() =>
         setError('No se pudo guardar la sesión en este dispositivo.'),
       );
@@ -88,7 +168,7 @@ export function Transcribe() {
       off();
       p.unload();
       if (saveTimer.current) clearTimeout(saveTimer.current);
-      if (latest.current) void saveSession(latest.current);
+      if (latest.current) void saveSession(latest.current).catch(() => {});
     };
   }, []);
 
@@ -98,9 +178,20 @@ export function Transcribe() {
     try {
       const picked = await player.current!.pick();
       if (!picked) return;
-      const s = (await loadSession(picked.id)) ?? newSession(picked);
+      const previous = latest.current;
+      if (previous && previous.id !== picked.id && saveTimer.current !== null) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        void saveSession(previous).catch(() => setError('No se pudo guardar la sesión anterior.'));
+      }
+      const s =
+        previous?.id === picked.id
+          ? previous
+          : ((await loadSession(picked.id)) ?? newSession(picked));
+      resumeVolume.current = s.volume || 1;
       const p = player.current!;
       p.setRate(s.rate);
+      p.setVolume(s.volume);
       p.setLoop(s.loop);
       p.setBass(s.bass);
       p.setTranspose(s.transpose);
@@ -152,10 +243,15 @@ export function Transcribe() {
     if (Platform.OS !== 'web' || !session || editing || typeof document === 'undefined') return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (
+        e.defaultPrevented ||
+        target?.closest('input, textarea, select, [contenteditable=true], [role=slider]')
+      )
+        return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const key = e.key.toLowerCase();
       if (key === ' ') {
+        if (target?.closest('button, [role=button]')) return;
         e.preventDefault();
         toggle();
       } else if (key === 'arrowleft' || key === 'arrowright') {
@@ -172,8 +268,8 @@ export function Transcribe() {
   }, [session, editing, toggle, seek, loopAt, mark, time]);
 
   if (!audio || !session)
-    return (
-      <View style={{ gap: 24 }}>
+    return frame(
+      <>
         <Intro />
         <View style={[styles.panel, { alignItems: 'flex-start' }]}>
           <Heading level={2} style={styles.h2}>
@@ -221,7 +317,7 @@ export function Transcribe() {
             ))}
           </View>
         ) : null}
-      </View>
+      </>,
     );
 
   const percent = Math.round(session.rate * 100);
@@ -243,54 +339,65 @@ export function Transcribe() {
       (s) => p.setLoop(s.loop),
     );
 
-  return (
-    <View style={{ gap: 20 }}>
-      <Intro />
-      <View style={[styles.panel, { gap: 16 }]}>
-        <View style={styles.between}>
-          <Text style={[styles.h3, { flex: 1, minWidth: 160 }]} numberOfLines={1}>
-            {audio.name}
-          </Text>
-          <Button small variant="ghost" busy={busy} onPress={() => void pick()}>
-            Cambiar canción
-          </Button>
-        </View>
-        <Waveform
-          key={session.id}
-          peaks={audio.peaks}
-          duration={session.duration}
-          position={time}
-          loop={session.loop}
-          markers={session.markers}
-          playing={playing}
-          onSeek={seek}
-          onSelect={selectLoop}
-          onClearLoop={() => selectLoop(null)}
-        />
-        <View style={[styles.between, { alignItems: 'flex-end' }]}>
+  const changeVolume = (value: number) =>
+    withPlayer(
+      (s) => setVolume(s, value),
+      (s) => {
+        if (s.volume > 0) resumeVolume.current = s.volume;
+        p.setVolume(s.volume);
+      },
+    );
+
+  const transport = (
+    <View style={[styles.panel, { gap: 8, padding: wide ? 24 : 12 }]}>
+      <View style={styles.between}>
+        <Text style={[styles.h3, { flex: 1, minWidth: 0 }]} numberOfLines={1}>
+          {audio.name}
+        </Text>
+        <Button variant="ghost" busy={busy} onPress={() => void pick()}>
+          Cambiar canción
+        </Button>
+      </View>
+      <Waveform
+        key={session.id}
+        height={wide ? 120 : 88}
+        peaks={audio.peaks}
+        duration={session.duration}
+        position={time}
+        loop={session.loop}
+        markers={session.markers}
+        playing={playing}
+        onSeek={seek}
+        onSelect={selectLoop}
+        onClearLoop={() => selectLoop(null)}
+      />
+      <View style={[styles.between, { gap: 8 }]}>
+        <View style={[styles.row, { gap: 6 }]}>
           <Text
             style={{
               color: colors.ink,
-              fontSize: 30,
+              fontSize: 20,
               fontWeight: '600',
               fontVariant: ['tabular-nums'],
             }}
           >
             {formatTime(time)}
-            <Text style={{ color: colors.muted, fontSize: 15, fontWeight: '400' }}>
-              {' '}
-              / {formatTime(session.duration)}
-            </Text>
           </Text>
-          <Text style={{ color: colors.green, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-            {percent} %
-            {session.bass !== 'off'
-              ? ` · ${session.bass === 'boost' ? 'graves realzados' : 'solo graves'}`
-              : ''}
-          </Text>
+          <Label muted style={{ fontVariant: ['tabular-nums'] }}>
+            / {formatTime(session.duration)}
+          </Label>
         </View>
+        <Label muted>{percent} %</Label>
+      </View>
+      <View
+        style={{
+          flexDirection: wide ? 'row' : 'column',
+          alignItems: wide ? 'center' : 'stretch',
+          gap: 8,
+        }}
+      >
         <View
-          style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 }}
+          style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6 }}
         >
           <Round label="−5 s" hint="Retroceder 5 segundos" onPress={() => seek(time - 5)} />
           <Round label="−1 s" hint="Retroceder 1 segundo" onPress={() => seek(time - 1)} />
@@ -303,33 +410,33 @@ export function Transcribe() {
           <Round label="+1 s" hint="Avanzar 1 segundo" onPress={() => seek(time + 1)} />
           <Round label="+5 s" hint="Avanzar 5 segundos" onPress={() => seek(time + 5)} />
         </View>
-        {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
-        {Platform.OS === 'web' && wide ? (
-          <Label muted style={{ textAlign: 'center' }}>
-            Teclado: espacio reproduce o pausa · flechas ±1 s (Mayús ±5 s) · [ y ] fijan el bucle ·
-            S sección · M compás · B pulso
-          </Label>
-        ) : null}
+        <VolumeControl
+          volume={session.volume}
+          onChange={changeVolume}
+          onMute={() => changeVolume(session.volume > 0 ? 0 : resumeVolume.current)}
+        />
       </View>
+      {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
+    </View>
+  );
 
-      <ScoreEditor
-        key={session.id}
-        sessionId={session.id}
-        duration={session.duration}
-        time={time}
-        instrument={instrument}
-        nomenclature={profile.nomenclature}
-        leftHanded={profile.leftHanded}
-        wide={wide}
-        editing={editing}
-        onEditingChange={setEditing}
-        onSeek={seek}
-        onLoop={selectLoop}
-        register={registerScore}
+  const songTools = (
+    <View style={[styles.panel, { gap: 8, padding: wide ? 24 : 12 }]}>
+      <Chips
+        minHeight={44}
+        value={openSection ?? ''}
+        onChange={(name) => setOpenSection(!name || name === openSection ? null : name)}
+        options={[
+          { value: 'Bucle', label: session.loop ? 'Bucle · A–B' : 'Bucle' },
+          { value: 'Sonido', label: 'Sonido' },
+          {
+            value: 'Secciones',
+            label: session.markers.length ? `Secciones · ${session.markers.length}` : 'Secciones',
+          },
+        ]}
       />
-
-      <View style={{ flexDirection: wide ? 'row' : 'column', gap: 20, alignItems: 'flex-start' }}>
-        <Section title="Bucle" wide={wide}>
+      {openSection === 'Bucle' ? (
+        <View style={{ gap: 8 }}>
           <View style={[styles.row, { flexWrap: 'wrap' }]}>
             <Button variant="secondary" onPress={() => loopAt('a')}>
               A aquí ([)
@@ -351,7 +458,6 @@ export function Transcribe() {
                   <Stepper
                     value={formatTime(session.loop![edge])}
                     label={`Punto ${edge.toUpperCase()}`}
-                    unit="0,1 s"
                     onMinus={() =>
                       withPlayer(
                         (s) => nudgeLoop(s, edge, -0.1),
@@ -368,7 +474,6 @@ export function Transcribe() {
                 </View>
               ))}
               <Button
-                small
                 variant="ghost"
                 icon="play"
                 onPress={() => seek(session.loop!.a)}
@@ -382,14 +487,13 @@ export function Transcribe() {
               Pulsa «A aquí» donde empieza el fragmento: se crea un bucle de 4 s que ajustas con B.
             </Label>
           )}
-        </Section>
-
-        <Section title="Sonido" wide={wide}>
+        </View>
+      ) : openSection === 'Sonido' ? (
+        <View style={{ gap: 8 }}>
           <Text style={[styles.text, { fontWeight: '600' }]}>Velocidad</Text>
           <Stepper
             value={`${percent} %`}
             label="Velocidad"
-            unit="5 %"
             onMinus={() =>
               withPlayer(
                 (s) => setRate(s, s.rate - 0.05),
@@ -406,6 +510,7 @@ export function Transcribe() {
             plusDisabled={session.rate >= RATE_MAX}
           />
           <Chips
+            minHeight={44}
             value={String(percent)}
             onChange={(v) =>
               withPlayer(
@@ -417,6 +522,7 @@ export function Transcribe() {
           />
           <Text style={[styles.text, { fontWeight: '600', marginTop: 4 }]}>Graves</Text>
           <Chips<BassMode>
+            minHeight={44}
             value={session.bass}
             onChange={(bass) =>
               withPlayer(
@@ -430,31 +536,30 @@ export function Transcribe() {
               { value: 'solo', label: 'Solo graves' },
             ]}
           />
-          <Text style={[styles.text, { fontWeight: '600', marginTop: 4 }]}>Tono</Text>
           {p.canTranspose ? (
-            <Stepper
-              value={`${session.transpose > 0 ? '+' : ''}${session.transpose} st`}
-              label="Transporte en semitonos"
-              unit="1 semitono"
-              onMinus={() =>
-                withPlayer(
-                  (s) => setTranspose(s, s.transpose - 1),
-                  (s) => p.setTranspose(s.transpose),
-                )
-              }
-              onPlus={() =>
-                withPlayer(
-                  (s) => setTranspose(s, s.transpose + 1),
-                  (s) => p.setTranspose(s.transpose),
-                )
-              }
-            />
-          ) : (
-            <Label muted>Transportar el tono llegará con el nuevo motor de audio.</Label>
-          )}
-        </Section>
-
-        <Section title="Secciones" wide={wide}>
+            <>
+              <Text style={[styles.text, { fontWeight: '600', marginTop: 4 }]}>Tono</Text>
+              <Stepper
+                value={`${session.transpose > 0 ? '+' : ''}${session.transpose} st`}
+                label="Transporte en semitonos"
+                onMinus={() =>
+                  withPlayer(
+                    (s) => setTranspose(s, s.transpose - 1),
+                    (s) => p.setTranspose(s.transpose),
+                  )
+                }
+                onPlus={() =>
+                  withPlayer(
+                    (s) => setTranspose(s, s.transpose + 1),
+                    (s) => p.setTranspose(s.transpose),
+                  )
+                }
+              />
+            </>
+          ) : null}
+        </View>
+      ) : openSection === 'Secciones' ? (
+        <View style={{ gap: 8 }}>
           <Button
             variant="secondary"
             icon="plus"
@@ -479,9 +584,44 @@ export function Transcribe() {
               Nombra la intro, la estrofa, el estribillo o el puente para saltar entre ellos.
             </Label>
           )}
-        </Section>
-      </View>
+        </View>
+      ) : null}
     </View>
+  );
+
+  return (
+    <ScoreEditor
+      key={session.id}
+      sessionId={session.id}
+      duration={session.duration}
+      time={time}
+      instrument={instrument}
+      nomenclature={profile.nomenclature}
+      leftHanded={profile.leftHanded}
+      wide={wide}
+      editing={editing}
+      onEditingChange={setEditing}
+      onSeek={seek}
+      onLoop={selectLoop}
+      register={registerScore}
+      onCursorFrame={revealCursor}
+      fretboardHeight={Math.max(100, Math.min(294, height - 475))}
+      playing={playing}
+      onTogglePlayback={toggle}
+      renderLayout={(score, entry) =>
+        frame(
+          <>
+            <Heading level={1} style={styles.title}>
+              Transcribir
+            </Heading>
+            {transport}
+            {score}
+            {songTools}
+          </>,
+          entry,
+        )
+      }
+    />
   );
 }
 
@@ -492,25 +632,6 @@ function Intro() {
         Transcribir
       </Heading>
       <Label muted>Saca líneas de bajo de tus canciones. El audio no sale de tu dispositivo.</Label>
-    </View>
-  );
-}
-
-function Section({
-  title,
-  wide,
-  children,
-}: {
-  title: string;
-  wide: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={[styles.panel, { gap: 12 }, wide ? { flex: 1, minWidth: 0 } : { width: '100%' }]}>
-      <Heading level={2} style={styles.h2}>
-        {title}
-      </Heading>
-      {children}
     </View>
   );
 }
@@ -541,7 +662,7 @@ function MarkerRow({
         accessibilityLabel={`Ir a ${name}, ${formatTime(time)}`}
         onPress={onGo}
         style={{
-          minHeight: 40,
+          minHeight: 44,
           justifyContent: 'center',
           paddingHorizontal: 9,
           borderRadius: 7,
@@ -559,13 +680,13 @@ function MarkerRow({
         onBlur={commit}
         onSubmitEditing={commit}
         maxLength={40}
-        style={[styles.field, { flex: 1, minWidth: 0, minHeight: 40, paddingVertical: 8 }]}
+        style={[styles.field, { flex: 1, minWidth: 0, minHeight: 44, paddingVertical: 8 }]}
       />
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Borrar ${name}`}
         onPress={onRemove}
-        style={{ padding: 11 }}
+        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
       >
         <Icon name="close" size={18} />
       </Pressable>
@@ -587,7 +708,7 @@ function Round({
   onPress: () => void;
   primary?: boolean;
 }) {
-  const size = primary ? 68 : 52;
+  const size = primary ? 52 : 44;
   return (
     <Pressable
       accessibilityRole="button"
@@ -615,7 +736,6 @@ function Round({
 function Stepper({
   value,
   label,
-  unit,
   onMinus,
   onPlus,
   minusDisabled = false,
@@ -623,7 +743,6 @@ function Stepper({
 }: {
   value: string;
   label: string;
-  unit: string;
   onMinus: () => void;
   onPlus: () => void;
   minusDisabled?: boolean;
@@ -631,7 +750,12 @@ function Stepper({
 }) {
   return (
     <View style={[styles.row, { gap: 6, flexWrap: 'wrap' }]}>
-      <Button small variant="secondary" disabled={minusDisabled} onPress={onMinus}>
+      <Button
+        variant="secondary"
+        style={{ paddingHorizontal: 12, minWidth: 44 }}
+        disabled={minusDisabled}
+        onPress={onMinus}
+      >
         −
       </Button>
       <Text
@@ -647,12 +771,117 @@ function Stepper({
       >
         {value}
       </Text>
-      <Button small variant="secondary" disabled={plusDisabled} onPress={onPlus}>
+      <Button
+        variant="secondary"
+        style={{ paddingHorizontal: 12, minWidth: 44 }}
+        disabled={plusDisabled}
+        onPress={onPlus}
+      >
         +
       </Button>
-      <Label muted style={{ fontSize: 12 }}>
-        pasos de {unit}
-      </Label>
+    </View>
+  );
+}
+
+function VolumeControl({
+  volume,
+  onChange,
+  onMute,
+}: {
+  volume: number;
+  onChange: (volume: number) => void;
+  onMute: () => void;
+}) {
+  const percent = Math.round(volume * 100);
+  return (
+    <View style={[styles.row, { flex: 1, minWidth: 0, gap: 8 }]}>
+      <Button variant="ghost" style={{ paddingHorizontal: 6, minWidth: 68 }} onPress={onMute}>
+        {volume === 0 ? 'Activar sonido' : 'Silenciar'}
+      </Button>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        {Platform.OS === 'web' ? (
+          <input
+            aria-label="Volumen de la música"
+            aria-valuetext={`${percent} %`}
+            type="range"
+            min={0}
+            max={100}
+            value={percent}
+            onChange={(e) => onChange(e.currentTarget.valueAsNumber / 100)}
+            style={{ width: '100%', height: 44, margin: 0, accentColor: colors.green }}
+          />
+        ) : (
+          <NativeVolumeSlider volume={volume} onChange={onChange} />
+        )}
+      </View>
+      <Text
+        style={{
+          color: colors.ink,
+          minWidth: 46,
+          textAlign: 'right',
+          fontVariant: ['tabular-nums'],
+        }}
+      >
+        {percent} %
+      </Text>
+    </View>
+  );
+}
+
+function NativeVolumeSlider({
+  volume,
+  onChange,
+}: {
+  volume: number;
+  onChange: (volume: number) => void;
+}) {
+  const width = useRef(0);
+  const origin = useRef(0);
+  const latestChange = useRef(onChange);
+  latestChange.current = onChange;
+  const responder = useMemo(() => {
+    const apply = (x: number) => latestChange.current(Math.round((100 * x) / width.current) / 100);
+    return PanResponder.create({
+      onStartShouldSetPanResponder: () => width.current > 0,
+      onPanResponderGrant: (e) => {
+        origin.current = e.nativeEvent.locationX;
+        apply(origin.current);
+      },
+      onPanResponderMove: (_, gesture) => apply(origin.current + gesture.dx),
+    });
+  }, []);
+  const step = (delta: number) => onChange((Math.round(volume * 100) + delta) / 100);
+  return (
+    <View style={[styles.row, { gap: 4 }]}>
+      <Round label="−" hint="Bajar volumen" onPress={() => step(-5)} />
+      <View
+        {...responder.panHandlers}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityLabel="Volumen de la música"
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(volume * 100) }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={(e) => step(e.nativeEvent.actionName === 'increment' ? 5 : -5)}
+        onLayout={(e) => {
+          width.current = e.nativeEvent.layout.width;
+        }}
+        style={{ height: 44, flex: 1, justifyContent: 'center' }}
+      >
+        <View
+          pointerEvents="none"
+          style={{ height: 6, borderRadius: 3, backgroundColor: colors.pale }}
+        >
+          <View
+            style={{
+              width: `${volume * 100}%`,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: colors.green,
+            }}
+          />
+        </View>
+      </View>
+      <Round label="+" hint="Subir volumen" onPress={() => step(5)} />
     </View>
   );
 }

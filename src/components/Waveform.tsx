@@ -284,7 +284,7 @@ export function Waveform({
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Button
-          small
+          style={{ minWidth: 44, paddingHorizontal: 12 }}
           variant="secondary"
           disabled={zoomIndex <= 0}
           onPress={() => setZoomKeeping(ZOOMS[Math.max(0, zoomIndex - 1)]!)}
@@ -303,7 +303,7 @@ export function Waveform({
           {zoom}×
         </Text>
         <Button
-          small
+          style={{ minWidth: 44, paddingHorizontal: 12 }}
           variant="secondary"
           disabled={zoomIndex >= ZOOMS.length - 1}
           onPress={() => setZoomKeeping(ZOOMS[Math.min(ZOOMS.length - 1, zoomIndex + 1)]!)}
@@ -314,7 +314,7 @@ export function Waveform({
         <View
           style={{
             flex: 1,
-            height: 32,
+            height: 44,
             borderRadius: 6,
             backgroundColor: '#F3F1EA',
             overflow: 'hidden',
@@ -326,7 +326,7 @@ export function Waveform({
           {overviewWidth > 0 && duration > 0 ? (
             <Svg
               width="100%"
-              height={32}
+              height={44}
               viewBox={`0 0 ${overviewWidth} 32`}
               preserveAspectRatio="none"
               pointerEvents="none"
@@ -336,7 +336,7 @@ export function Waveform({
                   x={(loop.a / duration) * overviewWidth}
                   y={0}
                   width={Math.max(2, ((loop.b - loop.a) / duration) * overviewWidth)}
-                  height={32}
+                  height={44}
                   fill={colors.pale}
                 />
               ) : null}

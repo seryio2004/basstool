@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useMemo, useRef, type JSX } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, type JSX } from 'react';
 import { Platform, Pressable, ScrollView, View } from 'react-native';
 import Svg, { Ellipse, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import type { Instrument } from '../core/instrument';
@@ -131,54 +131,57 @@ const NotationLine = memo(function NotationLine({
             />
           ) : null}
           {interactiveEvents
-            ? [
-                ...m.events.map((e, i) => ({
-                  event: e.event,
-                  x: e.x,
-                  label: e.label,
-                  string: e.source.note?.string ?? 0,
-                  left: i ? (m.events[i - 1]!.x + e.x) / 2 : m.contentX - 7,
-                  right:
-                    i + 1 < m.events.length ? (e.x + m.events[i + 1]!.x) / 2 : (e.x + e.endX) / 2,
-                })),
-                {
-                  event: m.events.length,
-                  x: m.endX,
-                  label: `Compás ${m.measure + 1}, añadir al final`,
-                  string: 0,
-                  left: m.events.length
-                    ? (m.events.at(-1)!.x + m.events.at(-1)!.endX) / 2
-                    : m.contentX - 7,
-                  right: m.x + m.width,
-                },
-              ].map((e) => (
+            ? (m.placeholder
+                ? [
+                    {
+                      event: 0,
+                      label: `Compás ${m.measure + 1}, empezar a escribir`,
+                      string: undefined,
+                      left: m.x,
+                      right: m.x + m.width,
+                    },
+                  ]
+                : [
+                    ...m.events.map((e, i) => ({
+                      event: e.event,
+                      label: e.label,
+                      string: e.source.note?.string,
+                      left: i ? (m.events[i - 1]!.x + e.x) / 2 : m.x,
+                      right: (e.x + (m.events[i + 1]?.x ?? e.endX)) / 2,
+                    })),
+                    {
+                      event: m.events.length,
+                      label: `Compás ${m.measure + 1}, añadir al final`,
+                      string: undefined,
+                      left: m.events.length
+                        ? (m.events.at(-1)!.x + m.events.at(-1)!.endX) / 2
+                        : m.x,
+                      right: m.x + m.width,
+                    },
+                  ]
+              ).map((e) => (
                 <Pressable
                   key={e.event}
                   accessibilityRole="button"
                   accessibilityLabel={e.label}
                   onPress={(ev) => {
-                    const hit = hitTest(
-                      layout,
-                      e.left + ev.nativeEvent.locationX,
-                      line.y + 28 + ev.nativeEvent.locationY,
-                    );
+                    const y = ev.nativeEvent.locationY;
+                    const hit = hitTest(layout, e.left + ev.nativeEvent.locationX, line.y + y);
                     onEvent({
                       measure: m.measure,
                       event: e.event,
                       string:
-                        m.tabTop !== undefined &&
-                        28 + ev.nativeEvent.locationY >= m.tabTop - 7 &&
-                        hit
+                        m.tabTop !== undefined && y >= m.tabTop - 7 && hit
                           ? hit.string
-                          : e.string,
+                          : (e.string ?? -1),
                     });
                   }}
                   style={{
                     position: 'absolute',
                     left: e.left,
-                    top: 28,
-                    width: Math.max(1, e.right - e.left),
-                    height: m.bottom - 20,
+                    top: 0,
+                    width: e.right - e.left,
+                    height: m.bottom + 6,
                   }}
                 />
               ))
@@ -225,6 +228,7 @@ export function ScoreView({
   keyFifths,
   playhead,
   cursor,
+  onCursorFrame,
   selectedMeasures,
   onPressEvent,
   onPressMeasure,
@@ -236,22 +240,54 @@ export function ScoreView({
   keyFifths?: number;
   playhead?: MusicalPosition | null;
   cursor?: EditCursor | null;
+  onCursorFrame?: (top: number, height: number) => void;
   selectedMeasures?: { from: number; to: number } | null;
   onPressEvent?: (cursor: EditCursor) => void;
   onPressMeasure?: (measure: number) => void;
 }): JSX.Element {
+  const editable = !!onPressEvent;
   const layout = useMemo(
-    () => layoutScore(score, instrument, display, width, keyFifths),
-    [score, instrument, display, width, keyFifths],
+    () => layoutScore(score, instrument, display, width, keyFifths, editable),
+    [score, instrument, display, width, keyFifths, editable],
   );
-  const handlers = useRef({ onPressEvent, onPressMeasure });
-  handlers.current = { onPressEvent, onPressMeasure };
-  const onEvent = useCallback((c: EditCursor) => handlers.current.onPressEvent?.(c), []);
+  const handlers = useRef({ onPressEvent, onPressMeasure, cursor });
+  handlers.current = { onPressEvent, onPressMeasure, cursor };
+  const onEvent = useCallback(
+    (c: EditCursor) =>
+      handlers.current.onPressEvent?.({
+        ...c,
+        string: c.string < 0 ? (handlers.current.cursor?.string ?? 0) : c.string,
+      }),
+    [],
+  );
   const onMeasure = useCallback((m: number) => handlers.current.onPressMeasure?.(m), []);
   const head = playhead ? positionPoint(layout, playhead) : null;
   const edit = cursor ? cursorPoint(layout, cursor) : null;
+  const scroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const scrollX = useRef(0);
+  const x = edit?.x;
+  const y = edit?.y;
+  const editHeight = edit?.height;
+  const measureIndex = cursor?.measure;
+  const eventIndex = cursor?.event;
+  useEffect(() => {
+    if (x === undefined || y === undefined || editHeight === undefined || !onCursorFrame) return;
+    onCursorFrame(y - 20, editHeight + 40);
+    const left = scrollX.current;
+    const next = x < left + 28 ? x - 28 : x > left + width - 28 ? x - width + 28 : left;
+    if (next !== left) scroll.current?.scrollTo({ x: Math.max(0, next), animated: false });
+  }, [x, y, editHeight, width, measureIndex, eventIndex, onCursorFrame]);
+  const activeMeasure = measureIndex;
   return (
-    <ScrollView horizontal contentContainerStyle={{ width: layout.width, height: layout.height }}>
+    <ScrollView
+      ref={scroll}
+      horizontal
+      onScroll={(e) => {
+        scrollX.current = e.nativeEvent.contentOffset.x;
+      }}
+      scrollEventThrottle={16}
+      contentContainerStyle={{ width: layout.width, height: layout.height }}
+    >
       <View style={{ width: layout.width, height: layout.height, backgroundColor: colors.white }}>
         <Svg
           width={layout.width}
@@ -261,36 +297,31 @@ export function ScoreView({
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         >
-          {selectedMeasures
+          {activeMeasure !== undefined || selectedMeasures
             ? layout.lines.flatMap((l) =>
                 l.measures
                   .filter(
                     (m) =>
-                      m.measure >= Math.min(selectedMeasures.from, selectedMeasures.to) &&
-                      m.measure <= Math.max(selectedMeasures.from, selectedMeasures.to),
+                      m.measure === activeMeasure ||
+                      (selectedMeasures &&
+                        m.measure >= Math.min(selectedMeasures.from, selectedMeasures.to) &&
+                        m.measure <= Math.max(selectedMeasures.from, selectedMeasures.to)),
                   )
                   .map((m) => (
                     <Rect
                       key={m.measure}
                       x={m.x}
-                      y={l.y + 24}
+                      y={l.y + (m.measure === activeMeasure ? 1 : 24)}
                       width={m.width}
-                      height={m.bottom - 18}
+                      height={m.bottom - (m.measure === activeMeasure ? 0 : 18)}
+                      rx={6}
                       fill={colors.pale}
+                      stroke={m.measure === activeMeasure ? colors.green : undefined}
+                      strokeWidth={m.measure === activeMeasure ? 1 : 0}
                     />
                   )),
               )
             : null}
-          {edit ? (
-            <Rect
-              x={edit.x - 10}
-              y={edit.y - 2}
-              width={20}
-              height={edit.height + 4}
-              rx={3}
-              fill={colors.pale}
-            />
-          ) : null}
         </Svg>
         <Notation
           layout={layout}
@@ -308,16 +339,19 @@ export function ScoreView({
           importantForAccessibility="no-hide-descendants"
         >
           {edit ? (
-            <Rect
-              x={edit.x - 10}
-              y={edit.y - 2}
-              width={20}
-              height={edit.height + 4}
-              rx={3}
-              fill="none"
-              stroke={colors.green}
-              strokeWidth={1.5}
-            />
+            <G>
+              <Path d={`M ${edit.x - 5} ${edit.y - 9} h 10 l -5 5 Z`} fill={colors.green} />
+              <Rect
+                x={edit.x - 11}
+                y={edit.y - 2}
+                width={22}
+                height={edit.height + 4}
+                rx={3}
+                fill="none"
+                stroke={colors.green}
+                strokeWidth={2}
+              />
+            </G>
           ) : null}
           {head ? (
             <Line

@@ -114,7 +114,7 @@ function Shell() {
   ) : page === 'tools' ? (
     <ToolsHome openTool={openTool} />
   ) : page === 'transcribe' ? (
-    <Transcribe />
+    <Transcribe pagePadding={desktop ? 36 : 20} />
   ) : page === 'learn' ? (
     <Learn
       practice={practice}
@@ -230,20 +230,24 @@ function Shell() {
             </Button>
           </View>
         ) : null}
-        <ScrollView
-          ref={contentScroll}
-          key={`${page}-${tool || ''}-${exercise || ''}`}
-          contentContainerStyle={{
-            padding: desktop ? 36 : 20,
-            paddingBottom: 50,
-            maxWidth: 1400,
-            width: '100%',
-            alignSelf: 'center',
-          }}
-          keyboardShouldPersistTaps="handled"
-        >
-          {content}
-        </ScrollView>
+        {profile.configured && page === 'transcribe' && !tool && !exercise ? (
+          content
+        ) : (
+          <ScrollView
+            ref={contentScroll}
+            key={`${page}-${tool || ''}-${exercise || ''}`}
+            contentContainerStyle={{
+              padding: desktop ? 36 : 20,
+              paddingBottom: 50,
+              maxWidth: 1400,
+              width: '100%',
+              alignSelf: 'center',
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            {content}
+          </ScrollView>
+        )}
         {!desktop && profile.configured ? (
           <View
             accessibilityRole="tablist"

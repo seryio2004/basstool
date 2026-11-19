@@ -12,8 +12,8 @@
 /** Fracción exacta de redonda: 1/4 = negra. Siempre reducida y con d > 0. */
 export type Fraction = { n: number; d: number };
 
-/** 1 = redonda, 2 = blanca, 4 = negra, 8 = corchea, 16 = semicorchea. */
-export type BaseValue = 1 | 2 | 4 | 8 | 16;
+/** Denominador de la figura. Las fusas y semifusas se generan al dividir figuras. */
+export type BaseValue = 1 | 2 | 4 | 8 | 16 | 32 | 64;
 
 export type Duration = {
   base: BaseValue;

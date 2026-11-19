@@ -10,6 +10,7 @@ export function createPlayer(): Player {
   const decodingContexts = new Set<AudioContext>();
   let source: MediaElementAudioSourceNode | null = null;
   let filter: BiquadFilterNode | null = null;
+  let gain: GainNode | null = null;
   let url: string | null = null;
   let duration = 0;
   let loop: Loop | null = null;
@@ -56,6 +57,8 @@ export function createPlayer(): Player {
     source = null;
     filter?.disconnect();
     filter = null;
+    gain?.disconnect();
+    gain = null;
     if (url) URL.revokeObjectURL(url);
     url = null;
     if (context && context.state !== 'closed') void context.close().catch(() => {});
@@ -149,7 +152,9 @@ export function createPlayer(): Player {
         source = context.createMediaElementSource(audio);
         filter = context.createBiquadFilter();
         source.connect(filter);
-        filter.connect(context.destination);
+        gain = context.createGain();
+        filter.connect(gain);
+        gain.connect(context.destination);
         applyBass();
         const changed = () => {
           checkLoop();
@@ -234,6 +239,9 @@ export function createPlayer(): Player {
         audio.playbackRate = rate;
       }
       emit();
+    },
+    setVolume(value) {
+      if (gain && Number.isFinite(value)) gain.gain.value = Math.max(0, Math.min(1, value));
     },
     setLoop(value) {
       if (value === null) loop = null;

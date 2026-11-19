@@ -226,6 +226,13 @@ El destino activo cambia relleno, color y peso a 600; el inactivo usa peso 400. 
 
 Staff y RhythmFigure dibujan notación vectorial. GrooveTrain representa los bloques y el pulso activo con fondo verde y contenido blanco, y el avance mediante una barra. El cambio refleja el estado de práctica; no establece animación ornamental para el resto de componentes.
 
+### Escritura en Transcribir
+
+La partitura se desplaza en su área de contenido y el panel de entrada permanece anclado encima de la navegación. Las figuras se dibujan en SVG en teclas de al menos 44 × 44 pt. El verde indica la figura y los modificadores activos. El mástil de entrada muestra los trastes 0–12 inicialmente, conserva casillas de 44 × 44 pt y distingue la cuerda del cursor y la última nota con relleno y contorno respectivamente.
+
+El compás seleccionado usa fondo `pale` y borde verde. Un indicador sobre la casilla señala el punto de inserción. La barra de llenado usa verde para el avance y `error` para el exceso, con el estado escrito junto a la métrica. El reproductor sitúa el volumen junto al transporte. Bucle, Sonido y Secciones despliegan sus controles bajo la partitura. Si una figura cruza la barra, el panel indica la división y la partitura dibuja las ligaduras. Los compases guardados con exceso muestran la acción «Corregir compás pasado».
+
+
 ### Lesson diagrams
 
 Los diagramas del curso de armonía se dibujan con SVG sobre el panel blanco, con líneas de pentagrama `#A9B4A8`, tinta `ink` y verde para el paso activo. Las funciones tonales usan pares locales que reutilizan valores existentes y siempre acompañan a su nombre escrito: tónica `#295E43/#E8EFE7`, subdominante `#375B76/#E7EFF5`, dominante `#745437/#F3EBDF` y dominante secundario `#5B547E/#EDEAF5`. El semitono se distingue en ocre `#8A5A2E`.

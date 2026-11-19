@@ -172,10 +172,12 @@ export function Chips<T extends string>({
   options,
   value,
   onChange,
+  minHeight,
 }: {
   options: { value: T; label: string }[];
   value: T;
   onChange: (v: T) => void;
+  minHeight?: number;
 }) {
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
@@ -186,6 +188,8 @@ export function Chips<T extends string>({
           accessibilityState={{ selected: value === o.value }}
           onPress={() => onChange(o.value)}
           style={({ hovered }: { pressed: boolean; hovered?: boolean }) => ({
+            minHeight,
+            justifyContent: 'center',
             paddingVertical: 9,
             paddingHorizontal: 13,
             backgroundColor: value === o.value ? colors.green : hovered ? '#EDF1EA' : '#F1F3EE',

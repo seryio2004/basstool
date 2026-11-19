@@ -39,9 +39,10 @@ export function compareF(a: Fraction, b: Fraction): -1 | 0 | 1 {
 }
 const validDuration = (d: Duration) =>
   !!d &&
-  [1, 2, 4, 8, 16].includes(d.base) &&
-  [0, 1].includes(d.dots) &&
-  (d.triplet === undefined || typeof d.triplet === 'boolean');
+  (d.triplet === undefined || typeof d.triplet === 'boolean') &&
+  (([1, 2, 4, 8, 16].includes(d.base) && [0, 1].includes(d.dots)) ||
+    (d.base === 32 && d.dots === 0) ||
+    (d.base === 64 && d.dots === 0 && d.triplet === true));
 export function durationValue(d: Duration): Fraction {
   if (!validDuration(d)) throw new RangeError('Duración no válida.');
   return fraction(
@@ -132,18 +133,51 @@ export function removeMeasure(score: Score, index: number): Score {
   return cleanTies({ ...score, measures });
 }
 export function setMeter(score: Score, index: number, meter: Meter): Score {
+  return changeMeasureMeter(score, { measure: index, event: 0, string: 0 }, meter).score;
+}
+
+export function changeMeasureMeter(score: Score, cursor: EditCursor, meter: Meter): Edit {
   checkMeter(meter);
-  if (!score.measures[index]) return score;
+  const index = cursor.measure;
+  if (!score.measures[index]) return { score, cursor };
+  const measures = score.measures.slice();
+  measures[index] = { ...measures[index]!, meter: { ...meter } };
+  let through = index;
+  while (measures[through + 1] && !measures[through + 1]!.meter) through++;
+  const current = measures[index]!;
+  const events = isMeasurePlaceholder(current) ? rests(meter, current.id) : current.events;
+  const fitted = fitMeasures({ ...score, measures }, index, events, through);
+  if (!fitted) return { score, cursor, notice: 'limit' };
+  const result = fitted.moved ? cleanTies(fitted.score) : fitted.score;
   return {
-    ...score,
-    measures: score.measures.map((m, i) => (i === index ? { ...m, meter: { ...meter } } : m)),
+    score: result,
+    cursor: clampCursor(result, cursor),
+    notice: fitted.moved ? 'reflow' : undefined,
   };
+}
+
+export function repairMeasure(score: Score, cursor: EditCursor): Edit {
+  const c = clampCursor(score, cursor);
+  if (measureFill(score, c.measure).status !== 'over') return { score, cursor };
+  const measure = score.measures[c.measure]!;
+  if (isMeasurePlaceholder(measure)) {
+    const measures = score.measures.slice();
+    measures[c.measure] = { ...measure, events: rests(measureMeter(score, c.measure), measure.id) };
+    return { score: { ...score, measures }, cursor: { ...c, event: 0 } };
+  }
+  const fitted = fitMeasures(score, c.measure, measure.events);
+  if (!fitted) return { score, cursor, notice: 'limit' };
+  return { score: cleanTies(fitted.score), cursor: clampCursor(fitted.score, c), notice: 'reflow' };
 }
 export function setKey(score: Score, fifths: number): Score {
   if (!integer(fifths) || Math.abs(fifths) > 7) throw new RangeError('Armadura no válida.');
   return { ...score, keyFifths: fifths };
 }
-export type Edit = { score: Score; cursor: EditCursor };
+export type Edit = {
+  score: Score;
+  cursor: EditCursor;
+  notice?: 'split' | 'reflow' | 'limit';
+};
 function clampCursor(score: Score, cursor: EditCursor): EditCursor {
   const measure = Math.max(0, Math.min(score.measures.length - 1, Math.trunc(cursor.measure) || 0));
   return {
@@ -199,6 +233,142 @@ function replace(
     cursor,
   };
 }
+export function isMeasurePlaceholder(measure: Measure): boolean {
+  return (
+    measure.events.length > 0 &&
+    measure.events.every((event, index) => !event.note && event.id === `${measure.id}-r${index}`)
+  );
+}
+// Supported entry figures and bar capacities are all multiples of 1/96.
+const BAR_TICKS = 96;
+const ticks = (duration: Duration): number => {
+  const value = durationValue(duration);
+  return (value.n * BAR_TICKS) / value.d;
+};
+const fragments = (
+  [
+    ...([1, 2, 4, 8, 16] as const).flatMap((base): Duration[] => [
+      { base, dots: 0 },
+      { base, dots: 1 },
+      { base, dots: 0, triplet: true },
+    ]),
+    { base: 32, dots: 0 },
+    { base: 32, dots: 0, triplet: true },
+    { base: 64, dots: 0, triplet: true },
+  ] satisfies Duration[]
+)
+  .map((duration) => ({ duration, ticks: ticks(duration) }))
+  .sort((a, b) => b.ticks - a.ticks);
+
+function decompose(length: number, original: Duration): Duration[] {
+  if (length === ticks(original)) return [original];
+  const durations: Duration[] = [];
+  while (length > 0) {
+    const part = fragments.find((entry) => entry.ticks <= length)!;
+    durations.push(part.duration);
+    length -= part.ticks;
+  }
+  return durations;
+}
+
+/** Packs events in order, retaining downstream meter changes and existing measure IDs. */
+function fitMeasures(
+  score: Score,
+  start: number,
+  events: ScoreEvent[],
+  through = start,
+  followId?: string,
+): { score: Score; moved: boolean; split: boolean; followId?: string } | null {
+  const measures = score.measures.slice();
+  let carried: ScoreEvent[] = [];
+  let meter = measureMeter(score, start);
+  let eventIds: Set<string> | undefined;
+  let suffix = 0;
+  const usedIds = () =>
+    (eventIds ??= new Set([
+      ...score.measures.flatMap((m) => [m.id, ...m.events.map((e) => e.id)]),
+      ...events.map((e) => e.id),
+    ]));
+  const fragmentId = (id: string) => {
+    const ids = usedIds();
+    let next: string;
+    do {
+      next = `${id}-part${++suffix}`;
+    } while (ids.has(next));
+    ids.add(next);
+    return next;
+  };
+  let measureId = 0;
+  const nextMeasureId = () => {
+    const ids = usedIds();
+    let id: string;
+    do {
+      id = `m${++measureId}`;
+    } while (ids.has(id));
+    ids.add(id);
+    return id;
+  };
+  let moved = false;
+  let split = false;
+  for (let index = start; index <= through || carried.length; index++) {
+    if (index >= MAX_SCORE_MEASURES) return null;
+    const existing = measures[index];
+    if (existing?.meter) meter = existing.meter;
+    if (index !== start && existing && !carried.length && isMeasurePlaceholder(existing)) {
+      measures[index] = { ...existing, events: rests(meter, existing.id) };
+      continue;
+    }
+    const incoming = carried;
+    carried = [];
+    const queue =
+      index === start
+        ? events
+        : [...incoming, ...(existing && !isMeasurePlaceholder(existing) ? existing.events : [])];
+    let available = (meter.beats * BAR_TICKS) / meter.unit;
+    const fitted: ScoreEvent[] = [];
+    for (let i = 0; i < queue.length; i++) {
+      const event = queue[i]!;
+      const length = ticks(event.duration);
+      if (length <= available) {
+        fitted.push(event);
+        available -= length;
+        continue;
+      }
+      moved = true;
+      if (available === 0) {
+        carried = queue.slice(i);
+      } else {
+        split = true;
+        const before = decompose(available, event.duration);
+        const after = decompose(length - available, event.duration);
+        const parts = [...before, ...after].map((duration, part, all): ScoreEvent => {
+          const last = part === all.length - 1;
+          const technique =
+            event.technique === 'dead' || (event.technique === 'staccato' ? part === 0 : last)
+              ? event.technique
+              : undefined;
+          return {
+            ...event,
+            id: part === 0 ? event.id : fragmentId(event.id),
+            duration,
+            technique,
+            tie: event.note && (!last || event.tie) ? true : undefined,
+          };
+        });
+        if (followId === event.id) followId = parts.at(-1)!.id;
+        fitted.push(...parts.slice(0, before.length));
+        carried = [...parts.slice(before.length), ...queue.slice(i + 1)];
+      }
+      break;
+    }
+    measures[index] = {
+      ...(existing ?? { id: nextMeasureId() }),
+      events: fitted,
+    };
+  }
+  return { score: { ...score, measures }, moved, split, followId };
+}
+
 function insert(
   score: Score,
   cursor: EditCursor,
@@ -206,26 +376,37 @@ function insert(
   note?: ScoreEvent['note'],
 ): Edit {
   durationValue(duration);
+  const original = score;
   cursor = clampCursor(score, cursor);
+  let { measure, event: index } = cursor;
+  let current = score.measures[measure]!;
+  if (!isMeasurePlaceholder(current) && measureFill(score, measure).status === 'full') {
+    if (measure + 1 >= MAX_SCORE_MEASURES) return { score, cursor, notice: 'limit' };
+    if (!score.measures[measure + 1]) score = addMeasure(score, measure);
+    current = score.measures[++measure]!;
+    index = 0;
+  }
   const event: ScoreEvent = {
     id: fresh(score, 'e'),
     duration: { ...duration },
     ...(note ? { note: { ...note } } : {}),
   };
-  const measure = score.measures[cursor.measure]!;
-  // A whole-bar placeholder is replaced when writing from its beginning.
-  const placeholder =
-    cursor.event === 0 &&
-    measure.events.every((e) => !e.note) &&
-    measureFill(score, cursor.measure).status === 'full';
-  const events = placeholder
+  const events = isMeasurePlaceholder(current)
     ? [event]
-    : [...measure.events.slice(0, cursor.event), event, ...measure.events.slice(cursor.event)];
-  const result = {
-    ...score,
-    measures: score.measures.map((m, i) => (i === cursor.measure ? { ...m, events } : m)),
-  };
-  return { score: cleanTies(result), cursor: { ...cursor, event: cursor.event + 1 } };
+    : [...current.events.slice(0, index), event, ...current.events.slice(index)];
+  const fitted = fitMeasures(score, measure, events, measure, event.id);
+  if (!fitted) return { score: original, cursor, notice: 'limit' };
+  const result = cleanTies(fitted.score);
+  for (let m = measure; m < result.measures.length; m++) {
+    const i = result.measures[m]!.events.findIndex((e) => e.id === fitted.followId);
+    if (i >= 0)
+      return {
+        score: result,
+        cursor: { ...cursor, measure: m, event: i + 1 },
+        notice: fitted.split ? 'split' : fitted.moved ? 'reflow' : undefined,
+      };
+  }
+  throw new Error('No se encuentra el evento insertado.');
 }
 export function insertNote(
   score: Score,
@@ -254,12 +435,30 @@ export function setFret(
 }
 export function setDuration(score: Score, cursor: EditCursor, duration: Duration): Edit {
   durationValue(duration);
-  return replace(score, cursor, (e) => ({ ...e, duration: { ...duration } }));
+  cursor = clampCursor(score, cursor);
+  const measure = score.measures[cursor.measure]!;
+  const event = measure.events[cursor.event];
+  if (!event || isMeasurePlaceholder(measure)) return { score, cursor };
+  const events = measure.events.slice();
+  events[cursor.event] = { ...event, duration: { ...duration } };
+  const fitted = fitMeasures(score, cursor.measure, events);
+  if (!fitted) return { score, cursor, notice: 'limit' };
+  return {
+    score: fitted.moved ? cleanTies(fitted.score) : fitted.score,
+    cursor,
+    notice: fitted.split ? 'split' : fitted.moved ? 'reflow' : undefined,
+  };
 }
-export const toggleDot = (s: Score, c: EditCursor): Edit =>
-  replace(s, c, (e) => ({ ...e, duration: { ...e.duration, dots: e.duration.dots ? 0 : 1 } }));
-export const toggleTriplet = (s: Score, c: EditCursor): Edit =>
-  replace(s, c, (e) => ({ ...e, duration: { ...e.duration, triplet: !e.duration.triplet } }));
+export function toggleDot(score: Score, cursor: EditCursor): Edit {
+  const duration = score.measures[cursor.measure]?.events[cursor.event]?.duration;
+  if (!duration || duration.base > 16) return { score, cursor };
+  return setDuration(score, cursor, { ...duration, dots: duration.dots ? 0 : 1 });
+}
+export function toggleTriplet(score: Score, cursor: EditCursor): Edit {
+  const duration = score.measures[cursor.measure]?.events[cursor.event]?.duration;
+  if (!duration || duration.base === 64) return { score, cursor };
+  return setDuration(score, cursor, { ...duration, triplet: !duration.triplet });
+}
 export function toggleTie(s: Score, c: EditCursor): Edit {
   const edit = replace(s, c, (e) => ({ ...e, tie: !e.tie }));
   return { ...edit, score: cleanTies(edit.score) };
