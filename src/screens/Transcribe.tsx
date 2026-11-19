@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Button, Chips, Heading, Icon, Label, colors, styles } from '../components/ui';
 import { Waveform } from '../components/Waveform';
+import { ScoreEditor } from '../components/ScoreEditor';
+import { tunings } from '../core/instrument';
+import { useStore } from '../data/Store';
 import {
   RATE_MAX,
   RATE_MIN,
@@ -38,6 +41,17 @@ export function Transcribe() {
   const [recent, setRecent] = useState<Session[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef<Session | null>(null);
+  const { profile } = useStore();
+  const instrument = tunings[profile.tuning];
+  const [editing, setEditing] = useState(false);
+  // Acciones de marcado que registra el editor de partitura (teclas M y B).
+  const scoreActions = useRef<{ markMeasure: () => void; markBeat: () => void } | null>(null);
+  const registerScore = useCallback(
+    (actions: { markMeasure: () => void; markBeat: () => void }) => {
+      scoreActions.current = actions;
+    },
+    [],
+  );
 
   const persist = useCallback((next: Session) => {
     latest.current = next;
@@ -129,9 +143,11 @@ export function Transcribe() {
   );
   const mark = useCallback(() => update((s) => addMarker(s, time)), [time, update]);
 
-  // Atajos de teclado en web: espacio, flechas (Mayús = 5 s), A, B y M.
+  // Atajos de teclado en web, como en los reproductores de transcripción: espacio,
+  // flechas (Mayús = 5 s), S sección, M compás, B pulso, [ y ] bucle.
+  // En modo «Escribir» el teclado es del editor de partitura.
   useEffect(() => {
-    if (Platform.OS !== 'web' || !session || typeof document === 'undefined') return;
+    if (Platform.OS !== 'web' || !session || editing || typeof document === 'undefined') return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
@@ -143,12 +159,15 @@ export function Transcribe() {
       } else if (key === 'arrowleft' || key === 'arrowright') {
         e.preventDefault();
         seek(step(session, (key === 'arrowleft' ? -1 : 1) * (e.shiftKey ? 5 : 1)));
-      } else if (key === 'a' || key === 'b') loopAt(key);
-      else if (key === 'm') mark();
+      } else if (key === '[') loopAt('a');
+      else if (key === ']') loopAt('b');
+      else if (key === 's') mark();
+      else if (key === 'm') scoreActions.current?.markMeasure();
+      else if (key === 'b') scoreActions.current?.markBeat();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [session, toggle, seek, loopAt, mark]);
+  }, [session, editing, toggle, seek, loopAt, mark]);
 
   if (!audio || !session)
     return (
@@ -275,20 +294,40 @@ export function Transcribe() {
         {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
         {Platform.OS === 'web' && wide ? (
           <Label muted style={{ textAlign: 'center' }}>
-            Teclado: espacio reproduce o pausa · flechas ±1 s (Mayús ±5 s) · A y B fijan el bucle ·
-            M añade una marca
+            Teclado: espacio reproduce o pausa · flechas ±1 s (Mayús ±5 s) · [ y ] fijan el bucle ·
+            S sección · M compás · B pulso
           </Label>
         ) : null}
       </View>
+
+      <ScoreEditor
+        sessionId={session.id}
+        duration={session.duration}
+        time={time}
+        instrument={instrument}
+        nomenclature={profile.nomenclature}
+        leftHanded={profile.leftHanded}
+        wide={wide}
+        editing={editing}
+        onEditingChange={setEditing}
+        onSeek={seek}
+        onLoop={(span) =>
+          withPlayer(
+            (s) => (span ? setLoopEnd(setLoopStart(s, span.a), span.b) : clearLoop(s)),
+            (s) => p.setLoop(s.loop),
+          )
+        }
+        register={registerScore}
+      />
 
       <View style={{ flexDirection: wide ? 'row' : 'column', gap: 20, alignItems: 'flex-start' }}>
         <Section title="Bucle" wide={wide}>
           <View style={[styles.row, { flexWrap: 'wrap' }]}>
             <Button variant="secondary" onPress={() => loopAt('a')}>
-              A aquí
+              A aquí ([)
             </Button>
             <Button variant="secondary" onPress={() => loopAt('b')} disabled={!session.loop}>
-              B aquí
+              B aquí (])
             </Button>
             {session.loop ? (
               <Button variant="ghost" onPress={() => withPlayer(clearLoop, () => p.setLoop(null))}>
@@ -407,14 +446,14 @@ export function Transcribe() {
           )}
         </Section>
 
-        <Section title="Marcas" wide={wide}>
+        <Section title="Secciones" wide={wide}>
           <Button
             variant="secondary"
             icon="plus"
             onPress={mark}
             style={{ alignSelf: 'flex-start' }}
           >
-            Marca en {formatTime(time)}
+            Sección en {formatTime(time)} (S)
           </Button>
           {session.markers.length ? (
             session.markers.map((m) => (
@@ -428,7 +467,9 @@ export function Transcribe() {
               />
             ))
           ) : (
-            <Label muted>Marca la estrofa, el estribillo o el compás que quieras repasar.</Label>
+            <Label muted>
+              Nombra la intro, la estrofa, el estribillo o el puente para saltar entre ellos.
+            </Label>
           )}
         </Section>
       </View>
