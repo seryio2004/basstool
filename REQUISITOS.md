@@ -26,6 +26,10 @@ Recorrido principal: abrir la app → usar una herramienta o elegir una práctic
 - Modelo freemium con un premium personal. Los precios y la cobertura siguen pendientes.
 - La gestión de academias y profesores queda fuera de este proyecto y será un proyecto aparte (decidido el 2026-11-19).
 
+- **Función estrella: la práctica diaria** (2026-11-19). Herramientas, teoría y transcripción giran alrededor de un hábito de práctica diario con progreso visible. El diseño concreto está en definición.
+- **Lanzamiento: web primero** (2026-11-19). Se valida con usuarios reales en web antes de publicar en las tiendas; las apps nativas siguen siendo objetivo.
+- **Curso de teoría: temario propio** (2026-11-19), original y validado por los profesores del usuario. El curso basado en Enric Herrera se sustituirá y no se publicará.
+
 ### Propuestas
 
 - Diseñar la interfaz pensando primero en el móvil y adaptarla después a la web.

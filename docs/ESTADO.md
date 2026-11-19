@@ -13,6 +13,10 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - **En curso (parte 2 del encargo notas-simultaneas): reconocimiento de acordes extendidos** (pedido por el usuario). Ampliar la deducción por notas escritas (`inferChord` en src/core/chroma.ts) y la detección por audio para novenas, oncenas y trecenas: Cmaj9, C9, Cm9, C7(♭9/♯9), Cadd9, C11, Cm11, C7(♯11), C13…, admitiendo la omisión de la quinta (y de la 11 en acordes dominantes) cuando hay 5 o más notas. Elegir la interpretación más simple ante ambigüedad (p. ej. preferir C6 a Am7/C según el bajo) y probar con casos concretos. Encargo en `.git/coord/encargos/notas-simultaneas.md`, parte 2.
 
+## Definición del producto (2026-11-19)
+- Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
+- Por decidir: reparto gratis/premium (el usuario eligió «otra» sin detallar); diseño concreto de la práctica diaria.
+
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
 - Aprobar la librería de audio de la tarea 6 tras medir en un dispositivo.
