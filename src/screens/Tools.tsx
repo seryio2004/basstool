@@ -7,26 +7,33 @@ import { naturals, noteName, tuning } from '../core/music';
 import { tunings } from '../core/instrument';
 import { targetString } from '../core/tuner';
 import { TunerError } from '../platform/tunerErrors';
-export type Tool = 'metronome' | 'tuner' | 'chords';
+import { FretboardTool } from './FretboardTool';
+export type Tool = 'metronome' | 'tuner' | 'chords' | 'fretboard';
 export const toolNames: Record<Tool, string> = {
   metronome: 'Metrónomo',
   tuner: 'Afinador',
   chords: 'Progresiones de acordes',
+  fretboard: 'Mástil',
 };
 
 export function Tools({ tool, onBack }: { tool: Tool; onBack: () => void }) {
   return (
     <View style={{ gap: 24 }}>
       <Button onPress={onBack} variant="ghost" icon="back" style={{ alignSelf: 'flex-start' }}>
-        Volver a mi espacio
+        Herramientas
       </Button>
-      <View>
-        <Heading level={1} style={styles.title}>
-          {toolNames[tool]}
-        </Heading>
-        <Label muted>Prepara tu instrumento y tu próxima sesión.</Label>
-      </View>
-      {tool === 'metronome' ? <Metronome /> : tool === 'tuner' ? <Tuner /> : <Chords />}
+      <Heading level={1} style={styles.title}>
+        {toolNames[tool]}
+      </Heading>
+      {tool === 'metronome' ? (
+        <Metronome />
+      ) : tool === 'tuner' ? (
+        <Tuner />
+      ) : tool === 'fretboard' ? (
+        <FretboardTool />
+      ) : (
+        <Chords />
+      )}
     </View>
   );
 }
