@@ -171,12 +171,24 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 - Propuesta: un entrenamiento de oído para reconocer el grado de la nota del bajo dentro de una tonalidad.
 - Cada intento guarda módulo, configuración, fecha, respuestas y resultado. Los intentos guardados no cambian si después cambia la configuración.
 
-## 9. Progreso y hábito
+## 9. Práctica diaria y hábito — función estrella
 
-- P0: historial de intentos y resumen por módulo, separando intentos de aciertos.
-- P1: diario de práctica (tiempo, qué se practicó, BPM alcanzado) y reto diario corto.
-- P1: objetivos de tempo por ejercicio (por ejemplo, llegar a 120 BPM sin fallos).
-- La gamificación avanzada queda fuera de esta etapa.
+**Decisiones del usuario (2026-11-19).** La constancia es lo más importante para aprender un instrumento, y los primeros 21 días son decisivos.
+
+- **Tres formatos que conviven:**
+  - **Reto diario** corto, con racha.
+  - **Plan semanal:** objetivos y días de práctica.
+  - **Rutinas guiadas personalizables:** calentamiento, técnica, ritmo, oído y lectura, y teoría.
+- **Adaptación a la vez por:**
+  - nivel y resultados (aciertos, BPM alcanzado);
+  - tiempo disponible;
+  - objetivos del usuario.
+- **Seguimiento:**
+  - **racha de días**;
+  - **diario de práctica:** registro por sesión de qué se practicó, tiempo, BPM y notas propias.
+- Propuesta: un **programa de inicio de 21 días** que guíe la primera etapa y refuerce la racha.
+- Base existente: historial de intentos por módulo (separa intentos de aciertos).
+- Gamificación avanzada fuera de esta etapa.
 
 ## 10. Cuentas, datos y planes
 
@@ -192,10 +204,10 @@ Los cuatro módulos de la primera fase se mantienen y se adaptan al bajo.
 
 | Plan | Estado | Propuesta de contenido |
 | --- | --- | --- |
-| Gratuito | Confirmado | Afinador, metrónomo, mástil, reproductor de transcripción básico, lecciones iniciales y entrenamiento básico. |
-| Premium personal | Confirmado | Pendiente. Candidatos: teoría completa, asistencia de notas, tablatura y exportación, caja de ritmos completa y sincronización ilimitada. |
+| Gratuito | Confirmado | Herramientas básicas y una **demo corta de Transcribir** (2026-11-19). Pendiente: límite exacto de la demo (p. ej. 3 canciones o una duración máxima) y qué parte de la práctica diaria es gratuita. |
+| Premium personal | Confirmado | **Desbloquea todo** mediante suscripción mensual o bono anual (2026-11-19). |
 
-- Pendiente: precio, periodicidad, periodo de prueba y límites exactos del plan gratuito.
+- Confirmado: suscripción mensual y bono anual. Pendiente: precios, periodo de prueba y límites exactos del plan gratuito.
 - Las suscripciones digitales vendidas dentro de las apps de iOS y Android deben usar los pagos integrados de cada tienda. Stripe sirve para la web. Propuesta: usar un servicio que unifique los derechos de acceso entre tiendas y web.
 - El estado premium se valida en el servidor. No guardar datos de tarjeta ni claves secretas en el cliente. Los eventos de pago no se procesan dos veces.
 
