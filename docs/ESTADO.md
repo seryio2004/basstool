@@ -10,6 +10,8 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 ## En curso
 - Encargo `transcribir-fix` (Sol 6.2): .git/coord/encargos/transcribir-fix.md — reproducción de la transcripción no funciona, asignar compases no es intuitivo, acordes deducidos de las notas escritas, notas simultáneas (una por cuerda).
 
+- **Interrumpido 2026-11-19 ~08:05 por límite de uso de Codex (reintentar desde las 08:28).** Trabajo parcial en la rama `codex/transcribir-fix` (commit WIP, sin verificar). Para reanudar: `scripts/sol.sh transcribir-fix .git/coord/encargos/transcribir-fix.md` (retoma la misma rama) e incluir también los requisitos enviados por el buzón: notas simultáneas (#22) y selector de BPM (#24) — ver `npm run coord -- log 10`.
+
 ## Pendiente de decisión del usuario
 - `expo-print` para exportar PDF en móvil (propuesto, sin instalar).
 - Aprobar la librería de audio de la tarea 6 tras medir en un dispositivo.
