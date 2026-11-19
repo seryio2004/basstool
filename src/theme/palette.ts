@@ -10,7 +10,7 @@ export type ThemeName = 'dark' | 'light';
 /** Par tinta / fondo suave para módulos, funciones armónicas y avisos. */
 export type Pair = { ink: string; bg: string };
 
-export type ModuleTone = 'groove' | 'chord' | 'notes' | 'intervals' | 'reading';
+export type ModuleTone = 'groove' | 'chord' | 'notes' | 'intervals' | 'reading' | 'listen-repeat';
 
 export type Palette = {
   /** Fondo de la aplicación (nogal oscuro / papel crema). */
@@ -124,6 +124,7 @@ const dark: Palette = {
     notes: { ink: '#D4844A', bg: '#33231A' },
     intervals: { ink: '#B497C6', bg: '#2D2233' },
     reading: { ink: '#6FAAB9', bg: '#1B2A2E' },
+    'listen-repeat': { ink: '#D2A6A2', bg: '#3A2727' },
   },
   functions: {
     T: { ink: '#5FA58A', bg: '#1C2A23' },
@@ -193,6 +194,7 @@ const light: Palette = {
     notes: { ink: '#92501F', bg: '#F6E5D6' },
     intervals: { ink: '#7A5690', bg: '#EEE5F3' },
     reading: { ink: '#33707F', bg: '#E0EEF1' },
+    'listen-repeat': { ink: '#86494D', bg: '#F3E2E1' },
   },
   functions: {
     T: { ink: '#2F6E57', bg: '#E2EFE8' },
@@ -287,7 +289,7 @@ export const contrastChecks: Check[] = [
   { use: 'Error sobre su fondo', fg: (p) => p.error, bg: (p) => p.errorSoft, min: text },
   { use: 'Información sobre placa', fg: (p) => p.info, bg: (p) => p.surface, min: text },
   { use: 'Información sobre su fondo', fg: (p) => p.info, bg: (p) => p.infoSoft, min: text },
-  ...(['groove', 'chord', 'notes', 'intervals', 'reading'] as const).map((m) => ({
+  ...(['groove', 'chord', 'notes', 'intervals', 'reading', 'listen-repeat'] as const).map((m) => ({
     use: `Módulo ${m}`,
     fg: (p: Palette) => p.modules[m].ink,
     bg: (p: Palette) => p.modules[m].bg,

@@ -59,8 +59,8 @@ export function Practice({ practice }: { practice: (module: Module) => void }) {
                       />
                     ))}
                   </View>
-                ) : m.id === 'chord-train' ? (
-                  <Icon name="note" color={m.color} size={48} />
+                ) : m.id === 'chord-train' || m.id === 'listen-repeat' ? (
+                  <Icon name={m.id === 'listen-repeat' ? 'ear' : 'note'} color={m.color} size={48} />
                 ) : m.id === 'intervals' ? (
                   <View style={[styles.row, { gap: 30 }]}>
                     <Icon name="note" color={m.color} size={45} />

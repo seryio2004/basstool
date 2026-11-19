@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { AttemptInput, ExerciseConfig, Module, initialConfig, modules, uid } from '../core/types';
 import { buildQuestion, groovePassScore } from '../core/music';
+import { ListenRepeat } from './ListenRepeat';
 import { RhythmExercise, type RhythmResult } from './RhythmExercise';
 import { tunings } from '../core/instrument';
 import { Fretboard } from '../components/Fretboard';
@@ -23,12 +24,21 @@ import {
 import { useStore } from '../data/Store';
 
 type Result = RhythmResult;
-export function Exercise({
+export function Exercise(props: { module: Module; onBack: () => void; preset?: ExerciseConfig }) {
+  const { module, onBack, preset } = props;
+  return module === 'listen-repeat' ? (
+    <ListenRepeat onBack={onBack} preset={preset?.listenRepeat} />
+  ) : (
+    <OtherExercise module={module} onBack={onBack} preset={preset} />
+  );
+}
+
+function OtherExercise({
   module,
   onBack,
   preset,
 }: {
-  module: Module;
+  module: Exclude<Module, 'listen-repeat'>;
   onBack: () => void;
   preset?: ExerciseConfig;
 }) {

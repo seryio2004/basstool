@@ -1,8 +1,10 @@
+import type { ListenRepeatPreset } from './listenRepeat';
+import { palettes } from '../theme/palette';
 import type { LessonProgress } from './course';
 import { grooveColors } from '../theme/groove';
 import { harmonicColors } from '../theme/harmonic';
 export const CHORD_TRAIN_TITLE = 'ChordLine';
-export type Module = 'chord-train' | 'groove' | 'notes' | 'intervals' | 'reading';
+export type Module = 'chord-train' | 'groove' | 'notes' | 'intervals' | 'reading' | 'listen-repeat';
 export type Page = 'tools' | 'transcribe' | 'learn' | 'practice' | 'progress' | 'settings';
 export type { Profile } from './profile';
 export type ExerciseConfig = {
@@ -21,6 +23,7 @@ export type ExerciseConfig = {
   nomenclature?: import('./notation').Nomenclature;
   register?: { min: number; max: number };
   reading?: 'notes' | 'rhythm';
+  listenRepeat?: ListenRepeatPreset & { input?: 'mic' | 'manual' };
 };
 export type Attempt = {
   id: string;
@@ -65,6 +68,15 @@ export const modules: {
     category: 'Ritmo y armonía',
     color: harmonicColors.ink,
     background: harmonicColors.stage,
+    minutes: 4,
+  },
+  {
+    id: 'listen-repeat',
+    title: 'Escucha y repite',
+    subtitle: 'Escucha una frase de bajo y tócala de oído sobre la batería.',
+    category: 'Entrenamiento auditivo',
+    color: palettes.dark.modules['listen-repeat'].ink,
+    background: palettes.dark.modules['listen-repeat'].bg,
     minutes: 4,
   },
   {

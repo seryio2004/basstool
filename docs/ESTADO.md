@@ -50,6 +50,13 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 2. Arrastra la carpeta `dist/` completa a [Netlify Drop](https://app.netlify.com/drop). Para una actualización, sube el nuevo `dist/` al sitio existente. El HTML, el favicon, las fuentes y el JavaScript conservan sus rutas relativas.
 3. Abre la URL HTTPS resultante. Comprueba el título «clasRo — beta», el aviso en un perfil limpio, el afinador con permiso de micrófono y Transcribir con un archivo local antes de compartir la URL.
 
+### Escucha y repite · tarea 12
+
+- Entregado a Claude en `codex/escucha-repite`, con los cambios en el worktree sin commit. El módulo de Practicar genera frases originales de seis géneros y tres dificultades en la afinación del perfil. La frase se repite tras dos compases de batería. Los acordes opcionales solo acompañan el modelo. «Revelar» abre tablatura, partitura o mástil.
+- En web reutiliza la voz del bajo y el reloj de Web Audio, el detector de ataques de GrooveTrain y el afinador. Compara tiempo y altura con tolerancias por nivel, incluidas las notas muertas de funk. «Lo tengo» y «Otra vez» guardan la autoevaluación. En nativo la reproducción usa los tonos existentes y la entrada es manual.
+- `ExerciseConfig.listenRepeat` admite un preset con género, dificultad, acordes y semilla opcional. Los intentos guardan el preset efectivo y el tipo de entrada. La práctica diaria podrá pasar ese preset al abrir el ejercicio. Aplicar `202611190006_listen_repeat.sql` antes de sincronizar intentos con Supabase.
+- Pasan `npm run typecheck`, `npm run build` y las cinco pruebas nuevas. `npm test` pasa en 24 de 25 archivos. Solo falla la prueba de coordinación por `spawnSync git EPERM`. Los 25 pasan al capturar la salida de los subprocesos de esa prueba en archivos temporales. El render estático pasó a 350 y 1200 px en ambos temas. El sandbox bloqueó el servidor local y Chromium, así que quedan por probar la interacción, la sonoridad y la precisión con bajo y micrófono reales.
+
 ## Definición del producto (2026-11-19)
 - Decidido: función estrella = práctica diaria; lanzamiento web primero; temario propio en lugar del curso de Herrera.
 - Práctica diaria: reto diario con racha + plan semanal + rutinas guiadas personalizables; adapta por nivel, tiempo y objetivos; racha y diario de práctica; foco en los primeros 21 días (REQUISITOS §9).
@@ -57,7 +64,7 @@ Archivo de continuidad para Claude y Sol cuando se renueve el contexto. **Léelo
 
 - **Hecho e integrado: GrooveTrain original (paleta, tren, niveles, micrófono) + herramienta nueva de acordes por casilla.** Encargo: `.git/coord/encargos/groovetrain.md`.
 
-- **Siguiente para Sol:** tarea 12 «Escucha y repite» (docs/TAREAS.md), tras GrooveTrain.
+- **Entregada a Claude:** tarea 12 «Escucha y repite» (docs/TAREAS.md), pendiente de revisión e integración.
 
 - ChordLine v2 y ritmos integrados. **Rediseño vintage integrado (tema oscuro/claro/sistema, Fraunces + IBM Plex en web; `expo-font` pendiente de aprobación para nativo; pendiente adaptar al tema HarmonicWagons y colores de módulo de src/core/types.ts): visual vintage/analógico, oscuro por defecto** — encargo `.git/coord/encargos/rediseno-vintage.md`.
 
