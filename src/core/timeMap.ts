@@ -3,6 +3,25 @@ import type { MusicalPosition, Score, TimeMap } from './scoreTypes';
 export type { MusicalPosition, TimeMap } from './scoreTypes';
 const validTime = (n: number) => Number.isFinite(n) && n >= 0;
 export const emptyTimeMap = (): TimeMap => ({ measures: [], beats: [] });
+export const DEFAULT_SCORE_BPM = 120;
+
+/** Listening grid. Keep explicit anchors and extend a partial map at its last tempo. */
+export function scorePlaybackMap(score: Score, map: TimeMap, bpm = DEFAULT_SCORE_BPM): TimeMap {
+  if (map.measures.length > score.measures.length) return map;
+  const measures = [...map.measures];
+  if (!measures.length) measures.push(0);
+  let meter = measureMeter(score, measures.length - 1);
+  const last = measures.length - 1;
+  const secondsPerBeat =
+    last > 0
+      ? (measures[last]! - measures[last - 1]!) / measureMeter(score, last - 1).beats
+      : 60 / (Number.isFinite(bpm) && bpm > 0 ? bpm : DEFAULT_SCORE_BPM);
+  for (let i = last; i < score.measures.length; i++) {
+    meter = score.measures[i]!.meter ?? meter;
+    measures.push(measures[i]! + secondsPerBeat * meter.beats);
+  }
+  return { ...map, measures };
+}
 function add(map: TimeMap, kind: 'measures' | 'beats', time: number): TimeMap {
   if (!validTime(time) || map[kind].some((t) => Math.abs(t - time) < 0.05 - 1e-10)) return map;
   return { ...map, [kind]: [...map[kind], time].sort((a, b) => a - b) };
@@ -31,6 +50,7 @@ export function moveMeasureMarker(map: TimeMap, index: number, time: number): Ti
   const low = index ? map.measures[index - 1]! + 0.05 : 0;
   const high = index + 1 < map.measures.length ? map.measures[index + 1]! - 0.05 : Infinity;
   const value = Math.max(low, Math.min(high, time));
+  if (value === map.measures[index]) return map;
   return { ...map, measures: map.measures.map((t, i) => (i === index ? value : t)) };
 }
 export function measureSpan(
@@ -59,7 +79,9 @@ export function beatAnchors(
   index: number,
   duration: number,
 ): { beat: number; time: number }[] | null {
-  const span = measureSpan(map, index, duration);
+  if (!validTime(duration) || (map.measures[index] ?? Infinity) >= duration) return null;
+  // Preserve the tempo if the song ends partway through a mapped bar.
+  const span = measureSpan(map, index, Math.max(duration, map.measures[index + 1] ?? 0));
   if (!span || !score.measures[index]) return null;
   const count = measureMeter(score, index).beats;
   const taps = map.beats.filter((t) => t > span.start && t < span.end);

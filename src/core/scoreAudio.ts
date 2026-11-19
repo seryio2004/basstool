@@ -1,12 +1,36 @@
 import { positionsOf, type Instrument } from './instrument';
 import { addF, durationValue, fraction, measureMeter } from './score';
-import type { Score, TimeMap } from './scoreTypes';
-import { beatAnchors, timeAtBeat } from './timeMap';
+import type { Measure, Meter, Score, ScoreEvent, TimeMap } from './scoreTypes';
+import { beatAnchors, scorePlaybackMap, timeAtBeat } from './timeMap';
 
 export function pianoPosition(instrument: Instrument, midi: number, preference: 'low' | 'high') {
   return positionsOf(instrument, midi).sort((a, b) =>
     preference === 'low' ? a.fret - b.fret : b.fret - a.fret,
   )[0];
+}
+
+export function noteMidi(event: ScoreEvent, instrument: Instrument): number | undefined {
+  if (!event.note) return undefined;
+  const open = instrument.strings[event.note.string];
+  return open === undefined ? undefined : open + event.note.fret;
+}
+
+export function chordSegment(bar: Measure, meter: Meter, beat: number, instrument: Instrument) {
+  let start = 0;
+  let end = meter.beats;
+  for (const chord of bar.chords ?? []) {
+    if (chord.beat <= beat) start = Math.max(start, chord.beat);
+    else end = Math.min(end, chord.beat);
+  }
+  let offset = fraction(0, 1);
+  const notes = bar.events.flatMap((event) => {
+    const from = (offset.n * meter.unit) / offset.d;
+    offset = addF(offset, durationValue(event.duration));
+    const to = (offset.n * meter.unit) / offset.d;
+    const midi = noteMidi(event, instrument);
+    return midi !== undefined && from < end && to > start ? [midi] : [];
+  });
+  return { start, end, notes };
 }
 
 export type TimedEvent = {
@@ -23,9 +47,12 @@ export function scoreTimeline(
   map: TimeMap,
   duration: number,
   instrument: Instrument,
+  bpm?: number,
 ): TimedEvent[] {
+  const playback = scorePlaybackMap(score, map, bpm);
   return score.measures.flatMap((bar, measure) => {
-    const anchors = beatAnchors(map, score, measure, duration);
+    if ((playback.measures[measure] ?? Infinity) >= duration) return [];
+    const anchors = beatAnchors(playback, score, measure, duration);
     if (!anchors) return [];
     const meter = measureMeter(score, measure);
     // Legacy overfull bars stop at the next bar line.
@@ -34,8 +61,7 @@ export function scoreTimeline(
     return bar.events.flatMap((e, event) => {
       const start = at((offset.n * meter.unit) / offset.d);
       offset = addF(offset, durationValue(e.duration));
-      const end = at((offset.n * meter.unit) / offset.d);
-      const open = e.note && instrument.strings[e.note.string];
+      const end = Math.min(duration, at((offset.n * meter.unit) / offset.d));
       return end > start
         ? [
             {
@@ -44,7 +70,7 @@ export function scoreTimeline(
               event,
               start,
               end,
-              midi: open !== undefined && e.note ? open + e.note.fret : undefined,
+              midi: noteMidi(e, instrument),
               tie: e.tie,
             },
           ]

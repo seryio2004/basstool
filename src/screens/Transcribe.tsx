@@ -361,6 +361,9 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
     );
 
   const transport = (
+    alignment: React.ReactNode,
+    onMoveMeasure: (index: number, time: number) => void,
+  ) => (
     <View style={[styles.panel, { gap: 8, padding: wide ? 24 : 12 }]}>
       <View style={styles.between}>
         <Text style={[styles.h3, { flex: 1, minWidth: 0 }]} numberOfLines={1}>
@@ -383,6 +386,7 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         onSeek={seek}
         onSelect={selectLoop}
         onClearLoop={() => selectLoop(null)}
+        onMoveMeasure={onMoveMeasure}
       />
       <View style={[styles.between, { gap: 8 }]}>
         <View style={[styles.row, { gap: 6 }]}>
@@ -429,6 +433,23 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
           onMute={() => changeVolume(session.volume > 0 ? 0 : resumeVolume.current)}
         />
       </View>
+      <Chips<MixMode>
+        minHeight={44}
+        value={mixMode}
+        onChange={(mode) => {
+          setMixMode(mode);
+          p.setMix(mode, balance);
+        }}
+        options={[
+          { value: 'song', label: 'Canción' },
+          { value: 'score', label: 'Transcripción' },
+          { value: 'both', label: 'Ambas' },
+        ]}
+      />
+      {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
+        <Label muted>Escribe notas para escuchar la transcripción.</Label>
+      ) : null}
+      {alignment}
       {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
     </View>
   );
@@ -503,22 +524,6 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
         </View>
       ) : openSection === 'Sonido' ? (
         <View style={{ gap: 8 }}>
-          <Label>Reproducir</Label>
-          <Chips<MixMode>
-            value={mixMode}
-            onChange={(v) => {
-              setMixMode(v);
-              p.setMix(v, balance);
-            }}
-            options={[
-              { value: 'song', label: 'Canción' },
-              { value: 'score', label: 'Transcripción' },
-              { value: 'both', label: 'Ambas' },
-            ]}
-          />
-          {mixMode !== 'song' && !annotations.events.some((e) => e.midi !== undefined) ? (
-            <Label muted>Escribe notas y marca sus compases para escucharlas.</Label>
-          ) : null}
           {mixMode === 'both' ? (
             <Stepper
               label="Balance de reproducción"
@@ -662,13 +667,13 @@ export function Transcribe({ pagePadding }: { pagePadding: number }) {
       fretboardHeight={Math.max(100, Math.min(294, height - 475))}
       playing={playing}
       onTogglePlayback={toggle}
-      renderLayout={(score, entry) =>
+      renderLayout={(score, entry, alignment, onMoveMeasure) =>
         frame(
           <>
             <Heading level={1} style={styles.title}>
               Transcribir
             </Heading>
-            {transport}
+            {transport(alignment, onMoveMeasure)}
             {score}
             {songTools}
           </>,

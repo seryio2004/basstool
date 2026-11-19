@@ -55,10 +55,15 @@ import {
 import {
   addBeatMarker,
   addMeasureMarker,
+  beatAnchors,
+  DEFAULT_SCORE_BPM,
   measureSpan,
+  moveMeasureMarker,
   positionAt,
   removeMarkerNear,
+  scorePlaybackMap,
   tapTempo,
+  timeAtBeat,
 } from '../core/timeMap';
 import { loadScoreDoc, saveScoreDoc, type ScoreDoc } from '../data/scores';
 
@@ -131,7 +136,12 @@ export function ScoreEditor({
   playing: boolean;
   onTogglePlayback: () => void;
   onCursorFrame: (view: React.ComponentRef<typeof View>, top: number, height: number) => void;
-  renderLayout: (score: React.ReactNode, entry: React.ReactNode) => React.JSX.Element;
+  renderLayout: (
+    score: React.ReactNode,
+    entry: React.ReactNode,
+    alignment: React.ReactNode,
+    onMoveMeasure: (index: number, time: number) => void,
+  ) => React.JSX.Element;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
   onSeek: (time: number) => void;
@@ -156,13 +166,16 @@ export function ScoreEditor({
     [onCursorFrame],
   );
   const [taps, setTaps] = useState<number[]>([]);
+  const [marking, setMarking] = useState<'manual' | 'tempo'>('manual');
+  const tempo = useMemo(() => tapTempo(taps), [taps]);
+  const bpm = tempo?.bpm ?? DEFAULT_SCORE_BPM;
   const [width, setWidth] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const { score, cursor: position } = history.present;
   const timeline = useMemo(
-    () => scoreTimeline(score, timeMap, duration, instrument),
-    [score, timeMap, duration, instrument],
+    () => scoreTimeline(score, timeMap, duration, instrument, bpm),
+    [score, timeMap, duration, instrument, bpm],
   );
   useEffect(() => {
     onTimeline(timeline, timeMap.measures);
@@ -253,7 +266,15 @@ export function ScoreEditor({
     return () => register(null);
   }, [register, markMeasure, markBeat]);
 
-  const tempo = useMemo(() => tapTempo(taps), [taps]);
+  const moveMarker = (index: number, next: number) => {
+    if (!loaded || duration <= 0) return;
+    setEditor((state) =>
+      updateScoreTimeMap(
+        state,
+        moveMeasureMarker(state.timeMap, index, Math.min(next, Math.max(0, duration - 0.001))),
+      ),
+    );
+  };
   const tap = () => {
     if (!loaded) return;
     const now = timeRef.current;
@@ -265,18 +286,22 @@ export function ScoreEditor({
       return [...keep, now].slice(-9);
     });
   };
-  const fillFromHere = () => {
-    const start = timeRef.current;
-    if (!loaded || !tempo || start >= duration) return;
-    setEditor((state) => fillScoreMeasures(state, start, tempo.bpm, duration));
+  const fillFromFirst = () => {
+    if (!loaded || !tempo) return;
+    setEditor((state) =>
+      state.timeMap.measures.length === 1
+        ? fillScoreMeasures(state, state.timeMap.measures[0]!, tempo.bpm, duration)
+        : state,
+    );
   };
 
+  const playbackMap = useMemo(() => scorePlaybackMap(score, timeMap, bpm), [score, timeMap, bpm]);
   const playhead = useMemo(
-    () => positionAt(timeMap, score, time, duration),
-    [timeMap, score, time, duration],
+    () => positionAt(playbackMap, score, time, duration),
+    [playbackMap, score, time, duration],
   );
   const goToMeasure = (measure: number) => {
-    const span = measureSpan(timeMap, measure, duration);
+    const span = measureSpan(playbackMap, measure, duration);
     setEditor((state) =>
       selectScoreCursor(state, { ...state.history.present.cursor, measure, event: 0 }),
     );
@@ -457,14 +482,18 @@ export function ScoreEditor({
     onEditingChange,
   ]);
 
-  const span = useMemo(
-    () => measureSpan(timeMap, cursor.measure, duration),
-    [timeMap, cursor.measure, duration],
-  );
-  const suggest = useMemo(
-    () => (span ? () => player.suggestChord(span.start, span.end) : null),
-    [span, player, audio],
-  );
+  const suggestAudio = useMemo(() => {
+    if (timeMap.measures[cursor.measure] === undefined) return null;
+    const anchors = beatAnchors(playbackMap, score, cursor.measure, duration);
+    if (!anchors) return null;
+    return (start: number, end: number) => {
+      const from = timeAtBeat(anchors, start);
+      const to = timeAtBeat(anchors, end);
+      return from !== null && to !== null
+        ? player.suggestChord(from, Math.min(to, duration))
+        : null;
+    };
+  }, [cursor.measure, duration, playbackMap, score, timeMap.measures, player, audio]);
   const fill = entryMeasureFill(score, cursor.measure);
   const currentMeter = measureMeter(score, cursor.measure);
   const ratio = (fill.actual.n * fill.expected.d) / (fill.actual.d * fill.expected.n);
@@ -650,54 +679,6 @@ export function ScoreEditor({
         </View>
       </View>
 
-      {!editing ? (
-        <View style={{ gap: 10 }}>
-          <Label muted>
-            Mientras suena, marca el inicio de cada compás (M) y, si quieres, cada pulso (B). Cada
-            compás de la partitura seguirá su tramo del audio aunque el tempo cambie.
-          </Label>
-          <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
-            <Button variant="secondary" onPress={markMeasure}>
-              Compás aquí (M)
-            </Button>
-            <Button variant="secondary" onPress={markBeat}>
-              Pulso aquí (B)
-            </Button>
-            <Button
-              variant="ghost"
-              onPress={() => {
-                if (loaded)
-                  setEditor((state) =>
-                    updateScoreTimeMap(state, removeMarkerNear(state.timeMap, timeRef.current)),
-                  );
-              }}
-            >
-              Quitar marca cercana
-            </Button>
-          </View>
-          <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
-            <Button variant="secondary" onPress={tap}>
-              Tap tempo
-            </Button>
-            <Text style={{ color: colors.ink, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-              {tempo
-                ? `${Math.round(tempo.bpm)} BPM`
-                : taps.length
-                  ? `${taps.length} toques…`
-                  : '—'}
-            </Text>
-            <Button variant="ghost" disabled={!tempo} onPress={fillFromHere}>
-              Rellenar compases desde aquí
-            </Button>
-          </View>
-          <Label muted>
-            {timeMap.measures.length
-              ? `${timeMap.measures.length} ${timeMap.measures.length === 1 ? 'compás marcado' : 'compases marcados'}${timeMap.beats.length ? ` · ${timeMap.beats.length} pulsos` : ''}.`
-              : 'Aún no hay compases marcados. Sin marcas puedes escribir, pero la partitura no seguirá al audio.'}
-          </Label>
-        </View>
-      ) : null}
-
       {editing && loaded ? (
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
@@ -739,10 +720,11 @@ export function ScoreEditor({
           </View>
           {tools === 'chords' ? (
             <ChordEditor
-              key={bar.id + '-' + currentMeter.beats + '-' + span?.start + '-' + span?.end}
+              key={bar.id + '-' + meterKey(currentMeter)}
               bar={bar}
-              beats={currentMeter.beats}
-              suggest={suggest}
+              meter={currentMeter}
+              instrument={instrument}
+              suggestAudio={suggestAudio}
               onSave={(beat, symbol) =>
                 run((s, c) => ({
                   cursor: c,
@@ -891,6 +873,89 @@ export function ScoreEditor({
       {error ? <Label style={{ color: colors.error }}>{error}</Label> : null}
     </View>,
     entry,
+    !editing && loaded ? (
+      <View style={{ gap: 8 }}>
+        <Heading level={2} style={styles.h3}>
+          Alinear compases
+        </Heading>
+        <Chips
+          minHeight={44}
+          value={marking}
+          onChange={setMarking}
+          options={[
+            { value: 'manual', label: 'A mano' },
+            { value: 'tempo', label: 'Tempo fijo' },
+          ]}
+        />
+        {marking === 'manual' ? (
+          <>
+            <Label>1. Reproduce y pulsa «Compás» en cada primer tiempo.</Label>
+            <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+              <Button onPress={markMeasure}>Compás (M)</Button>
+              <Button variant="secondary" onPress={markBeat}>
+                Pulso (B)
+              </Button>
+            </View>
+            <Label muted>2. Amplía la onda y arrastra los números para ajustar las marcas.</Label>
+          </>
+        ) : (
+          <>
+            <Label>
+              1. Reproduce y toca «Tap tempo» al menos tres veces al pulso de la canción.
+            </Label>
+            <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+              <Button variant="secondary" onPress={tap}>
+                Tap tempo
+              </Button>
+              {taps.length > 0 ? (
+                <Label>
+                  {tempo ? `${Math.round(tempo.bpm)} BPM` : `${taps.length} de 3 toques`}
+                </Label>
+              ) : null}
+            </View>
+            <Label>2. Pausa, sitúa el cursor en el primer tiempo y marca el compás 1.</Label>
+            <Button
+              variant="secondary"
+              style={{ alignSelf: 'flex-start' }}
+              disabled={timeMap.measures.length > 0}
+              onPress={markMeasure}
+            >
+              {timeMap.measures.length > 0 ? 'Compás 1 marcado' : 'Marcar compás 1'}
+            </Button>
+            <Label>3. Rellena los compases. Amplía la onda para ajustar las marcas.</Label>
+            <Button
+              style={{ alignSelf: 'flex-start' }}
+              disabled={!tempo || timeMap.measures.length !== 1}
+              onPress={fillFromFirst}
+            >
+              {timeMap.measures.length > 1 ? 'Compases marcados' : 'Rellenar compases'}
+            </Button>
+          </>
+        )}
+        {timeMap.measures.length || timeMap.beats.length ? (
+          <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+            <Label muted>
+              {timeMap.measures.length}{' '}
+              {timeMap.measures.length === 1 ? 'compás marcado' : 'compases marcados'}
+              {timeMap.beats.length ? ` · ${timeMap.beats.length} pulsos` : ''}
+            </Label>
+            <Button
+              variant="ghost"
+              onPress={() =>
+                setEditor((state) =>
+                  updateScoreTimeMap(state, removeMarkerNear(state.timeMap, timeRef.current)),
+                )
+              }
+            >
+              Quitar marca junto al cursor
+            </Button>
+          </View>
+        ) : (
+          <Label muted>Tempo de escucha provisional · {Math.round(bpm)} BPM</Label>
+        )}
+      </View>
+    ) : null,
+    moveMarker,
   );
 }
 

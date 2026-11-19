@@ -14,13 +14,38 @@ const qualities: [string, number[]][] = [
   ['m', [0, 3, 7]],
   ['dim', [0, 3, 6]],
   ['aug', [0, 4, 8]],
+  ['sus2', [0, 2, 7]],
+  ['sus4', [0, 5, 7]],
   ['7', [0, 4, 7, 10]],
   ['maj7', [0, 4, 7, 11]],
   ['m7', [0, 3, 7, 10]],
   ['m7♭5', [0, 3, 6, 10]],
+  ['dim7', [0, 3, 6, 9]],
 ];
 const roots = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 export type ChordGuess = { symbol: string; confidence: number };
+
+/** Match complete pitch-class sets, using the lowest sounding note to break ties. */
+export function inferChord(notes: readonly number[]): string | null {
+  const midi = notes.filter(Number.isInteger);
+  const pitchClass = (note: number) => ((note % 12) + 12) % 12;
+  const pitches = new Set(midi.map(pitchClass));
+  if (pitches.size < 3 || pitches.size > 4) return null;
+  const bass = pitchClass(Math.min(...midi));
+  for (const root of [
+    bass,
+    ...[...pitches].filter((pitch) => pitch !== bass).sort((a, b) => a - b),
+  ]) {
+    const quality = qualities.find(
+      ([, intervals]) =>
+        intervals.length === pitches.size &&
+        intervals.every((interval) => pitches.has((root + interval) % 12)),
+    );
+    if (quality) return roots[root] + quality[0] + (root === bass ? '' : `/${roots[bass]}`);
+  }
+  return null;
+}
+
 export function detectChord(
   audio: ReturnType<typeof analysisAudio>,
   start: number,

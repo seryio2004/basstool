@@ -42,6 +42,7 @@ export function createPlayer(): Player {
       audio.seeking ||
       audio.readyState < 3 ||
       !context ||
+      context.state !== 'running' ||
       !synth ||
       mode === 'song'
     )
@@ -266,7 +267,11 @@ export function createPlayer(): Player {
         };
         const element = audio;
         element.addEventListener('timeupdate', changed);
-        element.addEventListener('seeked', changed);
+        const seeked = () => {
+          if (element.paused) changed();
+          else playing();
+        };
+        element.addEventListener('seeked', seeked);
         element.addEventListener('play', playing);
         element.addEventListener('playing', playing);
         element.addEventListener('waiting', paused);
@@ -274,7 +279,7 @@ export function createPlayer(): Player {
         element.addEventListener('ended', ended);
         detach = () => {
           element.removeEventListener('timeupdate', changed);
-          element.removeEventListener('seeked', changed);
+          element.removeEventListener('seeked', seeked);
           element.removeEventListener('play', playing);
           element.removeEventListener('playing', playing);
           element.removeEventListener('waiting', paused);
@@ -306,12 +311,12 @@ export function createPlayer(): Player {
     async play() {
       const element = audio;
       if (!element || !context) return;
-      await context.resume();
-      if (element !== audio) return;
       if (loop && (element.currentTime < loop.a || element.currentTime >= loop.b))
         element.currentTime = loop.a;
       else if (element.ended || element.currentTime >= duration) element.currentTime = 0;
-      await element.play();
+      // Start both during the same user activation. Each browser can gate audio separately.
+      await Promise.all([context.resume(), element.play()]);
+      if (element === audio) schedule();
     },
     pause() {
       audio?.pause();

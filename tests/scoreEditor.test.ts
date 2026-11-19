@@ -67,6 +67,12 @@ test('fill from the current audio position uses the meter there and retains earl
   assert.equal(filled.history.present.score.measures.length, 6);
 });
 
+test('filling after the first marker follows later meter changes', () => {
+  const score = setMeter(emptyScore(), 1, { beats: 3, unit: 4 });
+  const state = createScoreEditor(score, { measures: [1], beats: [] });
+  assert.deepEqual(fillScoreMeasures(state, 1, 120, 7).timeMap.measures, [1, 3, 4.5, 6]);
+});
+
 test('entry duration steps between supported figures and preserves its modifiers', () => {
   const duration = { base: 8, dots: 1, triplet: true } as const;
   assert.deepEqual(stepEntryDuration(duration, 'longer'), { ...duration, base: 4 });

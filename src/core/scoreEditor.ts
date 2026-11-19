@@ -14,7 +14,7 @@ import {
   type History,
 } from './score';
 import type { BaseValue, Duration, EditCursor, Score, TimeMap } from './scoreTypes';
-import { emptyTimeMap, generateMeasures } from './timeMap';
+import { emptyTimeMap } from './timeMap';
 
 export const ENTRY_BASES: readonly BaseValue[] = [1, 2, 4, 8, 16];
 
@@ -131,12 +131,19 @@ export function fillScoreMeasures(
   bpm: number,
   duration: number,
 ): ScoreEditorState {
-  // Coincide con el primer marcador que sustituye generateMeasures.
-  const index = state.timeMap.measures.filter((time) => time < start - 0.05).length;
-  const beats = measureMeter(state.history.present.score, index).beats;
-  if (start >= duration || (60 / bpm) * beats < 0.05) return state;
-  return updateScoreTimeMap(
-    state,
-    generateMeasures(state.timeMap, { start, bpm, beatsPerMeasure: beats, until: duration }),
-  );
+  if (!Number.isFinite(start) || start < 0 || !Number.isFinite(duration) || start >= duration)
+    return state;
+  const secondsPerBeat = 60 / bpm;
+  if (!Number.isFinite(secondsPerBeat) || secondsPerBeat <= 0) return state;
+  const score = state.history.present.score;
+  const measures = state.timeMap.measures.filter((time) => time < start - 0.05);
+  let meter = measureMeter(score, measures.length);
+  let beats = 0;
+  for (let time = start; time <= duration + 1e-9; time = start + beats * secondsPerBeat) {
+    meter = score.measures[measures.length]?.meter ?? meter;
+    if (measures.length >= MAX_SCORE_MEASURES || secondsPerBeat * meter.beats < 0.05) return state;
+    measures.push(Math.min(time, duration));
+    beats += meter.beats;
+  }
+  return updateScoreTimeMap(state, { ...state.timeMap, measures });
 }

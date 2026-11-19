@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analysisAudio, detectChord } from '../src/core/chroma';
+import { analysisAudio, detectChord, inferChord } from '../src/core/chroma';
 import { tunings } from '../src/core/instrument';
 import {
   changeMeasureMeter,
@@ -11,7 +11,13 @@ import {
   type Edit,
 } from '../src/core/score';
 import { layoutScore } from '../src/core/scoreLayout';
-import { scoreTimeline, pianoPosition, synthTones, scheduleTones } from '../src/core/scoreAudio';
+import {
+  chordSegment,
+  scoreTimeline,
+  pianoPosition,
+  synthTones,
+  scheduleTones,
+} from '../src/core/scoreAudio';
 import { printDocument } from '../src/core/tabPrint';
 import { positionAt } from '../src/core/timeMap';
 const bass = tunings.standard4;
@@ -59,7 +65,77 @@ test('event boundaries use marked beats, silence and score gaps', () => {
   );
   assert.deepEqual(positionAt(map, e.score, 2.6, 8), { measure: 0, beat: 1 });
   assert.equal(notes[3]!.midi, undefined);
-  assert.equal(scoreTimeline(e.score, { measures: [], beats: [] }, 8, bass).length, 0);
+  assert.deepEqual(scheduleTones(synthTones(notes), 2, 5, 1, 10, 8), [
+    { id: 0, midi: 33, when: 10, until: 10.6 },
+    { id: 1, midi: 34, when: 10.6, until: 12.2 },
+    { id: 2, midi: 35, when: 12.2, until: 13 },
+  ]);
+});
+test('written notes reach the scheduler without markers, at default and tapped tempos', () => {
+  const quarter = { base: 4, dots: 0 } as const;
+  let edit = insertNote(emptyScore({ beats: 2, unit: 4 }, 1), cursor, 0, quarter, bass);
+  edit = insertNote(edit.score, edit.cursor, 2, quarter, bass);
+  edit = insertNote(edit.score, edit.cursor, 3, quarter, bass);
+  const map = { measures: [], beats: [] };
+  const schedule = (bpm?: number) =>
+    scheduleTones(synthTones(scoreTimeline(edit.score, map, 8, bass, bpm)), 0, 8, 1, 10, 8);
+  assert.deepEqual(schedule(), [
+    { id: 0, midi: 33, when: 10, until: 10.5 },
+    { id: 1, midi: 35, when: 10.5, until: 11 },
+    { id: 2, midi: 36, when: 11, until: 11.5 },
+  ]);
+  assert.deepEqual(
+    schedule(60).map(({ when, until }) => [when, until]),
+    [
+      [10, 11],
+      [11, 12],
+      [12, 13],
+    ],
+  );
+  const partial = synthTones(scoreTimeline(edit.score, { measures: [2], beats: [] }, 3.2, bass));
+  assert.deepEqual(
+    partial.map(({ start, end }) => [start, end]),
+    [
+      [2, 2.5],
+      [2.5, 3],
+      [3, 3.2],
+    ],
+  );
+  assert.deepEqual(map.measures, []);
+});
+
+test('written pitch classes match chord qualities, with inversions and octave duplicates', () => {
+  const chords: [number[], string | null][] = [
+    [[48, 52, 55, 60], 'C'],
+    [[45, 48, 52], 'Am'],
+    [[43, 47, 50, 53], 'G7'],
+    [[60, 52, 55], 'C/E'],
+    [[48, 51, 54], 'Cdim'],
+    [[48, 52, 56], 'Caug'],
+    [[48, 50, 55], 'Csus2'],
+    [[48, 53, 55], 'Csus4'],
+    [[48, 52, 55, 59], 'Cmaj7'],
+    [[48, 51, 55, 58], 'Cm7'],
+    [[48, 51, 54, 58], 'Cm7♭5'],
+    [[48, 51, 54, 57], 'Cdim7'],
+    [[48, 55], null],
+    [[48, 52, 54, 55, 56], null],
+  ];
+  for (const [notes, symbol] of chords) assert.equal(inferChord(notes), symbol);
+});
+
+test('chord suggestions use the notes in each written chord segment', () => {
+  const score = emptyScore({ beats: 6, unit: 8 }, 1);
+  const bar = score.measures[0]!;
+  bar.events = [0, 4, 7, 7, 11, 14].map((fret, i) => ({
+    id: String(i),
+    duration: { base: 8, dots: 0 },
+    note: { string: 0, fret },
+  }));
+  bar.chords = [{ beat: 3, symbol: 'G7' }];
+  assert.equal(inferChord(chordSegment(bar, score.meter, 2, bass).notes), 'E');
+  assert.equal(inferChord(chordSegment(bar, score.meter, 3, bass).notes), 'B');
+  assert.deepEqual(bar.chords, [{ beat: 3, symbol: 'G7' }]);
 });
 test('synth schedules tied notes across bars, partial seek, speed and loop end', () => {
   const events = [0, 1, 2].map((i) => ({

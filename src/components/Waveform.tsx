@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Text, View } from 'react-native';
-import Svg, { ClipPath, Defs, Line, Path, Rect } from 'react-native-svg';
+import Svg, { ClipPath, Defs, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { envelope, loopFromTimes, wavePath } from '../core/waveform';
 import type { TimedEvent } from '../core/scoreAudio';
 import type { Loop } from '../platform/playerTypes';
@@ -9,6 +9,8 @@ import { Button, colors } from './ui';
 const ZOOMS = [1, 2, 4, 8, 16, 32] as const;
 const DOUBLE_TAP_MS = 320;
 const DRAG_PX = 5;
+const MARKER_RAIL = 36;
+const MARKER_WIDTH = 40;
 
 /**
  * Forma de onda navegable, al estilo de los reproductores de transcripción:
@@ -27,6 +29,7 @@ export function Waveform({
   onSeek,
   onSelect,
   onClearLoop,
+  onMoveMeasure,
   height = 120,
 }: {
   annotations: { events: TimedEvent[]; bars: number[] };
@@ -39,6 +42,7 @@ export function Waveform({
   onSeek: (time: number) => void;
   onSelect: (loop: Loop) => void;
   onClearLoop: () => void;
+  onMoveMeasure: (index: number, time: number) => void;
   height?: number;
 }) {
   const [width, setWidth] = useState(0);
@@ -47,6 +51,7 @@ export function Waveform({
   const [start, setStart] = useState(0);
   const [selecting, setSelecting] = useState(false);
   const [drag, setDrag] = useState<Loop | null>(null);
+  const [moving, setMoving] = useState<{ index: number; time: number } | null>(null);
   const span = duration / zoom;
   const viewStart = Math.max(0, Math.min(start, Math.max(0, duration - span)));
   const viewEnd = viewStart + span;
@@ -77,16 +82,12 @@ export function Waveform({
   const x = (t: number) => (span > 0 ? ((t - viewStart) / span) * width : 0);
   const scoreMarks = useMemo(() => {
     const px = (t: number) => ((t - viewStart) / span) * width;
-    const bars = annotations.bars
-      .filter((t) => t >= viewStart && t <= viewEnd)
-      .map((t) => `M${px(t)} 0v14`)
-      .join(' ');
     const notes = annotations.events
       .filter((e) => e.midi !== undefined && e.end > viewStart && e.start < viewEnd)
       .map((e) => `M${px(e.start)} ${height - 6}h${Math.max(1, px(e.end) - px(e.start) - 2)}`)
       .join(' ');
-    return { bars, notes };
-  }, [annotations, viewStart, viewEnd, span, width, height]);
+    return notes;
+  }, [annotations.events, viewStart, viewEnd, span, width, height]);
   const timeAtX = (px: number) =>
     Math.max(
       0,
@@ -96,16 +97,62 @@ export function Waveform({
       ),
     );
 
-  // Gestos: pulsar, arrastrar y doble pulsación, sobre la vista principal.
-  const gesture = useRef({ x0: 0, dragging: false, timeAtX });
+  const visibleBars = annotations.bars.flatMap((time, index) => {
+    const at = moving?.index === index ? moving.time : time;
+    if (at < viewStart || at > viewEnd) return [];
+    const px = x(at);
+    const left = Math.max(0, Math.min(width - MARKER_WIDTH, px - MARKER_WIDTH / 2));
+    return [{ index, time: at, px, left }];
+  });
+  const activeHandle = visibleBars.find((bar) => bar.index === moving?.index);
+  let lastRight = -Infinity;
+  const handles = visibleBars.filter((bar) => {
+    if (
+      activeHandle &&
+      bar !== activeHandle &&
+      Math.abs(bar.left - activeHandle.left) < MARKER_WIDTH + 2
+    )
+      return false;
+    if (bar.left < lastRight + 2) return false;
+    lastRight = bar.left + MARKER_WIDTH;
+    return true;
+  });
+  const measureAt = (px: number, py: number) =>
+    py <= MARKER_RAIL
+      ? handles.find((bar) => px >= bar.left && px <= bar.left + MARKER_WIDTH)
+      : undefined;
+  const moveTime = (index: number, time: number) =>
+    Math.max(
+      index > 0 ? annotations.bars[index - 1]! + 0.05 : 0,
+      Math.min(
+        time,
+        (annotations.bars[index + 1] ?? Infinity) - 0.05,
+        Math.max(0, duration - 0.001),
+      ),
+    );
+  // La banda superior mueve compases. Bajo ella, el arrastre sigue creando bucles.
+  const gesture = useRef({
+    x0: 0,
+    dragging: false,
+    timeAtX,
+    marker: undefined as (typeof handles)[number] | undefined,
+  });
   const pendingTap = useRef<{
     x: number;
     time: number;
     at: number;
     timer: ReturnType<typeof setTimeout>;
   } | null>(null);
-  const latest = useRef({ timeAtX, onSeek, onSelect, onClearLoop });
-  latest.current = { timeAtX, onSeek, onSelect, onClearLoop };
+  const latest = useRef({
+    timeAtX,
+    measureAt,
+    moveTime,
+    onSeek,
+    onSelect,
+    onClearLoop,
+    onMoveMeasure,
+  });
+  latest.current = { timeAtX, measureAt, moveTime, onSeek, onSelect, onClearLoop, onMoveMeasure };
   useEffect(
     () => () => {
       if (pendingTap.current) clearTimeout(pendingTap.current.timer);
@@ -120,26 +167,48 @@ export function Waveform({
         onMoveShouldSetPanResponder: () => true,
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: (e) => {
+          const { locationX, locationY } = e.nativeEvent;
           gesture.current = {
-            x0: e.nativeEvent.locationX,
+            x0: locationX,
             dragging: false,
             timeAtX: latest.current.timeAtX,
+            marker: latest.current.measureAt(locationX, locationY),
           };
+          if (gesture.current.marker && pendingTap.current) {
+            clearTimeout(pendingTap.current.timer);
+            pendingTap.current = null;
+          }
           setSelecting(true);
         },
         onPanResponderMove: (_, g) => {
           const active = gesture.current;
           if (!active.dragging && Math.abs(g.dx) < DRAG_PX) return;
           active.dragging = true;
+          if (active.marker) {
+            const { index, px } = active.marker;
+            setMoving({ index, time: latest.current.moveTime(index, active.timeAtX(px + g.dx)) });
+            return;
+          }
           const t0 = active.timeAtX(active.x0);
           const t1 = active.timeAtX(active.x0 + g.dx);
           setDrag({ a: Math.min(t0, t1), b: Math.max(t0, t1) });
         },
         onPanResponderRelease: (_, g) => {
-          const { x0, timeAtX, dragging } = gesture.current;
+          const { x0, timeAtX, dragging, marker } = gesture.current;
           const t0 = timeAtX(x0);
           setDrag(null);
+          setMoving(null);
           setSelecting(false);
+          if (marker) {
+            if (dragging || Math.abs(g.dx) >= DRAG_PX) {
+              const { index, px } = marker;
+              latest.current.onMoveMeasure(
+                index,
+                latest.current.moveTime(index, timeAtX(px + g.dx)),
+              );
+            } else latest.current.onSeek(marker.time);
+            return;
+          }
           if (dragging || Math.abs(g.dx) >= DRAG_PX) {
             const selection = loopFromTimes(t0, timeAtX(x0 + g.dx));
             if (selection) latest.current.onSelect(selection);
@@ -165,6 +234,7 @@ export function Waveform({
         },
         onPanResponderTerminate: () => {
           setDrag(null);
+          setMoving(null);
           setSelecting(false);
         },
       }),
@@ -209,7 +279,7 @@ export function Waveform({
       <View
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         accessibilityRole="adjustable"
-        accessibilityLabel="Forma de onda. Pulsa para saltar, arrastra para crear un bucle, doble pulsación para quitarlo"
+        accessibilityLabel="Forma de onda. Pulsa para saltar, arrastra un número para mover su compás o la onda para crear un bucle"
         accessibilityValue={{ text: `${Math.floor(position)} de ${Math.floor(duration)} segundos` }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
         onAccessibilityAction={(e) =>
@@ -269,8 +339,7 @@ export function Waveform({
                 />
               </>
             ) : null}
-            <Path d={scoreMarks.bars} stroke={colors.ink} strokeWidth={2} />
-            <Path d={scoreMarks.notes} stroke={colors.green} strokeWidth={4} />
+            <Path d={scoreMarks} stroke={colors.green} strokeWidth={4} />
             {markers
               .filter((m) => m.time >= viewStart && m.time <= viewEnd)
               .map((m) => (
@@ -295,6 +364,32 @@ export function Waveform({
                 strokeWidth={2}
               />
             ) : null}
+            {visibleBars.map((bar) => (
+              <Line
+                key={bar.index}
+                x1={bar.px}
+                x2={bar.px}
+                y1={0}
+                y2={height}
+                stroke={colors.green}
+                strokeWidth={2}
+              />
+            ))}
+            {handles.map(({ index, left }) => (
+              <React.Fragment key={index}>
+                <Rect x={left} y={4} width={MARKER_WIDTH} height={28} rx={6} fill={colors.green} />
+                <SvgText
+                  x={left + MARKER_WIDTH / 2}
+                  y={22}
+                  fill={colors.white}
+                  fontSize={13}
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {index + 1}
+                </SvgText>
+              </React.Fragment>
+            ))}
           </Svg>
         ) : null}
       </View>
